@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+{% load static %}
+<html lang="en" class="dark">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<script src="https://cdn.tailwindcss.com"></script>
+		<script>
+			tailwind.config = { darkMode: "class" };
+		</script>
+		<title>User Profile</title>
+	</head>
+	<body
+		class="bg-gray-900 text-gray-100 min-h-screen flex items-center justify-center p-6">
+		<a
+			href="{% url 'chat' %}"
+			class="fixed top-6 left-6 flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-300 bg-gray-800/50 backdrop-blur-sm hover:bg-gray-700 rounded-lg transition-all duration-200 border border-gray-700/50 shadow-lg hover:shadow-blue-500/10">
+			<svg
+				xmlns="http://www.w3.org/2000/svg"
+				class="h-5 w-5"
+				viewBox="0 0 24 24"
+				fill="none"
+				stroke="currentColor">
+				<path
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					stroke-width="2"
+					d="M19 12H5M12 19l-7-7 7-7" />
+			</svg>
+			<span>Back to Chat</span>
+		</a>
+
+		<div class="max-w-2xl mx-auto px-4 py-16">
+			<div class="bg-gray-800 rounded-2xl shadow-xl border border-gray-700/50">
+				<div class="p-6 border-b border-gray-700">
+					<div class="flex items-center justify-between">
+						<h2
+							class="text-2xl font-bold bg-gradient-to-r from-blue-400 to-blue-600 bg-clip-text text-transparent">Profile
+							Settings</h2>
+						<form method="post" action="{% url 'logout' %}" class="inline">
+							{% csrf_token %}
+							<button
+								type="submit"
+								class="px-4 py-2 text-sm font-medium text-red-400 hover:text-red-300 hover:bg-red-400/10 rounded-lg transition-colors">
+								Logout
+							</button>
+						</form>
+					</div>
+				</div>
+
+				<div class="p-6 space-y-8">
+					{% if user.profile_image %}
+					<div class="flex justify-center">
+						<div class="relative group">
+							<img
+								src="{{ user.profile_image.url }}"
+								alt="Profile Picture"
+								class="w-32 h-32 rounded-full object-cover ring-4 ring-blue-500/20 group-hover:ring-blue-500/40 transition-all duration-300" />
+							<div
+								class="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+								<span class="text-sm text-white">Change Photo</span>
+							</div>
+						</div>
+					</div>
+					{% endif %}
+
+					<div class="space-y-6">
+						<form method="post" enctype="multipart/form-data" class="space-y-6">
+							{% csrf_token %}
+							<input type="hidden" name="action" value="update_profile" />
+
+							<div class="space-y-2">
+								<label for="email"
+									class="text-sm font-medium text-gray-300">Email</label>
+								<input
+									type="email"
+									id="email"
+									name="email"
+									value="{{ user.email }}"
+									required
+									class="w-full px-4 py-2 bg-gray-700/50 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-100" />
+							</div>
+
+							<div class="space-y-2">
+								<label for="profile_image"
+									class="text-sm font-medium text-gray-300">Update
+									Profile Image</label>
+								<label
+									for="profile_image"
+									class="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-600 border-dashed rounded-lg cursor-pointer bg-gray-700/30 hover:bg-gray-700/50 transition-all">
+									<div class="flex flex-col items-center justify-center pt-5 pb-6">
+										<svg
+											class="w-8 h-8 mb-3 text-gray-400"
+											fill="none"
+											stroke="currentColor"
+											viewBox="0 0 24 24">
+											<path
+												stroke-linecap="round"
+												stroke-linejoin="round"
+												stroke-width="2"
+												d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+										</svg>
+										<p class="text-sm text-gray-400">
+											<span class="font-medium">Click to upload</span> or drag and drop
+										</p>
+									</div>
+									<input
+										id="profile_image"
+										name="profile_image"
+										type="file"
+										accept="image/*"
+										class="hidden" />
+								</label>
+							</div>
+
+							<button
+								type="submit"
+								class="w-full px-4 py-2 text-white font-medium bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800 rounded-lg transition-colors duration-200">
+								Update Profile
+							</button>
+						</form>
+
+						<div class="pt-6 border-t border-gray-700">
+							<h3 class="text-lg font-medium text-blue-400 mb-4">Learning
+								Preferences</h3>
+							<form method="post" name="update_preferences" class="space-y-6">
+								{% csrf_token %}
+								<input type="hidden" name="action" value="update_preferences" />
+
+								<div class="space-y-4">
+									<label class="text-sm font-medium text-gray-300">How do you prefer to
+										learn?</label>
+									<div class="mt-2 grid grid-cols-2 gap-4">
+										<div class="learning-style-toggle">
+											<input
+												type="checkbox"
+												id="visual"
+												name="learning_style_visual"
+												value="true"
+												class="hidden"
+												{% if user.learning_style_visual %}checked{% endif %} />
+											<label
+												for="visual"
+												class="block p-3 text-center rounded-lg border cursor-pointer transition-all duration-200 hover:bg-gray-700 {% if user.learning_style_visual %}bg-blue-600 border-blue-500{% else %}border-gray-600{% endif %}">
+												<svg
+													class="w-6 h-6 mx-auto mb-2"
+													fill="none"
+													stroke="currentColor"
+													viewBox="0 0 24 24">
+													<path
+														stroke-linecap="round"
+														stroke-linejoin="round"
+														stroke-width="2"
+														d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+												</svg>
+												<span class="text-sm text-gray-300">Videos & Diagrams</span>
+											</label>
+										</div>
+
+										<div class="learning-style-toggle">
+											<input
+												type="checkbox"
+												id="auditory"
+												name="learning_style_auditory"
+												value="true"
+												class="hidden"
+												{% if user.learning_style_auditory %}checked{% endif %} />
+											<label
+												for="auditory"
+												class="block p-3 text-center rounded-lg border cursor-pointer transition-all duration-200 hover:bg-gray-700 {% if user.learning_style_auditory %}bg-blue-600 border-blue-500{% else %}border-gray-600{% endif %}">
+												<svg
+													class="w-6 h-6 mx-auto mb-2"
+													fill="none"
+													stroke="currentColor"
+													viewBox="0 0 24 24">
+													<path
+														stroke-linecap="round"
+														stroke-linejoin="round"
+														stroke-width="2"
+														d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+												</svg>
+												<span class="text-sm text-gray-300">Audio & Discussion</span>
+											</label>
+										</div>
+
+										<div class="learning-style-toggle">
+											<input
+												type="checkbox"
+												id="kinesthetic"
+												name="learning_style_kinesthetic"
+												value="true"
+												class="hidden"
+												{% if user.learning_style_kinesthetic %}checked{% endif %} />
+											<label
+												for="kinesthetic"
+												class="block p-3 text-center rounded-lg border cursor-pointer transition-all duration-200 hover:bg-gray-700 {% if user.learning_style_kinesthetic %}bg-blue-600 border-blue-500{% else %}border-gray-600{% endif %}">
+												<svg
+													class="w-6 h-6 mx-auto mb-2"
+													fill="none"
+													stroke="currentColor"
+													viewBox="0 0 24 24">
+													<path
+														stroke-linecap="round"
+														stroke-linejoin="round"
+														stroke-width="2"
+														d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+												</svg>
+												<span class="text-sm text-gray-300">Hands-on Activities</span>
+											</label>
+										</div>
+
+										<div class="learning-style-toggle">
+											<input
+												type="checkbox"
+												id="reading"
+												name="learning_style_reading"
+												value="true"
+												class="hidden"
+												{% if user.learning_style_reading %} checked {% endif %} />
+											<label
+												for="reading"
+												class="block p-3 text-center rounded-lg border cursor-pointer transition-all duration-200 hover:bg-gray-700 {% if user.learning_style_reading %}bg-blue-600 border-blue-500{% else %}border-gray-600{% endif %}">
+												<svg
+													class="w-6 h-6 mx-auto mb-2"
+													fill="none"
+													stroke="currentColor"
+													viewBox="0 0 24 24">
+													<path
+														stroke-linecap="round"
+														stroke-linejoin="round"
+														stroke-width="2"
+														d="M12 20h9M12 4h9M4 9h16M4 15h16M4 20h8" />
+												</svg>
+												<span class="text-sm text-gray-300">Reading & Writing</span>
+											</label>
+										</div>
+									</div>
+								</div>
+
+								<div class="space-y-4">
+									<label class="text-sm font-medium text-gray-300">Preferred study
+										session
+										length:</label>
+									<div class="mt-2 flex gap-4">
+										{% for value, label in user.STUDY_TIME_CHOICES %}
+										<button
+											type="button"
+											data-value="{{ value }}"
+											class="study-time-btn flex-1 p-3 text-center rounded-lg border border-gray-600 text-sm text-gray-300 hover:bg-gray-700 transition-all duration-200 {% if user.preferred_study_time == value %}bg-blue-600 border-blue-500{% endif %}">
+											{{ label }}<br />
+											{% if value == 'short' %}(25-30 mins) {% elif value == 'medium' %}(30-60 mins) {% else %}(1-2 hours){% endif %}
+										</button>
+										{% endfor %}
+										<input
+											type="hidden"
+											name="preferred_study_time"
+											id="preferred_study_time"
+											value="{{ user.preferred_study_time }}" />
+									</div>
+								</div>
+
+								<div class="space-y-4">
+									<label class="text-sm font-medium text-gray-300">
+										Fields you're interested in:</label>
+									<div class="relative">
+										<input
+											type="text"
+											id="interest-input"
+											placeholder="Type to search or add new interest..."
+											class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-100"
+											autocomplete="on" />
+										<div
+											id="interest-suggestions"
+											class="hidden absolute z-10 w-full mt-1 py-1 bg-gray-700 border border-gray-600 rounded-lg shadow-lg max-h-48 overflow-y-auto"></div>
+									</div>
+									<div id="selected-interests" class="flex flex-wrap gap-2">
+										{% for code, name in form.SUBJECT_CHOICES %}
+										<div
+											class="interest-tag hidden px-3 py-1 bg-blue-600 text-sm text-white rounded-full flex items-center gap-2">
+											<span>{{ name }}</span>
+											<button
+												type="button"
+												class="remove-interest text-white hover:text-gray-200">
+												×
+											</button>
+											<input type="hidden" name="interests[]" value="{{ code }}" />
+										</div>
+										{% endfor %}
+									</div>
+								</div>
+
+								<div class="space-y-4">
+									<label class="text-sm font-medium text-gray-300">How helpful do you
+										find
+										interactive quizzes?</label>
+									<div class="mt-4">
+										<div class="relative flex items-center justify-between px-2">
+											<div class="flex items-center justify-between w-full">
+												{% for i in "12345" %}
+												<div class="flex flex-col items-center">
+													<input type="radio" id="quiz_pref_{{ i }}"
+														name="quiz_preference" value="{{ i }}" class="sr-only peer"
+														{% if user.quiz_preference == i %}checked{% endif %}>
+													<label
+														for="quiz_pref_{{ i }}"
+														class="w-6 h-6 rounded-full bg-gray-700 border-2 border-gray-600 cursor-pointer peer-checked:bg-blue-600 peer-checked:border-blue-500 transition-all duration-200">
+													</label>
+													<span
+														class="mt-2 text-xs text-gray-400 text-center opacity-0 transition-opacity duration-200"
+														data-rating="{{ i }}">
+														{% if i == "1" %} Very helpful {% elif i == "5" %} Not
+														helpful {% endif %}
+													</span>
+												</div>
+												{% endfor %}
+											</div>
+										</div>
+									</div>
+								</div>
+
+								<button
+									type="submit"
+									class="w-full px-4 py-2 text-white font-medium bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800 rounded-lg transition-colors duration-200">
+									Update Preferences
+								</button>
+							</form>
+						</div>
+
+						<div class="pt-6 border-t border-gray-700">
+							<button type="button" id="togglePasswordChange"
+								class="px-4 py-2 text-sm font-medium text-gray-300 bg-gray-700/50 hover:bg-gray-700 rounded-lg transition-colors duration-200 flex items-center gap-2">
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4"
+									viewBox="0 0 24 24" fill="none" stroke="currentColor">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+										d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+								</svg>
+								Change Password
+							</button>
+						</div>
+
+						<div id="passwordChangeSection"
+							class="hidden pt-6 border-t border-gray-700 space-y-4">
+							<h3 class="text-lg font-medium text-blue-400 mb-4">Change Password</h3>
+							<form method="post" class="space-y-4">
+								{% csrf_token %}
+								<input type="hidden" name="action" value="change_password" />
+
+								<div class="space-y-2">
+									<label for="current_password"
+										class="text-sm font-medium text-gray-300">
+										Current Password
+									</label>
+									<input type="password" id="current_password" name="current_password"
+										required
+										class="w-full px-4 py-2 bg-gray-700/50 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-100" />
+								</div>
+
+								<div class="space-y-2">
+									<label for="new_password" class="text-sm font-medium text-gray-300">
+										New Password
+									</label>
+									<input type="password" id="new_password" name="new_password" required
+										class="w-full px-4 py-2 bg-gray-700/50 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-100" />
+								</div>
+
+								<div class="space-y-2">
+									<label for="confirm_password"
+										class="text-sm font-medium text-gray-300">
+										Confirm New Password
+									</label>
+									<input type="password" id="confirm_password" name="confirm_password"
+										required
+										class="w-full px-4 py-2 bg-gray-700/50 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-100" />
+								</div>
+
+								<div class="flex items-center gap-4">
+									<button type="submit"
+										class="px-4 py-2 text-white font-medium bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800 rounded-lg transition-colors duration-200">
+										Update Password
+									</button>
+									<button type="button" id="cancelPasswordChange"
+										class="px-4 py-2 text-sm font-medium text-gray-300 hover:bg-gray-700/50 rounded-lg transition-colors duration-200">
+										Cancel
+									</button>
+								</div>
+							</form>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			{% if messages %}
+			<div class="mt-6 space-y-2">
+				{% for message in messages %}
+				<div
+					class="p-4 rounded-lg backdrop-blur-sm border {% if message.tags == 'success' %}bg-green-900/50 border-green-500/30 text-green-200{% else %}bg-red-900/50 border-red-500/30 text-red-200{% endif %}">
+					{{ message }}
+				</div>
+				{% endfor %}
+			</div>
+			{% endif %}
+		</div>
+
+		<script>
+			// Preview uploaded image
+			document
+				.getElementById("profile_image")
+				.addEventListener("change", function (e) {
+					const file = e.target.files[0];
+					if (file) {
+						const reader = new FileReader();
+						reader.onload = function (e) {
+							const preview = document.createElement("img");
+							preview.src = e.target.result;
+							preview.classList.add(
+								"w-full",
+								"h-32",
+								"object-cover",
+								"rounded-lg"
+							);
+							const container = document.querySelector(
+								'label[for="profile_image"]'
+							);
+							container.innerHTML = "";
+							container.appendChild(preview);
+						};
+						reader.readAsDataURL(file);
+					}
+				});
+
+			// Learning style toggles
+			document
+				.querySelectorAll('.learning-style-toggle input[type="checkbox"]')
+				.forEach((checkbox) => {
+					checkbox.addEventListener("change", function () {
+						const label = this.nextElementSibling;
+						if (this.checked) {
+							label.classList.add("bg-blue-600", "border-blue-500");
+							label.classList.remove("border-gray-600");
+						} else {
+							label.classList.remove("bg-blue-600", "border-blue-500");
+							label.classList.add("border-gray-600");
+						}
+					});
+				});
+
+			// Study time buttons
+			document.querySelectorAll(".study-time-btn").forEach((btn) => {
+				btn.addEventListener("click", function () {
+					document.querySelectorAll(".study-time-btn").forEach((b) => {
+						b.classList.remove("bg-blue-600", "border-blue-500");
+						b.classList.add("border-gray-600");
+					});
+					this.classList.add("bg-blue-600", "border-blue-500");
+					this.classList.remove("border-gray-600");
+					document.getElementById("preferred_study_time").value =
+						this.dataset.value;
+				});
+			});
+
+			// Quiz preference radio buttons
+			document
+				.querySelectorAll('input[name="quiz_preference"]')
+				.forEach((radio) => {
+					radio.addEventListener("change", function () {
+						document.querySelectorAll("[data-rating]").forEach((label) => {
+							label.classList.add("opacity-0");
+						});
+						document
+							.querySelector(`[data-rating="${this.value}"]`)
+							.classList.remove("opacity-0");
+						document
+							.querySelector('[data-rating="1"]')
+							.classList.remove("opacity-0");
+						document
+							.querySelector('[data-rating="5"]')
+							.classList.remove("opacity-0");
+
+						const ratingTexts = {
+							1: "Very helpful",
+							2: "Helpful",
+							3: "Neutral",
+							4: "Not very helpful",
+							5: "Not helpful"
+						};
+						document.querySelector(
+							`[data-rating="${this.value}"]`
+						).textContent = ratingTexts[this.value];
+					});
+				});
+
+			// Initialize quiz preference with current value
+			const currentQuizPref = document.querySelector(
+				'input[name="quiz_preference"]:checked'
+			);
+			if (currentQuizPref) {
+				currentQuizPref.dispatchEvent(new Event("change"));
+			}
+
+			// Interest management - updated to match register.html
+			const interestInput = document.getElementById("interest-input");
+			const interestSuggestions = document.getElementById("interest-suggestions");
+			const selectedInterests = document.getElementById("selected-interests");
+			let availableInterests = [];
+
+			// Fetch available interests
+			async function fetchInterests() {
+				try {
+					const response = await fetch("/users/interests/");
+					if (response.ok) {
+						availableInterests = await response.json();
+					}
+				} catch (error) {
+					console.error("Error fetching interests:", error);
+				}
+			}
+
+			// Initialize interests
+			fetchInterests();
+
+			// Filter and show suggestions
+			interestInput.addEventListener("input", function() {
+				const value = this.value.toLowerCase();
+				if (!value) {
+					interestSuggestions.classList.add("hidden");
+					return;
+				}
+
+				// Get currently selected interests to prevent duplicates
+				const selectedValues = Array.from(
+					selectedInterests.querySelectorAll(".interest-tag")
+				).map(tag => tag.querySelector("span").textContent.toLowerCase());
+
+				const filtered = availableInterests.filter(
+					interest => 
+						interest.name.toLowerCase().includes(value) &&
+						!selectedValues.includes(interest.name.toLowerCase())
+				);
+
+				if (filtered.length > 0) {
+					interestSuggestions.innerHTML = filtered
+						.map(
+							interest => `
+						<div class="suggestion p-2 hover:bg-gray-600 cursor-pointer text-gray-200" 
+							data-id="${interest.id}" 
+							data-name="${interest.name}">
+							${interest.name}
+						</div>
+					`
+						)
+						.join("");
+					interestSuggestions.classList.remove("hidden");
+				} else {
+					// Show option to create new interest
+					interestSuggestions.innerHTML = `
+						<div class="suggestion p-2 hover:bg-gray-600 cursor-pointer text-gray-200" 
+							data-name="${value}">
+							Create "${value}"
+						</div>
+					`;
+					interestSuggestions.classList.remove("hidden");
+				}
+			});
+
+			// Handle suggestion clicks
+			interestSuggestions.addEventListener("click", async function(e) {
+				const suggestion = e.target.closest(".suggestion");
+				if (!suggestion) return;
+
+				const name = suggestion.dataset.name;
+				let id = suggestion.dataset.id;
+
+				// If no ID, create new interest
+				if (!id) {
+					try {
+						const response = await fetch("/users/interests/create/", {
+							method: "POST",
+							headers: {
+								"Content-Type": "application/json",
+								"X-CSRFToken": document.querySelector(
+									"[name=csrfmiddlewaretoken]"
+								).value
+							},
+							body: JSON.stringify({ name: name })
+						});
+						if (response.ok) {
+							const data = await response.json();
+							id = data.id;
+							availableInterests.push({ id: id, name: name });
+						}
+					} catch (error) {
+						console.error("Error creating interest:", error);
+						return;
+					}
+				}
+
+				// Add interest tag
+				const tag = document.createElement("div");
+				tag.className =
+					"interest-tag px-3 py-1 bg-blue-600 text-sm text-white rounded-full flex items-center gap-2";
+				tag.innerHTML = `
+					<span>${name}</span>
+					<button type="button" class="remove-interest text-white hover:text-gray-200">×</button>
+					<input type="hidden" name="interests[]" value="${id}">
+				`;
+				selectedInterests.appendChild(tag);
+
+				// Clear input and suggestions
+				interestInput.value = "";
+				interestSuggestions.classList.add("hidden");
+			});
+
+			// Handle interest removal
+			selectedInterests.addEventListener("click", function(e) {
+				if (e.target.classList.contains("remove-interest")) {
+					e.target.closest(".interest-tag").remove();
+				}
+			});
+
+			// Hide suggestions when clicking outside
+			document.addEventListener("click", function(e) {
+				if (
+					!e.target.closest("#interest-input") &&
+					!e.target.closest("#interest-suggestions")
+				) {
+					interestSuggestions.classList.add("hidden");
+				}
+			});
+
+			// Prevent form submission on enter in interest input
+			interestInput.addEventListener("keydown", function(e) {
+				if (e.key === "Enter") {
+					e.preventDefault();
+					const firstSuggestion = interestSuggestions.querySelector(".suggestion");
+					if (firstSuggestion) {
+						firstSuggestion.click();
+					}
+				}
+			});
+			
+			// Make sure each learning style toggle correctly shows its initial state
+			document
+				.querySelectorAll('.learning-style-toggle input[type="checkbox"]')
+				.forEach((checkbox) => {
+					if (checkbox.checked) {
+						const label = checkbox.nextElementSibling;
+						label.classList.add("bg-blue-600", "border-blue-500");
+						label.classList.remove("border-gray-600");
+					}
+				});
+
+			// Toggle password change section
+			const togglePasswordBtn = document.getElementById('togglePasswordChange');
+			const cancelPasswordBtn = document.getElementById('cancelPasswordChange');
+			const passwordSection = document.getElementById('passwordChangeSection');
+
+			togglePasswordBtn.addEventListener('click', () => {
+				passwordSection.classList.remove('hidden');
+				togglePasswordBtn.classList.add('hidden');
+			});
+
+			cancelPasswordBtn.addEventListener('click', () => {
+				passwordSection.classList.add('hidden');
+				togglePasswordBtn.classList.remove('hidden');
+				// Reset form
+				const form = passwordSection.querySelector('form');
+				if (form) form.reset();
+			});
+		</script>
+	</body>
+</html>

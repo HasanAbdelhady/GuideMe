@@ -1,0 +1,5 @@
+replicate
+python-dotenv
+django
+groq
+PyPDF2

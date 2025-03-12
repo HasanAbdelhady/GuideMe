@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+{%load static%}
+
+<html lang="en" class="dark">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<script src="https://cdn.tailwindcss.com"></script>
+		<script>
+			tailwind.config = { darkMode: "class" };
+		</script>
+		<title>User Registration</title>
+	</head>
+	<body
+		class="bg-gray-900 text-gray-100 min-h-screen flex items-center justify-center p-6"
+	>
+		<div class="max-w-md w-full bg-gray-800 p-8 rounded-xl shadow-2xl">
+			<h2 class="text-3xl font-bold text-center mb-8 text-blue-400">
+				Create Account
+			</h2>
+
+			{% if messages %}
+			<div class="mb-6 space-y-2">
+				{% for message in messages %}
+				<div
+					class="p-4 rounded-lg {% if message.tags == 'success' %}bg-green-800 text-green-200{% else %}bg-red-800 text-red-200{% endif %}"
+				>
+					{{ message }}
+				</div>
+				{% endfor %}
+			</div>
+			{% endif %}
+
+			<form method="POST" enctype="multipart/form-data" class="space-y-6">
+				{% csrf_token %}
+				<div class="space-y-2">
+					<label for="username" class="text-sm font-medium text-gray-300"
+						>Username</label
+					>
+					<input
+						type="text"
+						id="username"
+						name="username"
+						required
+						class="w-full px-4 py-2 bg-gray-700 border {% if form.username.errors %}border-red-500{% else %}border-gray-600{% endif %} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-100"
+					/>
+					{% if form.username.errors %}
+					<p class="text-sm text-red-400">{{ form.username.errors.0 }}</p>
+					{% endif %}
+				</div>
+				<div class="space-y-2">
+					<label for="email" class="text-sm font-medium text-gray-300"
+						>Email</label
+					>
+					<input
+						type="email"
+						id="email"
+						name="email"
+						required
+						class="w-full px-4 py-2 bg-gray-700 border {% if form.email.errors %}border-red-500{% else %}border-gray-600{% endif %} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-100"
+					/>
+					{% if form.email.errors %}
+					<p class="text-sm text-red-400">{{ form.email.errors.0 }}</p>
+					{% endif %}
+				</div>
+				<div class="space-y-2">
+					<label for="password1" class="text-sm font-medium text-gray-300"
+						>Password</label
+					>
+					<input
+						type="password"
+						id="password1"
+						name="password1"
+						required
+						class="w-full px-4 py-2 bg-gray-700 border {% if form.password1.errors %}border-red-500{% else %}border-gray-600{% endif %} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-100"
+					/>
+					{% if form.password1.errors %}
+					<p class="text-sm text-red-400">{{ form.password1.errors.0 }}</p>
+					{% endif %}
+				</div>
+				<div class="space-y-2">
+					<label for="password2" class="text-sm font-medium text-gray-300"
+						>Confirm Password</label
+					>
+					<input
+						type="password"
+						id="password2"
+						name="password2"
+						required
+						class="w-full px-4 py-2 bg-gray-700 border {% if form.password2.errors %}border-red-500{% else %}border-gray-600{% endif %} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-100"
+					/>
+					{% if form.password2.errors %}
+					<p class="text-sm text-red-400">{{ form.password2.errors.0 }}</p>
+					{% endif %}
+				</div>
+				<div class="space-y-2">
+					<label for="profile_image" class="text-sm font-medium text-gray-300"
+						>Profile Image</label
+					>
+					<div class="flex items-center justify-center w-full">
+						<label
+							for="profile_image"
+							class="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-600 border-dashed rounded-lg cursor-pointer bg-gray-700 hover:bg-gray-600 transition-all"
+						>
+							<div class="flex flex-col items-center justify-center pt-5 pb-6">
+								<svg
+									class="w-8 h-8 mb-4 text-gray-400"
+									aria-hidden="true"
+									xmlns="http://www.w3.org/2000/svg"
+									fill="none"
+									viewBox="0 0 20 16"
+								>
+									<path
+										stroke="currentColor"
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										stroke-width="2"
+										d="M13 13h3a3 3 0 0 0 0-6h-.025A5.56 5.56 0 0 0 16 6.5 5.5 5.5 0 0 0 5.207 5.021C5.137 5.017 5.071 5 5 5a4 4 0 0 0 0 8h2.167M10 15V6m0 0L8 8m2-2 2 2"
+									/>
+								</svg>
+								<p class="mb-2 text-sm text-gray-400">
+									<span class="font-semibold">Click to upload</span> or drag and
+									drop
+								</p>
+								<p class="text-xs text-gray-400">
+									PNG, JPG or GIF (MAX. 800x400px)
+								</p>
+							</div>
+							<input
+								id="profile_image"
+								name="profile_image"
+								type="file"
+								accept="image/*"
+								class="hidden"
+							/>
+						</label>
+					</div>
+				</div>
+				<div class="space-y-6 pt-6 border-t border-gray-700">
+					<h3 class="text-lg font-medium text-gray-300">
+						Learning Preferences
+					</h3>
+
+					<!-- Learning Style Questions -->
+					<div class="space-y-4">
+						<div>
+							<label class="text-sm font-medium text-gray-300"
+								>How do you prefer to learn? (Select all that apply)</label
+							>
+							<div class="mt-2 grid grid-cols-2 gap-4">
+								<div class="learning-style-toggle">
+									<input
+										type="checkbox"
+										id="visual"
+										name="learning_style_visual"
+										value="3"
+										class="hidden"
+									/>
+									<label
+										for="visual"
+										class="block p-3 text-center rounded-lg border border-gray-600 cursor-pointer transition-all duration-200 hover:bg-gray-700"
+									>
+										<svg
+											class="w-6 h-6 mx-auto mb-2"
+											fill="none"
+											stroke="currentColor"
+											viewBox="0 0 24 24"
+										>
+											<path
+												stroke-linecap="round"
+												stroke-linejoin="round"
+												stroke-width="2"
+												d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
+											/>
+										</svg>
+										<span class="text-sm text-gray-300">Videos & Diagrams</span>
+									</label>
+								</div>
+								<div class="learning-style-toggle">
+									<input
+										type="checkbox"
+										id="auditory"
+										name="learning_style_auditory"
+										value="3"
+										class="hidden"
+									/>
+									<label
+										for="auditory"
+										class="block p-3 text-center rounded-lg border border-gray-600 cursor-pointer transition-all duration-200 hover:bg-gray-700"
+									>
+										<svg
+											class="w-6 h-6 mx-auto mb-2"
+											fill="none"
+											stroke="currentColor"
+											viewBox="0 0 24 24"
+										>
+											<path
+												stroke-linecap="round"
+												stroke-linejoin="round"
+												stroke-width="2"
+												d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"
+											/>
+										</svg>
+										<span class="text-sm text-gray-300"
+											>Listening & Discussion</span
+										>
+									</label>
+								</div>
+								<div class="learning-style-toggle">
+									<input
+										type="checkbox"
+										id="kinesthetic"
+										name="learning_style_kinesthetic"
+										value="3"
+										class="hidden"
+									/>
+									<label
+										for="kinesthetic"
+										class="block p-3 text-center rounded-lg border border-gray-600 cursor-pointer transition-all duration-200 hover:bg-gray-700"
+									>
+										<svg
+											class="w-6 h-6 mx-auto mb-2"
+											fill="none"
+											stroke="currentColor"
+											viewBox="0 0 24 24"
+										>
+											<path
+												stroke-linecap="round"
+												stroke-linejoin="round"
+												stroke-width="2"
+												d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+											/>
+										</svg>
+										<span class="text-sm text-gray-300">Hands-on Practice</span>
+									</label>
+								</div>
+								<div class="learning-style-toggle">
+									<input
+										type="checkbox"
+										id="reading"
+										name="learning_style_reading"
+										value="3"
+										class="hidden"
+									/>
+									<label
+										for="reading"
+										class="block p-3 text-center rounded-lg border border-gray-600 cursor-pointer transition-all duration-200 hover:bg-gray-700"
+									>
+										<svg
+											class="w-6 h-6 mx-auto mb-2"
+											fill="none"
+											stroke="currentColor"
+											viewBox="0 0 24 24"
+										>
+											<path
+												stroke-linecap="round"
+												stroke-linejoin="round"
+												stroke-width="2"
+												d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
+											/>
+										</svg>
+										<span class="text-sm text-gray-300">Reading & Writing</span>
+									</label>
+								</div>
+							</div>
+						</div>
+
+						<!-- Study Time Preference -->
+						<div>
+							<label class="text-sm font-medium text-gray-300"
+								>Preferred study session length:</label
+							>
+							<div class="mt-2 flex gap-4">
+								<button
+									type="button"
+									data-value="short"
+									class="study-time-btn flex-1 p-3 text-center rounded-lg border border-gray-600 text-sm text-gray-300 hover:bg-gray-700 transition-all duration-200"
+								>
+									Short bursts<br />(25-30 mins)
+								</button>
+								<button
+									type="button"
+									data-value="medium"
+									class="study-time-btn flex-1 p-3 text-center rounded-lg border border-gray-600 text-sm text-gray-300 hover:bg-gray-700 transition-all duration-200"
+								>
+									Medium sessions<br />(30-60 mins)
+								</button>
+								<button
+									type="button"
+									data-value="long"
+									class="study-time-btn flex-1 p-3 text-center rounded-lg border border-gray-600 text-sm text-gray-300 hover:bg-gray-700 transition-all duration-200"
+								>
+									Long sessions<br />(1-2 hours)
+								</button>
+								<input
+									type="hidden"
+									name="preferred_study_time"
+									id="preferred_study_time"
+								/>
+							</div>
+						</div>
+
+						<!-- Subject Interests -->
+						<div class="space-y-4">
+							<label class="text-sm font-medium text-gray-300"
+								>Fields you're interested in:</label
+							>
+							<div class="relative">
+								<input
+									type="text"
+									id="interest-input"
+									placeholder="Type to search or add new interest..."
+									class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-100"
+								/>
+								<!-- Suggestions dropdown -->
+								<div
+									id="interest-suggestions"
+									class="hidden absolute z-10 w-full mt-1 py-1 bg-gray-700 border border-gray-600 rounded-lg shadow-lg max-h-48 overflow-y-auto"
+								></div>
+							</div>
+							<!-- Selected interests will appear here -->
+							<div id="selected-interests" class="flex flex-wrap gap-2">
+								{% for code, name in form.SUBJECT_CHOICES %}
+								<div
+									class="interest-tag hidden px-3 py-1 bg-blue-600 text-sm text-white rounded-full flex items-center gap-2"
+								>
+									<span>{{ name }}</span>
+									<button
+										type="button"
+										class="remove-interest text-white hover:text-gray-200"
+									>
+										×
+									</button>
+									<input type="hidden" name="interests[]" value="{{ code }}" />
+								</div>
+								{% endfor %}
+							</div>
+						</div>
+
+						<!-- Quiz Preference -->
+						<div>
+							<label class="text-sm font-medium text-gray-300"
+								>How helpful do you find interactive quizzes?</label
+							>
+							<div class="mt-4">
+								<div class="relative flex items-center justify-between px-2">
+									<!-- Radio buttons -->
+									<div class="flex items-center justify-between w-full">
+										{% for i in "12345" %}
+										<div class="flex flex-col items-center">
+											<input type="radio" id="quiz_pref_{{ i }}"
+											name="quiz_preference" value="{{ i }}" class="sr-only
+											peer" {% if i == "3" %}checked{% endif %}>
+											<label
+												for="quiz_pref_{{ i }}"
+												class="w-6 h-6 rounded-full bg-gray-700 border-2 border-gray-600 cursor-pointer peer-checked:bg-blue-600 peer-checked:border-blue-500 transition-all duration-200"
+											></label>
+											<span
+												class="mt-2 text-xs text-gray-400 text-center opacity-0 transition-opacity duration-200"
+												data-rating="{{ i }}"
+											>
+												{% if i == "1" %} Very helpful {% elif i == "5" %} Not
+												helpful {% endif %}
+											</span>
+										</div>
+										{% endfor %}
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+				<button
+					type="submit"
+					class="w-full px-4 py-2 text-white font-medium bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800 rounded-lg transition-colors duration-200"
+				>
+					Register
+				</button>
+			</form>
+			<p class="mt-6 text-center text-gray-400">
+				Already have an account?
+				<a href="{% url 'login' %}" class="text-blue-400 hover:text-blue-300"
+					>Login here</a
+				>
+			</p>
+		</div>
+
+		<script>
+			// Preview uploaded image
+			document
+				.getElementById("profile_image")
+				.addEventListener("change", function (e) {
+					const file = e.target.files[0];
+					if (file) {
+						const reader = new FileReader();
+						reader.onload = function (e) {
+							const preview = document.createElement("img");
+							preview.src = e.target.result;
+							preview.classList.add(
+								"w-full",
+								"h-32",
+								"object-cover",
+								"rounded-lg"
+							);
+							const container = document.querySelector(
+								'label[for="profile_image"]'
+							);
+							container.innerHTML = "";
+							container.appendChild(preview);
+						};
+						reader.readAsDataURL(file);
+					}
+				});
+
+			// Learning style toggles
+			document
+				.querySelectorAll('.learning-style-toggle input[type="checkbox"]')
+				.forEach((checkbox) => {
+					checkbox.addEventListener("change", function () {
+						const label = this.nextElementSibling;
+						if (this.checked) {
+							label.classList.add("bg-blue-600", "border-blue-500");
+							label.classList.remove("border-gray-600");
+						} else {
+							label.classList.remove("bg-blue-600", "border-blue-500");
+							label.classList.add("border-gray-600");
+						}
+					});
+				});
+
+			// Study time buttons
+			document.querySelectorAll(".study-time-btn").forEach((btn) => {
+				btn.addEventListener("click", function () {
+					document.querySelectorAll(".study-time-btn").forEach((b) => {
+						b.classList.remove("bg-blue-600", "border-blue-500");
+						b.classList.add("border-gray-600");
+					});
+					this.classList.add("bg-blue-600", "border-blue-500");
+					this.classList.remove("border-gray-600");
+					document.getElementById("preferred_study_time").value =
+						this.dataset.value;
+				});
+			});
+
+			// Quiz preference radio buttons
+			document
+				.querySelectorAll('input[name="quiz_preference"]')
+				.forEach((radio) => {
+					radio.addEventListener("change", function () {
+						// Hide all labels first
+						document.querySelectorAll("[data-rating]").forEach((label) => {
+							label.classList.add("opacity-0");
+						});
+
+						// Show clicked label and edge labels
+						document
+							.querySelector(`[data-rating="${this.value}"]`)
+							.classList.remove("opacity-0");
+						document
+							.querySelector('[data-rating="1"]')
+							.classList.remove("opacity-0");
+						document
+							.querySelector('[data-rating="5"]')
+							.classList.remove("opacity-0");
+
+						// Update text based on selection
+						const ratingTexts = {
+							1: "Very helpful",
+							2: "Helpful",
+							3: "Neutral",
+							4: "Not very helpful",
+							5: "Not helpful"
+						};
+
+						document.querySelector(
+							`[data-rating="${this.value}"]`
+						).textContent = ratingTexts[this.value];
+					});
+				});
+
+			// Initialize with default value (3)
+			document
+				.querySelector('input[name="quiz_preference"][value="3"]')
+				.dispatchEvent(new Event("change"));
+
+			// Interest management
+			const interestInput = document.getElementById("interest-input");
+			const suggestionsDiv = document.getElementById("interest-suggestions");
+			const selectedInterests = document.getElementById("selected-interests");
+
+			// Define predefined interests directly
+			const predefinedInterests = [
+				{ code: "ml", name: "Machine Learning" },
+				{ code: "dl", name: "Deep Learning" },
+				{ code: "nlp", name: "Natural Language Processing" },
+				{ code: "cv", name: "Computer Vision" },
+				{ code: "ai", name: "Artificial Intelligence" },
+				{ code: "ds", name: "Data Science" },
+				{ code: "py", name: "Python Programming" },
+				{ code: "dsa", name: "Data Structures & Algorithms" },
+				{ code: "db", name: "Databases" },
+				{ code: "web", name: "Web Development" },
+				{ code: "cloud", name: "Cloud Computing" },
+				{ code: "sec", name: "Cybersecurity" },
+				{ code: "rob", name: "Robotics" },
+				{ code: "de", name: "Data Engineering" }
+			];
+
+			function createInterestTag(name, code = null) {
+				const tag = document.createElement("div");
+				tag.className =
+					"interest-tag px-3 py-1 bg-blue-600 text-sm text-white rounded-full flex items-center gap-2";
+				tag.innerHTML = `
+					<span>${name}</span>
+					<button type="button" class="remove-interest text-white hover:text-gray-200">×</button>
+					<input type="hidden" name="interests[]" value="${code || name}">
+				`;
+				tag.querySelector(".remove-interest").addEventListener("click", () => {
+					tag.remove();
+					showSuggestions(interestInput.value);
+				});
+				return tag;
+			}
+
+			function showSuggestions(input) {
+				const value = input.toLowerCase();
+				const selectedValues = Array.from(
+					selectedInterests.querySelectorAll(".interest-tag:not(.hidden)")
+				).map((tag) => tag.querySelector("span").textContent.toLowerCase());
+
+				const filtered = predefinedInterests.filter(
+					(interest) =>
+						interest.name.toLowerCase().includes(value) &&
+						!selectedValues.includes(interest.name.toLowerCase())
+				);
+
+				if (filtered.length && value) {
+					suggestionsDiv.innerHTML = filtered
+						.map(
+							(interest) => `
+							<div class="suggestion p-2 hover:bg-gray-600 cursor-pointer" 
+								 data-code="${interest.code}">
+								${interest.name}
+							</div>
+						`
+						)
+						.join("");
+					suggestionsDiv.classList.remove("hidden");
+				} else {
+					suggestionsDiv.classList.add("hidden");
+				}
+			}
+
+			interestInput.addEventListener("input", () => {
+				showSuggestions(interestInput.value);
+			});
+
+			interestInput.addEventListener("keypress", (e) => {
+				if (e.key === "Enter" && interestInput.value.trim()) {
+					e.preventDefault();
+					const interest = interestInput.value.trim();
+					const selectedValues = Array.from(
+						selectedInterests.querySelectorAll(".interest-tag:not(.hidden)")
+					).map((tag) => tag.querySelector("span").textContent.toLowerCase());
+
+					if (!selectedValues.includes(interest.toLowerCase())) {
+						selectedInterests.appendChild(createInterestTag(interest));
+					}
+					interestInput.value = "";
+					suggestionsDiv.classList.add("hidden");
+				}
+			});
+
+			suggestionsDiv.addEventListener("click", (e) => {
+				const suggestion = e.target.closest(".suggestion");
+				if (suggestion) {
+					selectedInterests.appendChild(
+						createInterestTag(
+							suggestion.textContent.trim(),
+							suggestion.dataset.code
+						)
+					);
+					interestInput.value = "";
+					suggestionsDiv.classList.add("hidden");
+				}
+			});
+
+			document.addEventListener("click", (e) => {
+				if (
+					!interestInput.contains(e.target) &&
+					!suggestionsDiv.contains(e.target)
+				) {
+					suggestionsDiv.classList.add("hidden");
+				}
+			});
+		</script>
+	</body>
+</html>
