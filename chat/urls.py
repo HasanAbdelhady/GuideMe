@@ -10,8 +10,6 @@ urlpatterns = [
     path('', ChatListView.as_view(), name='chat_list'),
     path('new/', ChatView.as_view(), name='new_chat'),
     path('create/', views.create_chat, name='create_chat'),
-    path('update_system_prompt/', views.update_system_prompt,
-         name='update_system_prompt'),
     path('<int:chat_id>/', ChatView.as_view(), name='chat_detail'),
     path('<int:chat_id>/stream/', ChatStreamView.as_view(), name='chat_stream'),
     path('<int:chat_id>/delete/', views.delete_chat, name='delete_chat'),

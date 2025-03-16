@@ -320,7 +320,7 @@
 							</div>
 							<!-- Selected interests will appear here -->
 							<div id="selected-interests" class="flex flex-wrap gap-2">
-								{% for code, name in form.SUBJECT_CHOICES %}
+								{% for id, name in form.SUBJECT_CHOICES %}
 								<div
 									class="interest-tag hidden px-3 py-1 bg-blue-600 text-sm text-white rounded-full flex items-center gap-2"
 								>
@@ -331,7 +331,7 @@
 									>
 										×
 									</button>
-									<input type="hidden" name="interests[]" value="{{ code }}" />
+									<input type="hidden" name="interests" value="{{ id }}" />
 								</div>
 								{% endfor %}
 							</div>
@@ -488,39 +488,39 @@
 			const suggestionsDiv = document.getElementById("interest-suggestions");
 			const selectedInterests = document.getElementById("selected-interests");
 
-			// Define predefined interests directly
-			const predefinedInterests = [
-				{ code: "ml", name: "Machine Learning" },
-				{ code: "dl", name: "Deep Learning" },
-				{ code: "nlp", name: "Natural Language Processing" },
-				{ code: "cv", name: "Computer Vision" },
-				{ code: "ai", name: "Artificial Intelligence" },
-				{ code: "ds", name: "Data Science" },
-				{ code: "py", name: "Python Programming" },
-				{ code: "dsa", name: "Data Structures & Algorithms" },
-				{ code: "db", name: "Databases" },
-				{ code: "web", name: "Web Development" },
-				{ code: "cloud", name: "Cloud Computing" },
-				{ code: "sec", name: "Cybersecurity" },
-				{ code: "rob", name: "Robotics" },
-				{ code: "de", name: "Data Engineering" }
-			];
+				// Update the predefined interests array to use numeric IDs
+				const predefinedInterests = [
+					{ id: 1, name: "Machine Learning" },
+					{ id: 2, name: "Deep Learning" },
+					{ id: 3, name: "Natural Language Processing" },
+					{ id: 4, name: "Computer Vision" },
+					{ id: 5, name: "Artificial Intelligence" },
+					{ id: 6, name: "Data Science" },
+					{ id: 7, name: "Python Programming" },
+					{ id: 8, name: "Data Structures & Algorithms" },
+					{ id: 9, name: "Databases" },
+					{ id: 10, name: "Web Development" },
+					{ id: 11, name: "Cloud Computing" },
+					{ id: 12, name: "Cybersecurity" },
+					{ id: 13, name: "Robotics" },
+					{ id: 14, name: "Data Engineering" }
+				];
 
-			function createInterestTag(name, code = null) {
-				const tag = document.createElement("div");
-				tag.className =
-					"interest-tag px-3 py-1 bg-blue-600 text-sm text-white rounded-full flex items-center gap-2";
-				tag.innerHTML = `
-					<span>${name}</span>
-					<button type="button" class="remove-interest text-white hover:text-gray-200">×</button>
-					<input type="hidden" name="interests[]" value="${code || name}">
-				`;
-				tag.querySelector(".remove-interest").addEventListener("click", () => {
-					tag.remove();
-					showSuggestions(interestInput.value);
-				});
-				return tag;
-			}
+				function createInterestTag(name, id = null) {
+					const tag = document.createElement("div");
+					tag.className =
+						"interest-tag px-3 py-1 bg-blue-600 text-sm text-white rounded-full flex items-center gap-2";
+					tag.innerHTML = `
+						<span>${name}</span>
+						<button type="button" class="remove-interest text-white hover:text-gray-200">×</button>
+						<input type="hidden" name="interests" value="${id || name}">
+					`;
+					tag.querySelector(".remove-interest").addEventListener("click", () => {
+						tag.remove();
+						showSuggestions(interestInput.value);
+					});
+					return tag;
+				}
 
 			function showSuggestions(input) {
 				const value = input.toLowerCase();
@@ -534,12 +534,13 @@
 						!selectedValues.includes(interest.name.toLowerCase())
 				);
 
+				// Update the suggestions HTML generation
 				if (filtered.length && value) {
 					suggestionsDiv.innerHTML = filtered
 						.map(
 							(interest) => `
 							<div class="suggestion p-2 hover:bg-gray-600 cursor-pointer" 
-								 data-code="${interest.code}">
+								 data-id="${interest.id}">
 								${interest.name}
 							</div>
 						`
@@ -571,13 +572,14 @@
 				}
 			});
 
+			// Update the suggestion click handler
 			suggestionsDiv.addEventListener("click", (e) => {
 				const suggestion = e.target.closest(".suggestion");
 				if (suggestion) {
 					selectedInterests.appendChild(
 						createInterestTag(
 							suggestion.textContent.trim(),
-							suggestion.dataset.code
+							suggestion.dataset.id
 						)
 					);
 					interestInput.value = "";
@@ -591,6 +593,31 @@
 					!suggestionsDiv.contains(e.target)
 				) {
 					suggestionsDiv.classList.add("hidden");
+				}
+			});
+
+			// Add this to register.html script section
+			document.querySelector("form").addEventListener("submit", function (e) {
+				// Check if at least one learning style is selected
+				const learningStyles = ["visual", "auditory", "kinesthetic", "reading"];
+				const hasStyle = learningStyles.some(
+					(style) =>
+						document.querySelector(`input[name="learning_style_${style}"]`)
+							.checked
+				);
+
+				if (!hasStyle) {
+					e.preventDefault();
+					alert("Please select at least one learning style.");
+					return false;
+				}
+
+				// Check if study time is selected
+				const studyTime = document.getElementById("preferred_study_time").value;
+				if (!studyTime) {
+					e.preventDefault();
+					alert("Please select a preferred study session length.");
+					return false;
 				}
 			});
 		</script>

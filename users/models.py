@@ -1,11 +1,6 @@
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 
-class Subject(models.Model):
-    name = models.CharField(max_length=100, unique=True)
-    
-    def __str__(self):
-        return self.name
 
 class Interest(models.Model):
     name = models.CharField(max_length=100, unique=True)
@@ -17,27 +12,12 @@ class Interest(models.Model):
     class Meta:
         ordering = ['name']
 
+
 class CustomUser(AbstractUser):
     email = models.EmailField(unique=True)
-    profile_image = models.ImageField(upload_to='profile_images/', blank=True, null=True)
-    
-    # Predefined subjects
-    SUBJECT_CHOICES = [
-        ('ml', 'Machine Learning'),
-        ('dl', 'Deep Learning'),
-        ('nlp', 'Natural Language Processing'),
-        ('cv', 'Computer Vision'),
-        ('ai', 'Artificial Intelligence'),
-        ('ds', 'Data Science'),
-        ('py', 'Python Programming'),
-        ('dsa', 'Data Structures & Algorithms'),
-        ('db', 'Databases'),
-        ('web', 'Web Development'),
-        ('cloud', 'Cloud Computing'),
-        ('sec', 'Cybersecurity'),
-        ('rob', 'Robotics'),
-        ('de', 'Data Engineering'),
-    ]
+    profile_image = models.ImageField(
+        upload_to='profile_images/', blank=True, null=True
+    )
 
     # Learning style preferences
     LEARNING_STYLE_CHOICES = [
@@ -46,13 +26,13 @@ class CustomUser(AbstractUser):
         ('kinesthetic', 'Kinesthetic'),
         ('reading_writing', 'Reading/Writing'),
     ]
-    
+
     STUDY_TIME_CHOICES = [
         ('short', 'Short bursts'),
-        ('medium', 'Medium sessions '),
+        ('medium', 'Medium sessions'),
         ('long', 'Long sessions'),
     ]
-    
+
     QUIZ_PREFERENCE_CHOICES = [
         (1, 'Very helpful'),
         (2, 'Somewhat helpful'),
@@ -60,17 +40,18 @@ class CustomUser(AbstractUser):
         (4, 'Not very helpful'),
         (5, 'Not at all helpful'),
     ]
-    
+
     # Survey fields
-    learning_style_visual = models.IntegerField(default=0)
-    learning_style_auditory = models.IntegerField(default=0)
-    learning_style_kinesthetic = models.IntegerField(default=0)
-    learning_style_reading = models.IntegerField(default=0)
-    
-    interests = models.ManyToManyField(Interest, blank=True)
-    custom_interests = models.TextField(blank=True, help_text="Additional subjects you're interested in")
-    
-    study_habits = models.TextField(blank=True, help_text="Describe your study habits")
+    learning_style_visual = models.BooleanField(default=False)
+    learning_style_auditory = models.BooleanField(default=False)
+    learning_style_kinesthetic = models.BooleanField(default=False)
+    learning_style_reading = models.BooleanField(default=False)
+
+    # Modified interests field with through model
+    interests = models.ManyToManyField(Interest, through="UserInterest", related_name="users", blank=True)
+
+    study_habits = models.TextField(
+        blank=True, help_text="Describe your study habits")
     preferred_study_time = models.CharField(
         max_length=10,
         choices=STUDY_TIME_CHOICES,
@@ -105,3 +86,19 @@ class CustomUser(AbstractUser):
             'quiz_preference': bool(self.quiz_preference),
             'interests': [interest.name for interest in self.interests.all()]
         }
+
+    def get_user_interests(self):
+        return self.interests.all()
+
+
+class UserInterest(models.Model):
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
+    interest = models.ForeignKey(Interest, on_delete=models.CASCADE)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('user', 'interest')  # Prevents duplicate entries
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.user.email} - {self.interest.name}"
