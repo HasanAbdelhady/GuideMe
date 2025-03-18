@@ -76,23 +76,17 @@ class PreferenceService:
         # Compile learning strategies
         style_strategies = []
         for style in active_styles:
-            style_strategies.extend(
-                learning_style_prompts[style]['strategies'])
+            style_strategies.extend(learning_style_prompts[style]['strategies'])
 
         # Get study time preference with fallback
         study_time = user.preferred_study_time if user.preferred_study_time else 'medium'
         time_guide = study_time_guidelines[study_time]
 
         # Determine quiz approach
-        quiz_preference = bool(
-            user.quiz_preference and int(user.quiz_preference) <= 3)
+        quiz_preference = bool(user.quiz_preference and int(user.quiz_preference) <= 3)
 
-        # Get interests and custom interests
-        interests = [interest.name for interest in user.interests.all()]
-        if user.custom_interests:
-            custom_interests = [i.strip()
-                                for i in user.custom_interests.split(',') if i.strip()]
-            interests.extend(custom_interests)
+        # Get interests through the UserInterest model
+        interests = [i.name for i in user.get_user_interests()]
 
         # Build the comprehensive prompt
         prompt = (

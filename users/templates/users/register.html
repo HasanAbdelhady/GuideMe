@@ -153,7 +153,7 @@
 										type="checkbox"
 										id="visual"
 										name="learning_style_visual"
-										value="3"
+										value="1"
 										class="hidden"
 									/>
 									<label
@@ -181,7 +181,7 @@
 										type="checkbox"
 										id="auditory"
 										name="learning_style_auditory"
-										value="3"
+										value="1"
 										class="hidden"
 									/>
 									<label
@@ -211,7 +211,7 @@
 										type="checkbox"
 										id="kinesthetic"
 										name="learning_style_kinesthetic"
-										value="3"
+										value="1"
 										class="hidden"
 									/>
 									<label
@@ -239,7 +239,7 @@
 										type="checkbox"
 										id="reading"
 										name="learning_style_reading"
-										value="3"
+										value="1"
 										class="hidden"
 									/>
 									<label
@@ -320,20 +320,7 @@
 							</div>
 							<!-- Selected interests will appear here -->
 							<div id="selected-interests" class="flex flex-wrap gap-2">
-								{% for id, name in form.SUBJECT_CHOICES %}
-								<div
-									class="interest-tag hidden px-3 py-1 bg-blue-600 text-sm text-white rounded-full flex items-center gap-2"
-								>
-									<span>{{ name }}</span>
-									<button
-										type="button"
-										class="remove-interest text-white hover:text-gray-200"
-									>
-										×
-									</button>
-									<input type="hidden" name="interests" value="{{ id }}" />
-								</div>
-								{% endfor %}
+								
 							</div>
 						</div>
 
@@ -488,114 +475,114 @@
 			const suggestionsDiv = document.getElementById("interest-suggestions");
 			const selectedInterests = document.getElementById("selected-interests");
 
-				// Update the predefined interests array to use numeric IDs
-				const predefinedInterests = [
-					{ id: 1, name: "Machine Learning" },
-					{ id: 2, name: "Deep Learning" },
-					{ id: 3, name: "Natural Language Processing" },
-					{ id: 4, name: "Computer Vision" },
-					{ id: 5, name: "Artificial Intelligence" },
-					{ id: 6, name: "Data Science" },
-					{ id: 7, name: "Python Programming" },
-					{ id: 8, name: "Data Structures & Algorithms" },
-					{ id: 9, name: "Databases" },
-					{ id: 10, name: "Web Development" },
-					{ id: 11, name: "Cloud Computing" },
-					{ id: 12, name: "Cybersecurity" },
-					{ id: 13, name: "Robotics" },
-					{ id: 14, name: "Data Engineering" }
-				];
-
-				function createInterestTag(name, id = null) {
-					const tag = document.createElement("div");
-					tag.className =
-						"interest-tag px-3 py-1 bg-blue-600 text-sm text-white rounded-full flex items-center gap-2";
-					tag.innerHTML = `
-						<span>${name}</span>
-						<button type="button" class="remove-interest text-white hover:text-gray-200">×</button>
-						<input type="hidden" name="interests" value="${id || name}">
-					`;
-					tag.querySelector(".remove-interest").addEventListener("click", () => {
-						tag.remove();
-						showSuggestions(interestInput.value);
-					});
-					return tag;
-				}
-
-			function showSuggestions(input) {
-				const value = input.toLowerCase();
-				const selectedValues = Array.from(
-					selectedInterests.querySelectorAll(".interest-tag:not(.hidden)")
-				).map((tag) => tag.querySelector("span").textContent.toLowerCase());
-
-				const filtered = predefinedInterests.filter(
-					(interest) =>
-						interest.name.toLowerCase().includes(value) &&
-						!selectedValues.includes(interest.name.toLowerCase())
-				);
-
-				// Update the suggestions HTML generation
-				if (filtered.length && value) {
-					suggestionsDiv.innerHTML = filtered
-						.map(
-							(interest) => `
-							<div class="suggestion p-2 hover:bg-gray-600 cursor-pointer" 
-								 data-id="${interest.id}">
-								${interest.name}
-							</div>
-						`
-						)
-						.join("");
-					suggestionsDiv.classList.remove("hidden");
-				} else {
-					suggestionsDiv.classList.add("hidden");
-				}
-			}
-
-			interestInput.addEventListener("input", () => {
+			// Update the predefined interests array to use numeric IDs
+			const predefinedInterests = [
+			{ id: 1, name: "Machine Learning" },
+			{ id: 2, name: "Deep Learning" },
+			{ id: 3, name: "Natural Language Processing" },
+			{ id: 4, name: "Computer Vision" },
+			{ id: 5, name: "Artificial Intelligence" },
+			{ id: 6, name: "Data Science" },
+			{ id: 7, name: "Python Programming" },
+			{ id: 8, name: "Data Structures & Algorithms" },
+			{ id: 9, name: "Databases" },
+			{ id: 10, name: "Web Development" },
+			{ id: 11, name: "Cloud Computing" },
+			{ id: 12, name: "Cybersecurity" },
+			{ id: 13, name: "Robotics" },
+			{ id: 14, name: "Data Engineering" }
+		];
+		
+		function createInterestTag(name, id = null) {
+			const tag = document.createElement("div");
+			tag.className =
+				"interest-tag px-3 py-1 bg-blue-600 text-sm text-white rounded-full flex items-center gap-2";
+			tag.innerHTML = `
+				<span>${name}</span>
+				<button type="button" class="remove-interest text-white hover:text-gray-200">×</button>
+				<input type="hidden" name="interests" value="${name}">
+			`;
+			tag.querySelector(".remove-interest").addEventListener("click", () => {
+				tag.remove();
 				showSuggestions(interestInput.value);
 			});
-
-			interestInput.addEventListener("keypress", (e) => {
-				if (e.key === "Enter" && interestInput.value.trim()) {
-					e.preventDefault();
-					const interest = interestInput.value.trim();
-					const selectedValues = Array.from(
-						selectedInterests.querySelectorAll(".interest-tag:not(.hidden)")
-					).map((tag) => tag.querySelector("span").textContent.toLowerCase());
-
-					if (!selectedValues.includes(interest.toLowerCase())) {
-						selectedInterests.appendChild(createInterestTag(interest));
-					}
-					interestInput.value = "";
-					suggestionsDiv.classList.add("hidden");
+			return tag;
+		}
+		
+		function showSuggestions(input) {
+			const value = input.toLowerCase();
+			const selectedValues = Array.from(
+				selectedInterests.querySelectorAll(".interest-tag")
+			).map((tag) => tag.querySelector("span").textContent.toLowerCase());
+		
+			const filtered = predefinedInterests.filter(
+				(interest) =>
+					interest.name.toLowerCase().includes(value) &&
+					!selectedValues.includes(interest.name.toLowerCase())
+			);
+		
+			// Update the suggestions HTML generation
+			if (filtered.length && value) {
+				suggestionsDiv.innerHTML = filtered
+					.map(
+						(interest) => `
+						<div class="suggestion p-2 hover:bg-gray-600 cursor-pointer" 
+							 data-id="${interest.id}">
+							${interest.name}
+						</div>
+					`
+					)
+					.join("");
+				suggestionsDiv.classList.remove("hidden");
+			} else {
+				suggestionsDiv.classList.add("hidden");
+			}
+		}
+		
+		interestInput.addEventListener("input", () => {
+			showSuggestions(interestInput.value);
+		});
+		
+		interestInput.addEventListener("keypress", (e) => {
+			if (e.key === "Enter" && interestInput.value.trim()) {
+				e.preventDefault();
+				const interest = interestInput.value.trim();
+				const selectedValues = Array.from(
+					selectedInterests.querySelectorAll(".interest-tag")
+				).map((tag) => tag.querySelector("span").textContent.toLowerCase());
+		
+				if (!selectedValues.includes(interest.toLowerCase())) {
+					selectedInterests.appendChild(createInterestTag(interest));
 				}
-			});
-
-			// Update the suggestion click handler
-			suggestionsDiv.addEventListener("click", (e) => {
-				const suggestion = e.target.closest(".suggestion");
-				if (suggestion) {
-					selectedInterests.appendChild(
-						createInterestTag(
-							suggestion.textContent.trim(),
-							suggestion.dataset.id
-						)
-					);
-					interestInput.value = "";
-					suggestionsDiv.classList.add("hidden");
-				}
-			});
-
-			document.addEventListener("click", (e) => {
-				if (
-					!interestInput.contains(e.target) &&
-					!suggestionsDiv.contains(e.target)
-				) {
-					suggestionsDiv.classList.add("hidden");
-				}
-			});
-
+				interestInput.value = "";
+				suggestionsDiv.classList.add("hidden");
+			}
+		});
+		
+		// Update the suggestion click handler
+		suggestionsDiv.addEventListener("click", (e) => {
+			const suggestion = e.target.closest(".suggestion");
+			if (suggestion) {
+				selectedInterests.appendChild(
+					createInterestTag(
+						suggestion.textContent.trim(),
+						suggestion.dataset.id
+					)
+				);
+				interestInput.value = "";
+				suggestionsDiv.classList.add("hidden");
+			}
+		});
+		
+		document.addEventListener("click", (e) => {
+			if (
+				!interestInput.contains(e.target) &&
+				!suggestionsDiv.contains(e.target)
+			) {
+				suggestionsDiv.classList.add("hidden");
+			}
+		});
+		
 			// Add this to register.html script section
 			document.querySelector("form").addEventListener("submit", function (e) {
 				// Check if at least one learning style is selected
