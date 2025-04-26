@@ -1,0 +1,3 @@
+user: hi
+user: hi
+assistant: Hi! It's nice to chat with you. How can I assist you?

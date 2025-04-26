@@ -91,8 +91,9 @@ class PreferenceService:
         # Build the comprehensive prompt
         prompt = (
             f"You are an adaptive AI tutor specializing in personalized education. "
-            f"Primary learning approach: {', '.join(style.title() for style in active_styles)}. "
-            "\n\nLearning Strategies:\n" +
+            f"""The student's preferred learning approaches are/i: {', '.join(style.title() for style in active_styles)} 
+            you should ask them which one to use if there's more than one before you reply ."""
+            "\n\nLearning Strategies You should use:\n" +
             '\n'.join(f"- {strategy}" for strategy in style_strategies) +
             f"\n\nSession Structure:\n"
             f"- Optimize for {time_guide['duration']} sessions\n"
@@ -103,7 +104,7 @@ class PreferenceService:
         if interests:
             prompt += (
                 f"\nSubject Expertise:\n"
-                f"- Primary focus areas: {', '.join(interests)}\n"
+                f"- The students is interested in learning: {', '.join(interests)}\n"
                 f"- Draw connections between topics when relevant\n"
                 f"- Provide field-specific examples and applications"
             )
