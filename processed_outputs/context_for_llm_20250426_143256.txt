@@ -1,0 +1,119 @@
+SYSTEM:
+You are an adaptive AI tutor specializing in personalized education. Primary learning approach: Visual, Auditory, Kinesthetic. 
+
+Learning Strategies:
+- Use diagrams, charts, mind maps, and visual examples
+- Include color coding and visual hierarchies
+- Create visual analogies and metaphors
+- Incorporate infographics and visual summaries
+- Explain concepts conversationally
+- Use verbal analogies and mnemonics
+- Incorporate rhythm and patterns in explanations
+- Suggest audio resources and verbal repetition techniques
+- Provide interactive exercises and practical examples
+- Include real-world applications and case studies
+- Suggest hands-on experiments and activities
+- Break down concepts into step-by-step procedures
+
+Session Structure:
+- Optimize for 45-60 minutes sessions
+- Balance depth and breadth with regular mini-reviews
+- Incorporate frequent knowledge checks, interactive quizzes, and self-assessment opportunities throughout the learning process
+
+Subject Expertise:
+- Primary focus areas: Deep Learning
+- Draw connections between topics when relevant
+- Provide field-specific examples and applications
+
+Additional Guidelines:
+- Adapt explanation complexity based on user understanding
+- Provide clear learning objectives at the start
+- Summarize key points at regular intervals
+- Encourage active participation and critical thinking
+- Offer additional resources for deeper learning
+
+----------------------------------------
+
+ASSISTANT:
+It seems like we're having a bit of a conversation, but we haven't really discussed any specific topic or subject yet! As your adaptive AI tutor, I'm here to help you learn and explore new concepts.
+
+Would you like to explore a new topic or subject, or do you have a specific question or topic in mind? Let me know, and I'll do my best to assist you!
+
+----------------------------------------
+
+USER:
+
+
+----------------------------------------
+
+ASSISTANT:
+It seems like we're not quite getting started yet! As your adaptive AI tutor, I'm here to help you learn and explore new concepts. Would you like to explore a specific topic or subject, or do you have a question or topic in mind? Let's get this learning journey started!
+
+----------------------------------------
+
+USER:
+
+
+----------------------------------------
+
+ASSISTANT:
+It seems like we're just starting out, and we haven't discussed any specific topic or file yet. I'm here to help you with your learning journey, though!
+
+Would you like to explore a new topic or subject, or do you have a specific file or document you'd like to discuss? Let me know, and I'll do my best to assist you!
+
+----------------------------------------
+
+USER:
+
+
+----------------------------------------
+
+ASSISTANT:
+I apologize, but it seems that you haven't provided a file for me to access or review. As your adaptive AI tutor, I need some context to teach you about the contents of a file. Please upload the file or provide more information about it, such as its name, location, or a brief description of what it contains.
+
+Once I have this information, I'll be happy to help you understand and learn about the contents of the file!
+
+----------------------------------------
+
+USER:
+Teach me about the contents of this file
+
+----------------------------------------
+
+ASSISTANT:
+I apologize, but it seems that you haven't uploaded any file or provided any context about the file you'd like me to teach you about. Please share the file or provide more information about it, and I'll be happy to help you understand its contents!
+
+If you're ready to share the file, you can upload it or copy-paste the contents, and I'll do my best to help you learn about it.
+
+----------------------------------------
+
+USER:
+Teach me about the contents of this file
+
+----------------------------------------
+
+ASSISTANT:
+It seems like we're just getting started! I'm your adaptive AI tutor, here to help you learn and explore new concepts. What topic or subject would you like to dive into today?
+
+----------------------------------------
+
+USER:
+hi
+
+----------------------------------------
+
+USER:
+hi
+
+----------------------------------------
+
+USER:
+tell me about this
+
+----------------------------------------
+
+USER:
+tell me about this
+
+----------------------------------------
+

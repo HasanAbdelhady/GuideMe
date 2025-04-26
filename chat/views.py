@@ -19,6 +19,9 @@ import json
 from .services import ChatService
 from .preference_service import PreferenceService
 chat_service = ChatService()
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Detailed system prompt for the "Learning How to Learn" expert.
 SYSTEM_PROMPT = (
@@ -107,109 +110,174 @@ class ChatView(View):
 class ChatStreamView(View):
     def post(self, request, chat_id):
         try:
-            print(f"ChatStreamView.post called for chat_id={chat_id}")
+            logger.info(f"ChatStreamView.post called for chat_id={chat_id}")
             chat = get_object_or_404(Chat, id=chat_id, user=request.user)
-            print(f"Got chat: {chat}")
+            logger.info(f"Got chat: {chat}")
+            
             prompt_text = request.POST.get('prompt', '').strip()
-            print(f"Prompt text: {prompt_text}")
+            logger.info(f"Prompt text: {prompt_text}")
+            
             uploaded_file = request.FILES.get('file')
-            print(f"Uploaded file: {uploaded_file}")
-
-            # --- Always create a new RAG instance per chat request ---
-            rag = chat_service.create_rag_instance()
-            print("Created new RAG instance.")
-
-            file_context = ""
-            # If a file is uploaded, only use the file for RAG context
+            logger.info(f"Uploaded file: {uploaded_file}")
+            print(uploaded_file)
+            # User preference options
+            rag_strength = request.POST.get('rag_strength', 'high')  # low, medium, high
+            use_history = request.POST.get('use_history', 'true') == 'true'
+            
+            # Create RAG instances for files and chat history
+            files_rag = None
+            chat_history_rag = None
+            
+            # Process uploaded file if present
             if uploaded_file:
-                print("Processing uploaded file for RAG context.")
-                _, file_content = chat_service.process_file(uploaded_file)
-                chat_service.save_file(chat.id, uploaded_file)
-                rag.build_index(file_content)
-                # FIX: Do NOT pass rag=rag, just use the rag instance directly
-                file_context = rag.retrieve(prompt_text, top_k=50)
-                file_context = "\n".join(file_context)
-                print(f"File context length: {len(file_context)}")
-            else:
-                print("No file uploaded, using chat history for RAG context.")
+                logger.info("Processing uploaded file for RAG context.")
+                file_name, file_content = chat_service.process_file(uploaded_file)
+                saved_path = chat_service.save_file(chat.id, uploaded_file)
+                logger.info(f"File saved at: {saved_path}")
+                print("inside if")
+                print(file_name, len(file_content))
+                if file_content:
+                    files_rag = chat_service.create_rag_instance(file_identifier=file_name)
+                    files_rag.build_index(file_content, file_identifier=file_name)
+                    logger.info(f"File index built with {len(files_rag.chunks)} chunks")
+                    
+                    # Adjust retrieval parameters based on rag_strength
+                    if rag_strength == 'low':
+                        files_rag.relevance_threshold = 0.8
+                    elif rag_strength == 'medium':
+                        files_rag.relevance_threshold = 0.6
+                    elif rag_strength == 'high':
+                        files_rag.relevance_threshold = 0.4
+            
+            # Process chat history if no file or if specifically requested
+            if use_history and (not uploaded_file or request.POST.get('include_history', 'false') == 'true'):
+                logger.info("Using chat history for RAG context.")
                 chat_history = chat_service.get_chat_history(chat)
-                chat_history_text = "\n".join(
-                    [f"{msg.role}: {msg.content}" for msg in chat_history]
-                )
-                print(f"Chat history text length: {len(chat_history_text)}")
+                chat_history_text = "\n".join([f"{msg.role}: {msg.content}" for msg in chat_history])
+                
                 if chat_history_text.strip():
-                    rag.build_index(chat_history_text)
-                    file_context = rag.retrieve(prompt_text, top_k=50)
-                    file_context = "\n".join(file_context)
-                    print(f"History context length: {len(file_context)}")
-
+                    chat_history_rag = chat_service.create_rag_instance(file_identifier="chat_history")
+                    chat_history_rag.build_index(chat_history_text, file_identifier="chat_history")
+                    logger.info(f"History index built with {len(chat_history_rag.chunks) if chat_history_rag else 0} chunks")
+            
+            # Save user message
             chat_service.create_message(chat, 'user', prompt_text)
-            print("User message created.")
-
+            logger.info("User message created.")
+            
+            # Update chat title if it's a new chat
             if chat.title == "New Chat" and prompt_text:
                 chat_service.update_chat_title(chat, prompt_text)
-                print("Chat title updated.")
-
+                logger.info("Chat title updated.")
+            
+            # Prepare message history
             system_prompt = request.session.get('system_prompt', SYSTEM_PROMPT)
-            messages = [{"role": "system", "content": system_prompt}]
-            print("System prompt set.")
-
+            
+            # Create a structured RAG prompt if files or history are being used
+            if files_rag or chat_history_rag:
+                rag_instructions = (
+                    "You have access to context from uploaded files and/or chat history. "
+                    "Use this information to provide well-informed answers. "
+                    "When referencing information from the context, be specific about where it comes from. "
+                    "If the user's question can't be answered with the available context, say so clearly."
+                )
+                enhanced_prompt = f"{system_prompt}\n\n{rag_instructions}"
+                messages = [{"role": "system", "content": enhanced_prompt}]
+            else:
+                messages = [{"role": "system", "content": system_prompt}]
+            
+            logger.info("System prompt set.")
+            
             # Add chat history (excluding the current user message)
             chat_history = chat_service.get_chat_history(chat)
             for msg in chat_history:
                 messages.append({"role": msg.role, "content": msg.content})
-
-            # Add the file context as a user message if present
-            if file_context.strip():
-                # Split file_context into unique chunks
-                seen_chunks = set()
-                max_chunk_size = 2000  # or whatever is appropriate
-                for i in range(0, len(file_context), max_chunk_size):
-                    chunk = file_context[i:i+max_chunk_size]
-                    if chunk not in seen_chunks:
-                        messages.append({"role": "user", "content": f"[File context chunk]\n{chunk}"})
-                        seen_chunks.add(chunk)
-                print("File context added as user message.")
-
+            
             # Add the current user prompt
             messages.append({"role": "user", "content": prompt_text})
-
-            print("Final messages for LLM:")
-            for m in messages:
-                print(f"{m['role']}: {str(m['content'])[:100]}...")  # Print first 100 chars
-
-            print("Calling stream_response...")
-            return self.stream_response(chat, messages, query=prompt_text, rag=rag)
-
+            
+            logger.info(f"Message history prepared with {len(messages)} messages")
+            
+            # Stream the response
+            return self.stream_response(
+                chat, 
+                messages, 
+                query=prompt_text, 
+                files_rag=files_rag,
+                chat_history_rag=chat_history_rag
+            )
+            
         except Exception as e:
-            print(f"Exception in ChatStreamView.post: {e}")
+            logger.error(f"Exception in ChatStreamView.post: {str(e)}", exc_info=True)
             return JsonResponse({'error': str(e)}, status=500)
 
-    def stream_response(self, chat, messages, query=None, rag=None):
+    def stream_response(self, chat, messages, query=None, files_rag=None, chat_history_rag=None):
         def event_stream():
             try:
-                print("stream_response.event_stream started.")
+                logger.info("stream_response.event_stream started.")
                 accumulated_response = ""
-                # Pass the per-request RAG instance to get_completion
-                stream = chat_service.get_completion(messages, query=query, max_tokens=3500, rag=rag)
-                print("Got stream from chat_service.get_completion.")
-
+                
+                # Set appropriate token limit based on message history size
+                message_count = len(messages)
+                max_tokens = 3500 if message_count < 10 else 4500
+                
+                # Pass both RAG instances to get_completion
+                stream = chat_service.get_completion(
+                    messages, 
+                    query=query, 
+                    max_tokens=max_tokens, 
+                    files_rag=files_rag,
+                    chat_history_rag=chat_history_rag
+                )
+                logger.info("Got stream from chat_service.get_completion.")
+                
                 for chunk in stream:
                     content = chunk.choices[0].delta.content
-
+                    
                     if content:
                         accumulated_response += content
                         yield f"data: {json.dumps({'type': 'content', 'content': content})}\n\n"
-
+                
                 if accumulated_response:
-                    chat_service.create_message(
-                        chat, 'assistant', accumulated_response)
-                    print("Assistant message created.")
+                    # Save assistant message
+                    chat_service.create_message(chat, 'assistant', accumulated_response)
+                    logger.info("Assistant message created.")
+                    
+                    # Send completion signal
                     yield f"data: {json.dumps({'type': 'done'})}\n\n"
-
+                    
+                    # Send metadata about the RAG process if applicable
+                    if files_rag or chat_history_rag:
+                        rag_stats = {
+                            'file_chunks_used': len(files_rag.chunks) if files_rag else 0,
+                            'history_chunks_used': len(chat_history_rag.chunks) if chat_history_rag else 0
+                        }
+                        yield f"data: {json.dumps({'type': 'metadata', 'content': rag_stats})}\n\n"
+                
             except Exception as e:
-                print(f"Exception in stream_response.event_stream: {e}")
+                logger.error(f"Exception in stream_response.event_stream: {str(e)}", exc_info=True)
                 yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
+                
+                # Try to fall back to non-RAG response if RAG fails
+                try:
+                    if query and (files_rag or chat_history_rag):
+                        logger.info("Attempting fallback to non-RAG response")
+                        fallback_messages = [msg for msg in messages if not (msg['role'] == 'system' and 'relevant context' in msg['content'].lower())]
+                        fallback_stream = chat_service.get_completion(fallback_messages, max_tokens=3500)
+                        
+                        yield f"data: {json.dumps({'type': 'info', 'content': 'RAG retrieval failed. Using standard response instead.'})}\n\n"
+                        
+                        accumulated_response = ""
+                        for chunk in fallback_stream:
+                            content = chunk.choices[0].delta.content
+                            if content:
+                                accumulated_response += content
+                                yield f"data: {json.dumps({'type': 'content', 'content': content})}\n\n"
+                        
+                        if accumulated_response:
+                            chat_service.create_message(chat, 'assistant', accumulated_response)
+                            yield f"data: {json.dumps({'type': 'done'})}\n\n"
+                except Exception as fallback_error:
+                    logger.error(f"Fallback attempt also failed: {str(fallback_error)}", exc_info=True)
 
         response = StreamingHttpResponse(
             event_stream(),
@@ -217,9 +285,8 @@ class ChatStreamView(View):
         )
         response['Cache-Control'] = 'no-cache'
         response['X-Accel-Buffering'] = 'no'
-        print("StreamingHttpResponse returned.")
+        logger.info("StreamingHttpResponse returned.")
         return response
-
 
 @login_required
 def create_chat(request):
