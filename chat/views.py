@@ -46,6 +46,7 @@ class ChatListView(ListView):
     template_name = 'chat/chat_list.html'
     context_object_name = 'chats'
 
+    # get_queryset is used by ListView, so keep it
     def get_queryset(self):
         return Chat.objects.filter(user=self.request.user).order_by('-updated_at')
 
@@ -106,42 +107,92 @@ class ChatView(View):
 class ChatStreamView(View):
     def post(self, request, chat_id):
         try:
+            print(f"ChatStreamView.post called for chat_id={chat_id}")
             chat = get_object_or_404(Chat, id=chat_id, user=request.user)
+            print(f"Got chat: {chat}")
             prompt_text = request.POST.get('prompt', '').strip()
+            print(f"Prompt text: {prompt_text}")
             uploaded_file = request.FILES.get('file')
+            print(f"Uploaded file: {uploaded_file}")
 
-            # Process file if present
-            file_info, _ = chat_service.process_file(uploaded_file)
+            # --- Always create a new RAG instance per chat request ---
+            rag = chat_service.create_rag_instance()
+            print("Created new RAG instance.")
+
+            file_context = ""
+            # If a file is uploaded, only use the file for RAG context
             if uploaded_file:
+                print("Processing uploaded file for RAG context.")
+                _, file_content = chat_service.process_file(uploaded_file)
                 chat_service.save_file(chat.id, uploaded_file)
+                rag.build_index(file_content)
+                # FIX: Do NOT pass rag=rag, just use the rag instance directly
+                file_context = rag.retrieve(prompt_text, top_k=50)
+                file_context = "\n".join(file_context)
+                print(f"File context length: {len(file_context)}")
+            else:
+                print("No file uploaded, using chat history for RAG context.")
+                chat_history = chat_service.get_chat_history(chat)
+                chat_history_text = "\n".join(
+                    [f"{msg.role}: {msg.content}" for msg in chat_history]
+                )
+                print(f"Chat history text length: {len(chat_history_text)}")
+                if chat_history_text.strip():
+                    rag.build_index(chat_history_text)
+                    file_context = rag.retrieve(prompt_text, top_k=50)
+                    file_context = "\n".join(file_context)
+                    print(f"History context length: {len(file_context)}")
 
-            # Combine prompt with file info
-            full_prompt = prompt_text + (file_info if file_info else "")
+            chat_service.create_message(chat, 'user', prompt_text)
+            print("User message created.")
 
-            # Create user message
-            chat_service.create_message(chat, 'user', full_prompt)
-
-            # Update chat title if needed
             if chat.title == "New Chat" and prompt_text:
                 chat_service.update_chat_title(chat, prompt_text)
+                print("Chat title updated.")
 
-            # Get system prompt and prepare messages
             system_prompt = request.session.get('system_prompt', SYSTEM_PROMPT)
             messages = [{"role": "system", "content": system_prompt}]
+            print("System prompt set.")
+
+            # Add chat history (excluding the current user message)
             chat_history = chat_service.get_chat_history(chat)
-            messages.extend([{"role": msg.role, "content": msg.content}
-                            for msg in chat_history])
-            # Stream response
-            return self.stream_response(chat, messages)
+            for msg in chat_history:
+                messages.append({"role": msg.role, "content": msg.content})
+
+            # Add the file context as a user message if present
+            if file_context.strip():
+                # Split file_context into unique chunks
+                seen_chunks = set()
+                max_chunk_size = 2000  # or whatever is appropriate
+                for i in range(0, len(file_context), max_chunk_size):
+                    chunk = file_context[i:i+max_chunk_size]
+                    if chunk not in seen_chunks:
+                        messages.append({"role": "user", "content": f"[File context chunk]\n{chunk}"})
+                        seen_chunks.add(chunk)
+                print("File context added as user message.")
+
+            # Add the current user prompt
+            messages.append({"role": "user", "content": prompt_text})
+
+            print("Final messages for LLM:")
+            for m in messages:
+                print(f"{m['role']}: {str(m['content'])[:100]}...")  # Print first 100 chars
+
+            print("Calling stream_response...")
+            return self.stream_response(chat, messages, query=prompt_text, rag=rag)
 
         except Exception as e:
+            print(f"Exception in ChatStreamView.post: {e}")
             return JsonResponse({'error': str(e)}, status=500)
 
-    def stream_response(self, chat, messages):
+    def stream_response(self, chat, messages, query=None, rag=None):
         def event_stream():
             try:
+                print("stream_response.event_stream started.")
                 accumulated_response = ""
-                stream = chat_service.ai_manager.get_chat_completion(messages)
+                # Pass the per-request RAG instance to get_completion
+                stream = chat_service.get_completion(messages, query=query, max_tokens=3500, rag=rag)
+                print("Got stream from chat_service.get_completion.")
 
                 for chunk in stream:
                     content = chunk.choices[0].delta.content
@@ -153,9 +204,11 @@ class ChatStreamView(View):
                 if accumulated_response:
                     chat_service.create_message(
                         chat, 'assistant', accumulated_response)
+                    print("Assistant message created.")
                     yield f"data: {json.dumps({'type': 'done'})}\n\n"
 
             except Exception as e:
+                print(f"Exception in stream_response.event_stream: {e}")
                 yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
 
         response = StreamingHttpResponse(
@@ -164,6 +217,7 @@ class ChatStreamView(View):
         )
         response['Cache-Control'] = 'no-cache'
         response['X-Accel-Buffering'] = 'no'
+        print("StreamingHttpResponse returned.")
         return response
 
 
