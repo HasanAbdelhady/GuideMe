@@ -1,0 +1,86 @@
+{% load static %}
+<!-- Sidebar -->
+<div id="sidebar" class="fixed left-0 top-0 bottom-0 w-64 bg-[#202123] transform -translate-x-full transition-transform duration-300 ease-in-out z-40 overflow-y-auto">
+    <button id="close-sidebar" class="absolute right-2 top-2 p-2 text-gray-400 hover:text-gray-200 rounded-md" title="Close sidebar">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+    </button>
+    <div class="flex flex-col h-full">
+        <!-- New chat button -->
+        <div class="p-3 border-b border-gray-700/50">
+            <a href="{% url 'new_chat' %}" class="flex items-center gap-3 p-3 w-full text-sm bg-transparent hover:bg-gray-700/30 rounded-md border border-gray-700/50 transition-colors">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="text-white">
+                    <path d="M12 4v16m-8-8h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+                </svg>
+                <span class="text-sm">New chat</span>
+            </a>
+        </div>
+
+        <!-- Chats list -->
+        <div id="chats-list" class="space-y-1">
+            {% for chat in chats %}
+            <div class="flex items-center justify-between p-2 rounded {% if chat.id == current_chat.id %}bg-gray-700/40{% else %}hover:bg-gray-700/20{% endif %} transition-colors group text-sm" data-chat-id="{{ chat.id }}">
+                <div class="flex-1 truncate chat-title-container cursor-pointer" ondblclick="startEditing(this)">
+                    <div class="text-sm text-gray-200 truncate">{{ chat.title }}</div>
+                </div>
+                <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <a href="{% url 'chat_detail' chat.id %}" class="p-1 text-gray-400 hover:text-gray-200 transition-all rounded">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                        </svg>
+                    </a>
+                    <button class="delete-chat-btn p-1 text-gray-400 hover:text-gray-200 transition-all rounded" data-chat-id="{{ chat.id }}" title="Delete chat">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            {% empty %}
+            <p class="text-xs text-gray-400 px-2">No chats yet</p>
+            {% endfor %}
+        </div>
+        
+        <!-- User info -->
+        {% if user.is_authenticated %}
+        <div class="p-3 border-t border-gray-700/50 mt-auto">
+            <div class="flex items-center justify-between p-2 text-sm">
+                <div class="flex items-center gap-2">
+                    {% if user.profile_image %}
+                    <img src="{{ user.profile_image.url }}" alt="Profile" class="h-7 w-7 rounded-full object-cover" />
+                    {% else %}
+                    <div class="h-7 w-7 rounded-full bg-gray-600 flex items-center justify-center">
+                        <span class="text-xs font-medium text-white">{{ user.username|make_list|first|upper }}</span>
+                    </div>
+                    {% endif %}
+                    <span class="text-sm text-gray-300">{{ user.username }}</span>
+                </div>
+                <div class="flex gap-1">
+                    <a href="{% url 'profile' %}" class="p-1 text-gray-400 hover:text-gray-200 rounded-md" title="Settings">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                    </a>
+                    <form method="POST" action="{% url 'logout' %}" class="inline">
+                        {% csrf_token %}
+                        <button type="submit" class="p-1 text-gray-400 hover:text-gray-200 rounded-md" title="Logout">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                            </svg>
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Sidebar toggle -->
+<!-- <button id="sidebar-toggle" class="fixed left-4 top-4 z-50 p-2 bg-[#202123] rounded hover:bg-[#2A2B32] transition-colors" aria-label="Toggle sidebar">
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+    </svg>
+</button> -->

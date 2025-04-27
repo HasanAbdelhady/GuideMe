@@ -418,9 +418,9 @@ mnist_model.train()
 running_loss = 0.0
 for noisy_imgs, clean_imgs in mnist_train_loader:
 
-3
-
 4
+
+3
 
 5
 
@@ -1084,11 +1084,11 @@ cifar_model.train()
 running_loss = 0.0
 for noisy_imgs, clean_imgs in cifar_train_loader:
 
+5
+
 6
 
 7
-
-5
 
 noisy_imgs = noisy_imgs.to(device)
 clean_imgs = clean_imgs.to(device)

@@ -1,4 +1,5 @@
 # chat/views.py
+import logging
 from django.http import JsonResponse
 import time
 from django.shortcuts import render, redirect, get_object_or_404
@@ -17,8 +18,8 @@ import os
 import json
 from .services import ChatService
 from .preference_service import PreferenceService
+from django.views.decorators.http import require_POST
 chat_service = ChatService()
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -89,8 +90,14 @@ class ChatView(View):
             try:
                 chat = Chat.objects.get(id=chat_id, user=request.user)
                 messages = chat.messages.all().order_by('created_at')
-                conversation = [{'role': msg.role, 'text': msg.content}
-                                for msg in messages]
+                conversation = []
+                for msg in messages:
+                    if msg.role == 'quiz':
+                        conversation.append(
+                            {'role': 'quiz', 'text': msg.content})
+                    else:
+                        conversation.append(
+                            {'role': msg.role, 'text': msg.content})
 
                 return render(request, self.template_name, {
                     "current_chat": chat,
@@ -131,7 +138,8 @@ class ChatStreamView(View):
                 saved_path = chat_service.save_file(chat.id, uploaded_file)
                 logger.info(f"File saved at: {saved_path}")
                 if file_path:
-                    files_rag = chat_service.build_rag(file_path, file_ext, chat_id=chat.id)
+                    files_rag = chat_service.build_rag(
+                        file_path, file_ext, chat_id=chat.id)
                     logger.info("LangChain RAG index built.")
 
             # Only use chat history for existing chats (not new chats)
@@ -139,10 +147,13 @@ class ChatStreamView(View):
             if use_history and not is_new_chat and (not uploaded_file or request.POST.get('include_history', 'false') == 'true'):
                 logger.info("Using chat history for RAG context.")
                 chat_history = chat_service.get_chat_history(chat)
-                chat_history_text = "\n".join([f"{msg.role}: {msg.content}" for msg in chat_history])
+                chat_history_text = "\n".join(
+                    [f"{msg.role}: {msg.content}" for msg in chat_history])
                 if chat_history_text.strip():
-                    chat_history_rag = chat_service.build_rag_from_text(chat_history_text, chat_id=chat.id)
-                    logger.info(f"History index built with {len(chat_history_rag.chunks) if chat_history_rag else 0} chunks")
+                    chat_history_rag = chat_service.build_rag_from_text(
+                        chat_history_text, chat_id=chat.id)
+                    logger.info(
+                        f"History index built with {len(chat_history_rag.chunks) if chat_history_rag else 0} chunks")
 
             # Save user message
             chat_service.create_message(chat, 'user', prompt_text)
@@ -161,7 +172,8 @@ class ChatStreamView(View):
                 messages.append({"role": msg.role, "content": msg.content})
             messages.append({"role": "user", "content": prompt_text})
 
-            logger.info(f"Message history prepared with {len(messages)} messages")
+            logger.info(
+                f"Message history prepared with {len(messages)} messages")
 
             # Stream the response
             return self.stream_response(
@@ -174,7 +186,8 @@ class ChatStreamView(View):
             )
 
         except Exception as e:
-            logger.error(f"Exception in ChatStreamView.post: {str(e)}", exc_info=True)
+            logger.error(
+                f"Exception in ChatStreamView.post: {str(e)}", exc_info=True)
             return JsonResponse({'error': str(e)}, status=500)
 
     def stream_response(self, chat, messages, query=None, files_rag=None, chat_history_rag=None, is_new_chat=False):
@@ -205,7 +218,8 @@ class ChatStreamView(View):
                         yield f"data: {json.dumps({'type': 'content', 'content': content})}\n\n"
 
                 if accumulated_response:
-                    chat_service.create_message(chat, 'assistant', accumulated_response)
+                    chat_service.create_message(
+                        chat, 'assistant', accumulated_response)
                     logger.info("Assistant message created.")
 
                     yield f"data: {json.dumps({'type': 'done'})}\n\n"
@@ -218,14 +232,16 @@ class ChatStreamView(View):
                         yield f"data: {json.dumps({'type': 'metadata', 'content': rag_stats})}\n\n"
 
             except Exception as e:
-                logger.error(f"Exception in stream_response.event_stream: {str(e)}", exc_info=True)
+                logger.error(
+                    f"Exception in stream_response.event_stream: {str(e)}", exc_info=True)
                 yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
 
                 # Fallback to non-RAG response if RAG fails
                 try:
                     if query and (files_rag or chat_history_rag):
                         logger.info("Attempting fallback to non-RAG response")
-                        fallback_messages = [msg for msg in messages if not (msg['role'] == 'system' and 'relevant context' in msg['content'].lower())]
+                        fallback_messages = [msg for msg in messages if not (
+                            msg['role'] == 'system' and 'relevant context' in msg['content'].lower())]
                         fallback_response = chat_service.get_completion(
                             fallback_messages,
                             max_tokens=3500,
@@ -235,10 +251,12 @@ class ChatStreamView(View):
                         yield f"data: {json.dumps({'type': 'info', 'content': 'RAG retrieval failed. Using standard response instead.'})}\n\n"
                         if fallback_response:
                             yield f"data: {json.dumps({'type': 'content', 'content': fallback_response})}\n\n"
-                            chat_service.create_message(chat, 'assistant', fallback_response)
+                            chat_service.create_message(
+                                chat, 'assistant', fallback_response)
                             yield f"data: {json.dumps({'type': 'done'})}\n\n"
                 except Exception as fallback_error:
-                    logger.error(f"Fallback attempt also failed: {str(fallback_error)}", exc_info=True)
+                    logger.error(
+                        f"Fallback attempt also failed: {str(fallback_error)}", exc_info=True)
 
         response = StreamingHttpResponse(
             event_stream(),
@@ -427,3 +445,53 @@ def clear_chat(request, chat_id):
         return JsonResponse({'success': True})
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+@require_POST
+def chat_quiz(request, chat_id):
+    chat = get_object_or_404(Chat, id=chat_id, user=request.user)
+    # Only consider user and assistant messages for quiz context
+    messages = chat.messages.filter(
+        role__in=['user', 'assistant']).order_by('created_at')
+    content_text = "\n".join(m.content for m in messages)
+    # Decide "enough content": at least 5 messages or 500 chars
+    if messages.count() < 5 or len(content_text) < 500:
+        return JsonResponse({'error': 'Not enough content in this chat to generate a quiz. Please continue the conversation first.'}, status=400)
+
+    # Build prompt for quiz generation
+    prompt = (
+        "Create a multiple-choice quiz (4 options per question) based on the following conversation. "
+        "For each question, use this HTML structure:\n"
+        "<div class=\"quiz-question\" data-correct=\"B\">\n"
+        "  <div class=\"font-semibold mb-2\">What is 2+2?</div>\n"
+        "  <form>\n"
+        "    <label><input type=\"radio\" name=\"q1\" value=\"A\"> 3</label><br>\n"
+        "    <label><input type=\"radio\" name=\"q1\" value=\"B\"> 4</label><br>\n"
+        "    <label><input type=\"radio\" name=\"q1\" value=\"C\"> 5</label><br>\n"
+        "    <label><input type=\"radio\" name=\"q1\" value=\"D\"> 6</label><br>\n"
+        "    <button type=\"submit\" class=\"mt-2 px-3 py-1 bg-blue-600 text-white rounded\">Check Answer</button>\n"
+        "  </form>\n"
+        "  <div class=\"quiz-feedback mt-2\"></div>\n"
+        "</div>\n"
+        "Replace the question, answers, and correct value as appropriate. "
+        "Output a complete HTML snippet for the quiz, including all questions. "
+        "Do not reveal the correct answer until the user submits. "
+        "Conversation:\n\n" + content_text
+    )
+
+    # Use the same LLM as the rest of the app
+    try:
+        quiz_html = chat_service.get_completion(
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=1024,
+            chat_id=chat.id,
+            is_new_chat=False
+        )
+    except Exception as e:
+        return JsonResponse({'error': f'Quiz generation failed: {str(e)}'}, status=500)
+
+    # Save as a quiz message
+    quiz_msg = chat_service.create_message(chat, 'quiz', quiz_html)
+
+    return JsonResponse({'quiz_html': quiz_html, 'message_id': quiz_msg.id})

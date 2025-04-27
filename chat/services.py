@@ -10,11 +10,10 @@ import copy
 from functools import lru_cache
 
 # --- LangChain Imports ---
-from langchain.document_loaders import TextLoader
-
+from langchain_community.document_loaders import TextLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.embeddings import HuggingFaceEmbeddings
-from langchain.vectorstores import FAISS
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_community.vectorstores import FAISS
 from langchain.chains import RetrievalQA
 from langchain.prompts.example_selector import LengthBasedExampleSelector
 
@@ -97,6 +96,18 @@ class ChatService:
         self.logger = logging.getLogger(__name__)
         self.rag_cache = {}  # Cache RAG instances by chat_id
 
+    def get_files_rag(self, chat_id):
+        """Return the cached RAG for this chat, if any."""
+        return self.rag_cache.get(chat_id)
+
+    def build_rag(self, file_path, file_ext, chat_id=None):
+        # Each chat gets its own RAG instance/context
+        rag = LangChainRAG(model="llama3-8b-8192")
+        rag.build_index(file_path, file_type=file_ext)
+        if chat_id:
+            self.rag_cache[chat_id] = rag
+        return rag
+
     def process_file(self, uploaded_file):
         """Save uploaded file and return its path and extension."""
         if not uploaded_file:
@@ -110,14 +121,6 @@ class ChatService:
             for chunk in uploaded_file.chunks():
                 f.write(chunk)
         return file_path, file_ext
-
-    def build_rag(self, file_path, file_ext, chat_id=None):
-        # Each chat gets its own RAG instance/context
-        rag = LangChainRAG(model="llama3-8b-8192")
-        rag.build_index(file_path, file_type=file_ext)
-        if chat_id:
-            self.rag_cache[chat_id] = rag
-        return rag
 
     def build_rag_from_text(self, text, chat_id=None):
         """
@@ -166,7 +169,9 @@ class ChatService:
         return total
 
     def get_completion(self, messages, query=None, files_rag=None, chat_history_rag=None, max_tokens=6000, chat_id=None, is_new_chat=False):
-        # Only use context for existing chats
+        # Always use cached file RAG if available and not a new chat
+        if not files_rag and chat_id and not is_new_chat:
+            files_rag = self.get_files_rag(chat_id)
         context = ""
         if not is_new_chat:
             if files_rag and query:
@@ -194,7 +199,9 @@ class ChatService:
         return completion.choices[0].message.content
 
     def stream_completion(self, messages, query=None, files_rag=None, chat_history_rag=None, max_tokens=6000, chat_id=None, is_new_chat=False):
-        # Only use context for existing chats
+        # Always use cached file RAG if available and not a new chat
+        if not files_rag and chat_id and not is_new_chat:
+            files_rag = self.get_files_rag(chat_id)
         context = ""
         if not is_new_chat:
             if files_rag and query:
