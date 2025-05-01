@@ -8,3 +8,5 @@ djangorestframework-simplejwt
 pillow
 langchain_community
 langchain
+pdfminer
+pdfminer.six
