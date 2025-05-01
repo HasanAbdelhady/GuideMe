@@ -24,18 +24,16 @@
 			</div>
 			<!-- Message content -->
 			<div class="flex-1 overflow-x-auto min-w-0">
-				{% if msg.role == "quiz" %}
-				<div
-					class="quiz-message prose prose-invert max-w-none markdown-content text-gray-100">
-					{{ msg.quiz_html|safe }}
-				</div>
-				{% elif msg.role == "assistant" %}
+				{% if msg.role == "assistant" and msg.text%}
 				<div class="prose prose-invert max-w-none markdown-content text-gray-100">
 					{{ msg.text }}
 				</div>
 				{% else %}
-				<p class="whitespace-pre-wrap">{{ msg.text }}</p>
-				{% endif %}
+				<div
+				class="quiz-message prose prose-invert max-w-none markdown-content text-gray-100">
+				{{ msg.html }}
+			</div>
+				{%endif%}
 			</div>
 		</div>
 	</div>

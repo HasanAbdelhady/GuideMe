@@ -10,3 +10,5 @@ langchain_community
 langchain
 pdfminer
 pdfminer.six
+sentence_transformers
+faiss-cpu

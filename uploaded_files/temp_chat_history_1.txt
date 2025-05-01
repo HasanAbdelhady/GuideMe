@@ -1,0 +1,11 @@
+user: hi
+user: Let's start learning
+assistant: I'm excited to start our learning session!
+
+Before we begin, I'd like to clarify which learning approach you'd prefer to use today: Visual or Reading?
+user: Visual
+assistant: Let's use the Visual approach today!
+
+To get started, can you please tell me what topic or subject you'd like to explore today? Is it something specific, like a particular concept or skill, or a broader area like science, history, or mathematics?
+
+Also, would you like to focus on a specific type of visual content, such as diagrams, charts, mind maps, or infographics?

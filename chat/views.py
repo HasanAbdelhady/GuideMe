@@ -93,13 +93,15 @@ class ChatView(View):
                 messages = chat.messages.all().order_by('created_at')
                 conversation = []
                 for msg in messages:
-                    if msg.role == 'quiz':
+                    if msg.content == '':
+                        print("here")
                         conversation.append(
-                            {'role': 'quiz', 'text': msg.content})
+                            {'role': msg.role, 'html': msg.quiz_html})
                     else:
                         conversation.append(
                             {'role': msg.role, 'text': msg.content})
-
+                for i in conversation:
+                    print(i)
                 return render(request, self.template_name, {
                     "current_chat": chat,
                     "conversation": conversation,
@@ -465,7 +467,7 @@ def chat_quiz(request, chat_id):
         return JsonResponse({'error': 'Not enough content in this chat to generate a quiz. Please continue the conversation first.'}, status=400)
 
     prompt = f"""
-Create a multiple-choice quiz (4 options per question) based on the following conversation.
+Create a multiple-choice quiz (4 options per question) based on the following conversation's relevant scientific information only, related to the learning.
 For each question, use this HTML structure:
 <div class="quiz-question" data-correct="B">
   <div class="font-semibold mb-2">What is 2+2?</div>
