@@ -2,20 +2,16 @@
 document.addEventListener("DOMContentLoaded", function () {
 	// Process existing markdown content
 	document.querySelectorAll(".markdown-content").forEach((container) => {
-		// First, ensure markdown is properly rendered
-		const rawContent = container.textContent;
-		if (rawContent && !container.querySelector("pre, p, ul, ol, blockquote")) {
-			try {
-				container.innerHTML = marked.parse(rawContent);
-			} catch (e) {
-				console.error("Failed to parse markdown:", e);
-			}
+		const rawContent = container.textContent.trim();
+		// If the content looks like HTML (starts with <div, <table, etc.), set as HTML
+		if (/^\s*<\w+/.test(rawContent)) {
+			container.innerHTML = rawContent;
+		} else {
+			container.innerHTML = marked.parse(rawContent);
+			container.querySelectorAll("pre code").forEach((block) => {
+				hljs.highlightElement(block);
+			});
 		}
-
-		// Then highlight code blocks
-		container.querySelectorAll("pre code").forEach((block) => {
-			hljs.highlightElement(block);
-		});
 	});
 
 	// Apply styles to message containers

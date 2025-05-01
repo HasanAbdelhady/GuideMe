@@ -17,7 +17,7 @@
     <form id="chat-form" enctype="multipart/form-data">
         {% csrf_token %}
         <div class="relative shadow-md rounded-lg overflow-hidden border border-gray-600/40">
-            <textarea id="prompt" name="prompt" rows="1" placeholder="Message the AI..." class="chat-input w-full py-3 pl-4 pr-12 text-gray-100 rounded-md focus:outline-none resize-none max-h-48"></textarea>
+            <textarea id="prompt" name="prompt" rows="1" placeholder="Message the AI..." class="chat-input input-glow w-full py-3 pl-4 pr-12 text-gray-100 rounded-md focus:outline-none resize-none max-h-48"></textarea>
 
             <div class="absolute right-2 bottom-2.5 flex">
                 <label for="file-input" class="p-1 mr-1 text-gray-400 hover:text-gray-200 cursor-pointer rounded">
@@ -25,7 +25,7 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
                     </svg>
                 </label>
-                <button type="submit" class="p-1 text-gray-400 hover:text-gray-200 rounded">
+                <button type="submit" class="p-1 text-gray-400 hover:text-gray-200 rounded button-glow">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                         <path d="M7 11L12 6L17 11M12 6V18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" transform="rotate(90 12 12)"></path>
                     </svg>
