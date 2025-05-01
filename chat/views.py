@@ -19,6 +19,7 @@ import json
 from .services import ChatService
 from .preference_service import PreferenceService
 from django.views.decorators.http import require_POST
+import re
 chat_service = ChatService()
 
 logger = logging.getLogger(__name__)
@@ -359,6 +360,12 @@ def quiz_view(request):
         unescaped_quiz = html.unescape(raw_quiz)
         quiz_html = mark_safe(unescaped_quiz)
 
+        # Extract only the HTML part
+        match = re.search(r'(<div class="quiz-question".*)',
+                          quiz_html, re.DOTALL)
+        if match:
+            quiz_html = match.group(1)
+
         context = {
             "quiz_html": quiz_html,
             "lecture_text": lecture_text,
@@ -451,36 +458,33 @@ def clear_chat(request, chat_id):
 @require_POST
 def chat_quiz(request, chat_id):
     chat = get_object_or_404(Chat, id=chat_id, user=request.user)
-    # Only consider user and assistant messages for quiz context
     messages = chat.messages.filter(
         role__in=['user', 'assistant']).order_by('created_at')
     content_text = "\n".join(m.content for m in messages)
-    # Decide "enough content": at least 5 messages or 500 chars
     if messages.count() < 5 or len(content_text) < 500:
         return JsonResponse({'error': 'Not enough content in this chat to generate a quiz. Please continue the conversation first.'}, status=400)
 
-    # Build prompt for quiz generation
-    prompt = (
-        "Create a multiple-choice quiz (4 options per question) based on the following conversation. "
-        "For each question, use this HTML structure:\n"
-        "<div class=\"quiz-question\" data-correct=\"B\">\n"
-        "  <div class=\"font-semibold mb-2\">What is 2+2?</div>\n"
-        "  <form>\n"
-        "    <label><input type=\"radio\" name=\"q1\" value=\"A\"> 3</label><br>\n"
-        "    <label><input type=\"radio\" name=\"q1\" value=\"B\"> 4</label><br>\n"
-        "    <label><input type=\"radio\" name=\"q1\" value=\"C\"> 5</label><br>\n"
-        "    <label><input type=\"radio\" name=\"q1\" value=\"D\"> 6</label><br>\n"
-        "    <button type=\"submit\" class=\"mt-2 px-3 py-1 bg-blue-600 text-white rounded\">Check Answer</button>\n"
-        "  </form>\n"
-        "  <div class=\"quiz-feedback mt-2\"></div>\n"
-        "</div>\n"
-        "Replace the question, answers, and correct value as appropriate. "
-        "Output a complete HTML snippet for the quiz, including all questions. "
-        "Do not reveal the correct answer until the user submits. "
-        "Conversation:\n\n" + content_text
-    )
+    prompt = f"""
+Create a multiple-choice quiz (4 options per question) based on the following conversation.
+For each question, use this HTML structure:
+<div class="quiz-question" data-correct="B">
+  <div class="font-semibold mb-2">What is 2+2?</div>
+  <form>
+    <label><input type="radio" name="q1" value="A"> 3</label><br>
+    <label><input type="radio" name="q1" value="B"> 4</label><br>
+    <label><input type="radio" name="q1" value="C"> 5</label><br>
+    <label><input type="radio" name="q1" value="D"> 6</label><br>
+    <button type="submit" class="mt-2 px-3 py-1 bg-blue-600 text-white rounded">Check Answer</button>
+  </form>
+  <div class="quiz-feedback mt-2"></div>
+</div>
+Replace the question, answers, and correct value as appropriate.
+**Output ONLY the HTML for the quiz. Do NOT include any explanations, answers, or text outside the HTML.**
+Conversation:
 
-    # Use the same LLM as the rest of the app
+{content_text}
+"""
+
     try:
         quiz_html = chat_service.get_completion(
             messages=[{"role": "user", "content": prompt}],
@@ -491,7 +495,18 @@ def chat_quiz(request, chat_id):
     except Exception as e:
         return JsonResponse({'error': f'Quiz generation failed: {str(e)}'}, status=500)
 
+    # Extract only the HTML part
+    match = re.search(r'(<div class="quiz-question".*)', quiz_html, re.DOTALL)
+    if match:
+        quiz_html = match.group(1)
+
     # Save as a quiz message
-    quiz_msg = chat_service.create_message(chat, 'quiz', quiz_html)
+    quiz_msg = Message.objects.create(
+        chat=chat,
+        role='assistant',
+        type='quiz',
+        quiz_html=quiz_html,
+        content=''
+    )
 
     return JsonResponse({'quiz_html': quiz_html, 'message_id': quiz_msg.id})

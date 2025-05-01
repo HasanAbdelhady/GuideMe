@@ -26,6 +26,7 @@ from typing import Optional, List, Any
 from groq import Groq
 from pydantic import PrivateAttr
 
+
 class GroqLangChainLLM(LLM):
     model: str = "llama3-8b-8192"
     _client: Any = PrivateAttr()
@@ -50,6 +51,7 @@ class GroqLangChainLLM(LLM):
         )
         return completion.choices[0].message.content
 
+
 class LangChainRAG:
     def __init__(self, embedding_model_name="all-MiniLM-L6-v2", model="llama3-8b-8192"):
         self.embedding_model_name = embedding_model_name
@@ -67,14 +69,18 @@ class LangChainRAG:
             temp_txt_path = file_path + ".txt"
             with open(temp_txt_path, "w", encoding="utf-8") as f:
                 f.write(text)
-            loader = TextLoader(temp_txt_path, encoding="utf-8")  # <-- specify encoding!
+            # <-- specify encoding!
+            loader = TextLoader(temp_txt_path, encoding="utf-8")
         else:
-            loader = TextLoader(file_path, encoding="utf-8")  # <-- specify encoding!
+            # <-- specify encoding!
+            loader = TextLoader(file_path, encoding="utf-8")
         docs = loader.load()
-        splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+        splitter = RecursiveCharacterTextSplitter(
+            chunk_size=1000, chunk_overlap=200)
         self.chunks = splitter.split_documents(docs)
         # Embedding and vectorstore
-        embeddings = HuggingFaceEmbeddings(model_name=self.embedding_model_name)
+        embeddings = HuggingFaceEmbeddings(
+            model_name=self.embedding_model_name)
         self.vectorstore = FAISS.from_documents(self.chunks, embeddings)
         self.retriever = self.vectorstore.as_retriever(search_kwargs={"k": 5})
         # Use GroqLangChainLLM instead of OpenAI
@@ -90,6 +96,7 @@ class LangChainRAG:
             return ""
         result = self.qa_chain({"query": query})
         return result["result"]
+
 
 class ChatService:
     def __init__(self):
@@ -128,7 +135,8 @@ class ChatService:
         """
         temp_dir = "uploaded_files"
         os.makedirs(temp_dir, exist_ok=True)
-        temp_path = os.path.join(temp_dir, f"temp_chat_history_{chat_id or 'global'}.txt")
+        temp_path = os.path.join(
+            temp_dir, f"temp_chat_history_{chat_id or 'global'}.txt")
         with open(temp_path, "w", encoding="utf-8") as f:
             f.write(text)
         rag = LangChainRAG(model="llama3-8b-8192")
@@ -155,7 +163,8 @@ class ChatService:
         selector = LengthBasedExampleSelector(
             examples=examples,
             example_prompt=example_prompt,
-            max_length=max_tokens - self._count_tokens([system_msg, user_msg], example_prompt)
+            max_length=max_tokens -
+            self._count_tokens([system_msg, user_msg], example_prompt)
         )
         selected_examples = selector.select_examples({})
 
@@ -187,7 +196,8 @@ class ChatService:
                     }
                     messages.insert(i+1, context_msg)
                     break
-        trimmed_messages = self.enforce_token_limit(messages, max_tokens=max_tokens)
+        trimmed_messages = self.enforce_token_limit(
+            messages, max_tokens=max_tokens)
         groq_client = Groq()
         completion = groq_client.chat.completions.create(
             model="llama3-8b-8192",
@@ -217,7 +227,8 @@ class ChatService:
                     }
                     messages.insert(i+1, context_msg)
                     break
-        trimmed_messages = self.enforce_token_limit(messages, max_tokens=max_tokens)
+        trimmed_messages = self.enforce_token_limit(
+            messages, max_tokens=max_tokens)
         groq_client = Groq()
         return groq_client.chat.completions.create(
             model="llama3-8b-8192",
