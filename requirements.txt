@@ -6,3 +6,5 @@ PyPDF2
 django_rest_framework
 djangorestframework-simplejwt
 pillow
+langchain_community
+langchain
