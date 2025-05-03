@@ -2,7 +2,7 @@
 <div id="chat-messages" class="space-y-5 mb-4 min-h-[calc(100vh-180px)]">
 	{% for msg in conversation %}
 	<div
-		class="message-enter {% if msg.role == 'assistant' %}bg-[#444654]{% endif %} px-4 md:px-6 py-6">
+		class="message-enter {% if msg.role == 'assistant' %}{% endif %} px-4 md:px-6 py-6">
 		<div class="chat-container flex gap-4 md:gap-6">
 			<!-- User or Assistant icon -->
 			<div class="flex-shrink-0 w-7 h-7">
