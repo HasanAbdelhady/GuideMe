@@ -1,393 +1,0 @@
-Associate Professor @ Kyushu University 
-Visiting Researcher @ The University of Tokyo
-CEO/Founder @ MiraiX
-Lead of the Laboratory of Intelligent Systems
-
-DANILO VASCONCELLOS VARGAS
-
-2003〜2009
-
-2007〜2008
-
-2012〜
-
-• Acceptance rate：〜6%
-
-• First paper accepted as 2nd year 
-
-undergraduate student。
-• Creation of Robocup Club。
-
-Studied Neuroscience and 
-Robotics at 
-Ulm University、
-
-Worked at NOKIA creating a 
-computer vision library
-
-• Assoc. Prof . At Kyushu University
-• Visiting Researcher at UTokyo
-• IEEE Excellent Student Award
-• Collaboration with Mercari 
-
-HIGHLIGHTS
-
-PhD
-
-THE LAB
-
-Laboratory of Intelligent Systems
-
-ARTIFICIAL INTELLIGENCE
-
-Go Board Game
-
-Image Recognition
-
-Machines 3 vs 0 Humans
-
-Human Accuracy: 94%
-Machine Accuracy: 96.5%
-
-AI IS GETTING EXTREMELY INTELLIGENT!
-
-In 2013, a peculiarity was shown...
-
-＋
-
-=
-
-Bus
-
-Noise
-
-Ostrich
-
-Szegedy, C., Zaremba, W., Sutskever, I., Bruna, J., Erhan, D., Goodfellow, I., & Fergus, R. (2013). Intriguing properties of neural networks. arXiv 
-preprint arXiv:1312.6199.
-
-FOOLING MACHINES BECAME A 
-SCIENTIFIC SPORT
-
-High Conﬁdence for 
-Random Images
-
-FOOLING MACHINES BECAME A 
-SCIENTIFIC SPORT
-
-One Pixel 
-Attack
-
-Adversarial Patch 
-
-PERMUTATION 
-ATTACKS ON TEXT
-
-Not effective for spammers…
-
-Spammers would need something more automatic that could ﬁnd an adversarial 
-sample without searching, but how?
-
-Li, Di, Danilo Vasconcellos Vargas, and Sakurai Kouichi. "Universal Rules for Fooling Deep Neural Networks based Text Classiﬁcation." CEC 2019 (2019).
-
-ONE RULE TO FOOL 
-IT ALL
-
-Universal rules for fooling text classiﬁcation
-
-Li, Di, Danilo Vasconcellos Vargas, and Sakurai Kouichi. "Universal Rules for Fooling Deep Neural Networks based Text Classiﬁcation." CEC 2019 (2019).
-
-REAL WORLD ADV. SAMPLES
-
-SIMPLE: PRINT THE ADVERSARIAL SAMPLE
-
-Kurakin, A., Goodfellow, I., & Bengio, S. (2016). Adversarial examples in the physical world. arXiv preprint arXiv:1607.02533.
-
-NEVER TRUST STICKERS
-
-Neutral
-Grafﬁti
-
-Adversarial
-Attack
-
-Eykholt, K., Evtimov, I., Fernandes, E., Li, B., Rahmati, A., Xiao, C., ... & Song, D. (2018). Robust physical-world attacks on deep learning visual classiﬁcation. In Proceedings of the IEEE Conference 
-on Computer Vision and Pattern Recognition (pp. 1625-1634).
-
-AI IS GETTING EXTREMELY INTELLIGENT!？
-
-Robustness
-
-Discovered by our team
-
-CURRENT CHALLENGES
-
-Robustness
-
-Generality
-
-Which topology? 
-What hyperparameters 
-should I use?
-
-Adaptivity
-
-Target 
-Task
-
-CURRENT CHALLENGES
-
-“Nature is very adaptive and robust. 
-Shouldn’t we take a deeper look at Nature then?” 
-
-“Nature is very adaptive and robust. 
-Shouldn’t we take a deeper look at Nature then?” 
-
-“In Nature, there is abundance of  
-adaptation and robustness from self-organization.” 
-
-Current AI  
-
-Future AI 
-
-Optimization to achieve  
-extreme precision
-
-Self Organization for  
-extreme robustness?
-
-NEW PARADIGM
-
-AAAI21
-
-Mainstream：Loss Function based 
-
-Novel Paradigm：Self-Organizing  
-
-Optimization
-
-Dynamical Equations
-
-Adaptation：Low。After 
-
-convergence, learning is hindered.
-
-Robustness: Low。Behavior changes 
-
-strongly with noise [Su, Vargas, 
-Sakurai IEEE Trans 2019]。
-
-Adaptation: High。Even after equilibrium 
-
-the system above is inherently adaptive  
-[Vargas, Asabuki, AAAI2021]。
-
-Robustness：High。Fluctuations in the 
-
-input are not enough to bring the system 
-out of the equilibrium state.
-
-A Novel Foundation for AI - Recent Results
-
--
--
-- SyncMap (AAA21) - 
-State-of-the-art in
-Probabilistic and 
-Deterministic Structures
-
-Symmetrical SyncMap & Magnum -
-(Neurocomputing)
-SOTA in Imbalance & 
-High-dimensional 
-Structures
-
-- Sigma -
-SOTA in learning 
-Hierarchies
-
-- XenoVert -
-Solving
-Covariance Shift
-
-- Unnamed -
-First Result in 
-Images
-
-Now
-
-New Paradigm for AI centered in 
-self-organization
-
-AI Applications
-（e.g., Autonomous Driving）
-
-Multidisciplinary Perspective
-
-Contributing to brain science and 
-artificial intelligence while observing 
-neurons in the laboratory
-
-Future
-
-Human-Robot Symbiosis
-
-Company and University 
-Symbiosis
-
-From Data-based to 
-Knowledge-based Society
-
-30
-
-HOW ABOUT
-SUSTAINABLE DEVELOPMENT GOALS?
-
-SDGS WE ARE TACKLING NOW!
-
-Current Direct Targets:
-
-Indirect or
-Secondary Targets:
-
-http://www.miraix.org/
-
-IT人材不足
-
-２５％
-
-2020年
-
-22万人不足
-
-IT人材の不足（2018年）
-毎年増加
-
-IT人材の最新動向と将来推計 
-
-６０％
-
-2030年
-
-IoT・AIの市場
-
-（ITサービスの中に）
-
-https://www.meti.go.jp/shingikai/
-economy/daiyoji_sangyo_skill/pdf/
-001_s03_00.pdf
-
-http://techgym.miraix.org/
-
-http://www.miraix.org/
-
-http://elventhrone.com
-
-40
-
-REQUIRED SKILLS
-
-EMPLOYERS SAY COLLEGE STUDENTS ARE 
-NOT LEARNING SOFT SKILLS
-
-HOWEVER, …
-
-THE MISSING SUBJECT
-
-Rhetoric was the most important subject in Classical Education
-
-THE MISSING SUBJECT
-
-It was very much practiced in Classical Education
-
-TOP 10 SOFT SKILLS
-
-How can we include most of them in a class?
-
-http://games.miraix.org/
-
-49
-
-TOP 10 SOFT SKILLS
-
-9 out of 10
-are learned in 
-Elven Throne!
-
-http://www.miraix.org/
-
-Wikipedia Single Version of Reality - From Larry Sanger  
-(co-founder of Wikipedia) 
-
-Social Media 
-Problems (1)
-
-• “Wikipedia is known now by everyone to have a lot 
-of inﬂuence in the world. So there’s a very big, 
-nasty, complex game being played behind the 
-scenes to make the article say what somebody 
-wants them to say.”
-
-
-• “if only one version of the facts is allowed then that 
-gives a huge incentive to wealthy and powerful 
-people to seize control of things like Wikipedia in 
-order to shore up their power. And they do that.”
-
-
-source: https://www.independent.co.uk/news/world/americas/us-politics/wikipedia-founder-larry-
-sanger-democrats-b1885138.html
-
-Social Media 
-Problems (2)
-
-FAKE NEWS
-
-Social Media 
-Problems (3)
-
-THE SOCIAL MEDIA CONFLICT
-(FIGHTING FOR A SINGLE VERSION OF REALITY)
-
-“What if we could have multiple versions of reality?” 
-
-WHY THE WEATHER IS CHANGING?
-
-https://cognipedia.net/
-
-A PRESENTER’S TOOL
-
-Real time reasoning in groups!
-
-A BRAINSTORMING’S TOOL
-
-Real time reasoning in groups!
-
-https://cognipedia.net/
-
-Objectives
-
-• [Facilitate Reasoning and Discussion] - Facilitate discussion in presentation 
-and other live events. Reason with anyone anywhere and understand the 
-reasoning underlining many common topics;
-
-
-• [Turn Conﬂict into Construction] - This project envisions a society in which it is 
-
-easy and fast to discuss multiple topics without getting into conﬂict. The 
-objective is to turn our egocentric views of the world into pure reasoning;
-
-
-• [Stopping Fake News] - AI and analysis-based algorithms to prevent spreading;
-
-
-• [Allow Multiple Perspectives to Coexist] - Moreover, multiple perspectives will 
-be present at the same time, fostering communication with people with diﬀerent 
-beliefs through data and reasoning.
-
-Lab: http://lis.inf.kyushu-u.ac.jp/
-Twitter: @onNewHorizons
-
-FEEL FREE TO REACH OUT
-
-
