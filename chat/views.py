@@ -129,6 +129,8 @@ class ChatStreamView(View):
             uploaded_file = request.FILES.get('file')
             logger.info(f"Uploaded file: {uploaded_file}")
 
+            attached_file_name = uploaded_file.name if uploaded_file else None
+
             rag_strength = request.POST.get('rag_strength', 'high')
             use_history = request.POST.get('use_history', 'true') == 'true'
 
@@ -175,6 +177,7 @@ class ChatStreamView(View):
                 # Map any non-user role to 'assistant'
                 role = msg.role if msg.role == 'user' else 'assistant'
                 messages.append({"role": role, "content": msg.content})
+            # Only send the user's actual message to the LLM, not the '[Attached file: ...]' string
             messages.append({"role": "user", "content": prompt_text})
 
             # Filter to only user/assistant roles (defensive)
@@ -190,7 +193,8 @@ class ChatStreamView(View):
                 query=prompt_text,
                 files_rag=files_rag,
                 chat_history_rag=chat_history_rag,
-                is_new_chat=is_new_chat
+                is_new_chat=is_new_chat,
+                attached_file_name=attached_file_name
             )
 
         except Exception as e:
@@ -198,7 +202,7 @@ class ChatStreamView(View):
                 f"Exception in ChatStreamView.post: {str(e)}", exc_info=True)
             return JsonResponse({'error': str(e)}, status=500)
 
-    def stream_response(self, chat, messages, query=None, files_rag=None, chat_history_rag=None, is_new_chat=False):
+    def stream_response(self, chat, messages, query=None, files_rag=None, chat_history_rag=None, is_new_chat=False, attached_file_name=None):
         def event_stream():
             try:
                 logger.info("stream_response.event_stream started.")
@@ -217,7 +221,8 @@ class ChatStreamView(View):
                     files_rag=files_rag,
                     chat_history_rag=chat_history_rag,
                     chat_id=chat.id,
-                    is_new_chat=is_new_chat
+                    is_new_chat=is_new_chat,
+                    attached_file_name=attached_file_name
                 )
                 logger.info("Got stream from chat_service.stream_completion.")
 
