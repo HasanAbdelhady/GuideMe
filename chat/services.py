@@ -189,10 +189,10 @@ class ChatService:
                 context += "\n" + chat_history_rag.retrieve(query)
         if context.strip():
             for i, msg in enumerate(messages):
-                if msg["role"] == "system":
+                if msg["role"] == "user":  # Insert after the first user message (system prompt is now user)
                     context_msg = {
-                        "role": "system",
-                        "content": f"Relevant context:\n\n{context}\n\nUse this information to answer the user's query."
+                        "role": "assistant",
+                        "content": f"The user has uploaded a file and/or provided chat history. Here is the extracted content from the uploaded file and/or chat history. Use this information to answer the user's question.\n\n[BEGIN CONTEXT]\n{context}\n[END CONTEXT]"
                     }
                     messages.insert(i+1, context_msg)
                     break
@@ -220,10 +220,10 @@ class ChatService:
                 context += "\n" + chat_history_rag.retrieve(query)
         if context.strip():
             for i, msg in enumerate(messages):
-                if msg["role"] == "system":
+                if msg["role"] == "user":  # Insert after the first user message (system prompt is now user)
                     context_msg = {
-                        "role": "system",
-                        "content": f"Relevant context:\n\n{context}\n\nUse this information to answer the user's query."
+                        "role": "assistant",
+                        "content": f"The user has uploaded a file and/or provided chat history. Here is the extracted content from the uploaded file and/or chat history. Use this information to answer the user's question.\n\n[BEGIN CONTEXT]\n{context}\n[END CONTEXT]"
                     }
                     messages.insert(i+1, context_msg)
                     break

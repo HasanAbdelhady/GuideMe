@@ -11,7 +11,7 @@
 					class="w-7 h-7 rounded-sm bg-[#5436DA] flex items-center justify-center text-white text-xs font-semibold">U</div>
 				{% else %}
 				<div
-					class="w-7 h-7 rounded-sm bg-[#11A27F] flex items-center justify-center text-white">
+					class="cls w-7 h-7 rounded-sm bg-[#11A27F] flex items-center justify-center text-white">
 					<svg width="24" height="24" viewBox="0 0 24 24" fill="none"
 						xmlns="http://www.w3.org/2000/svg" class="h-5 w-5">
 						<path
@@ -30,8 +30,8 @@
 				</div>
 				{% else %}
 				<div
-				class="quiz-message max-w-none markdown-content text-gray-100">
-				{{ msg.html}}
+					class="quiz-message max-w-none text-gray-100">
+					{{ msg.html | safe }}
 				</div>
 				{%endif%}
 			</div>

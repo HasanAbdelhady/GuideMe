@@ -211,10 +211,7 @@ document.addEventListener("DOMContentLoaded", function () {
 				) {
 					container.innerHTML = content;
 				} else {
-					container.innerHTML = marked.parse(content);
-					container.querySelectorAll("pre code").forEach((block) => {
-						hljs.highlightElement(block);
-					});
+					container.textContent = content;
 				}
 			}
 		}
@@ -233,10 +230,7 @@ document.addEventListener("DOMContentLoaded", function () {
 			) {
 				container.innerHTML = content;
 			} else {
-				container.innerHTML = marked.parse(content);
-				container.querySelectorAll("pre code").forEach((block) => {
-					hljs.highlightElement(block);
-				});
+				container.textContent = content;
 			}
 			smoothScrollToBottom();
 		}
@@ -279,26 +273,14 @@ document.addEventListener("DOMContentLoaded", function () {
 							switch (data.type) {
 								case "content":
 									assistantMessage += data.content;
-									markdownContainer.innerHTML = marked.parse(assistantMessage);
-									markdownContainer
-										.querySelectorAll("pre code")
-										.forEach((block) => {
-											if (!block.classList.contains("hljs")) {
-												hljs.highlightElement(block);
-											}
-										});
+									markdownContainer.textContent = data.content;
 									smoothScrollToBottom();
 									break;
 								case "error":
-									markdownContainer.innerHTML = `<div class="text-red-400">Error: ${data.content}</div>`;
+									markdownContainer.textContent = `<div class="text-red-400">Error: ${data.content}</div>`;
 									break;
 								case "done":
-									markdownContainer.innerHTML = marked.parse(assistantMessage);
-									markdownContainer
-										.querySelectorAll("pre code")
-										.forEach((block) => {
-											hljs.highlightElement(block);
-										});
+									markdownContainer.textContent = data.content;
 									break;
 							}
 						} catch (e) {
@@ -310,7 +292,7 @@ document.addEventListener("DOMContentLoaded", function () {
 		} catch (error) {
 			if (error.name !== "AbortError") {
 				console.error("Stream error:", error);
-				markdownContainer.innerHTML = `<div class="text-red-400">Error: ${error.message}</div>`;
+				markdownContainer.textContent = `<div class="text-red-400">Error: ${error.message}</div>`;
 			}
 		} finally {
 			stopButton.classList.add("hidden");
@@ -581,25 +563,28 @@ document.addEventListener("DOMContentLoaded", function () {
 	}
 
 	function restoreTitle(container, title) {
-		container.innerHTML = `<div class="text-sm text-gray-200 truncate">${title}</div>`;
+		container.textContent = title;
 	}
 
 	document.querySelectorAll(".markdown-content").forEach((container) => {
 		const rawContent = container.textContent;
 		if (rawContent && !container.querySelector("pre, p, ul, ol, blockquote")) {
 			try {
-				container.innerHTML = marked.parse(rawContent);
+				container.textContent = rawContent;
 			} catch (e) {
 				console.error("Failed to parse markdown:", e);
 			}
 		}
-		container.querySelectorAll("pre code").forEach((block) => {
-			hljs.highlightElement(block);
-		});
 	});
 
 	document.querySelectorAll(".message-enter").forEach((msg) => {
-		if (msg.querySelector(".w-7.h-7.rounded-sm.bg-[#11A27F]")) {
+		// Use a valid selector for the green assistant icon
+		// Instead of querySelector('.w-7.h-7.rounded-sm.bg-[#11A27F]'), use attribute selector or classList check
+		const icon = Array.from(msg.children).find(
+			(child) =>
+				child.querySelector && child.querySelector("[class*='bg-#11A27F']")
+		);
+		if (icon) {
 			msg.classList.add("bg-[#444654]");
 		}
 	});
@@ -608,4 +593,82 @@ document.addEventListener("DOMContentLoaded", function () {
 	if (textarea.value) {
 		adjustTextareaHeight();
 	}
+
+	// Unwrap quiz-message code blocks on load
+	unwrapQuizMessageCodeBlocks();
+
+	fixEscapedQuizMessages();
+	fixFirstLineQuizPreCode();
+
+	// Patch appendMessage to also fix after rendering (only once)
+	if (!window._appendMessagePatched) {
+		const origAppendMessage = appendMessage;
+		appendMessage = function (role, content) {
+			const result = origAppendMessage(role, content);
+			fixEscapedQuizMessages();
+			fixFirstLineQuizPreCode();
+			return result;
+		};
+		window._appendMessagePatched = true;
+	}
 });
+
+// Utility: Fix quiz-message blocks that are wrapped in <pre><code>
+function unwrapQuizMessageCodeBlocks() {
+	document.querySelectorAll(".quiz-message").forEach((quizMsg) => {
+		const pre = quizMsg.querySelector("pre");
+		const code = pre ? pre.querySelector("code") : null;
+		if (pre && code) {
+			// Find all <div> elements inside the code block
+			const temp = document.createElement("div");
+			temp.innerHTML = code.innerHTML;
+			const divs = temp.querySelectorAll("div.quiz-question, div.quiz-message");
+			if (divs.length > 0) {
+				divs.forEach((div) => quizMsg.appendChild(div));
+				pre.remove();
+			}
+		}
+	});
+}
+
+function fixEscapedQuizMessages() {
+	document.querySelectorAll(".quiz-message pre code").forEach((code) => {
+		const html = code.innerHTML.trim();
+		// Detect if it looks like escaped quiz HTML
+		if (
+			html.startsWith('&lt;div class="quiz-question"') ||
+			html.startsWith('&lt;div class="quiz-message"')
+		) {
+			// Unescape HTML entities
+			const temp = document.createElement("textarea");
+			temp.innerHTML = html;
+			const unescaped = temp.value;
+			// Replace the parent .quiz-message content with real HTML
+			const quizMsg = code.closest(".quiz-message");
+			if (quizMsg) {
+				quizMsg.innerHTML = unescaped;
+			}
+		}
+	});
+}
+
+function fixFirstLineQuizPreCode() {
+	document.querySelectorAll(".quiz-message").forEach((quizMsg) => {
+		const pre = quizMsg.querySelector("pre");
+		const code = pre ? pre.querySelector("code") : null;
+		if (pre && code) {
+			// Only fix if the code block is the first child
+			const isFirst = pre === quizMsg.firstElementChild;
+			if (isFirst) {
+				// Unescape HTML entities in the code block
+				const temp = document.createElement("textarea");
+				temp.innerHTML = code.textContent.trim();
+				const unescaped = temp.value;
+				// Remove the <pre> block
+				pre.remove();
+				// Prepend the unescaped line to the quiz-message's innerHTML
+				quizMsg.innerHTML = unescaped + quizMsg.innerHTML;
+			}
+		}
+	});
+}

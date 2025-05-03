@@ -169,11 +169,16 @@ class ChatStreamView(View):
 
             # Prepare message history
             system_prompt = request.session.get('system_prompt', SYSTEM_PROMPT)
-            messages = [{"role": "system", "content": system_prompt}]
+            messages = [{"role": "user", "content": system_prompt}]
             chat_history = chat_service.get_chat_history(chat)
             for msg in chat_history:
-                messages.append({"role": msg.role, "content": msg.content})
+                # Map any non-user role to 'assistant'
+                role = msg.role if msg.role == 'user' else 'assistant'
+                messages.append({"role": role, "content": msg.content})
             messages.append({"role": "user", "content": prompt_text})
+
+            # Filter to only user/assistant roles (defensive)
+            messages = [m for m in messages if m["role"] in ("user", "assistant")]
 
             logger.info(
                 f"Message history prepared with {len(messages)} messages")
@@ -202,8 +207,11 @@ class ChatStreamView(View):
                 message_count = len(messages)
                 max_tokens = 3500 if message_count < 10 else 4500
 
+                # Filter to only user/assistant roles (defensive)
+                filtered_messages = [m for m in messages if m["role"] in ("user", "assistant")]
+
                 stream = chat_service.stream_completion(
-                    messages,
+                    filtered_messages,
                     query=query,
                     max_tokens=max_tokens,
                     files_rag=files_rag,
@@ -244,7 +252,9 @@ class ChatStreamView(View):
                     if query and (files_rag or chat_history_rag):
                         logger.info("Attempting fallback to non-RAG response")
                         fallback_messages = [msg for msg in messages if not (
-                            msg['role'] == 'system' and 'relevant context' in msg['content'].lower())]
+                            'relevant context' in msg['content'].lower())]
+                        # Filter to only user/assistant roles (defensive)
+                        fallback_messages = [m for m in fallback_messages if m["role"] in ("user", "assistant")]
                         fallback_response = chat_service.get_completion(
                             fallback_messages,
                             max_tokens=3500,

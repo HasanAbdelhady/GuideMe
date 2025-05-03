@@ -23,22 +23,6 @@
 }
 
 /* Code blocks */
-.markdown-content pre {
-	margin: 1em 0;
-	border-radius: 0.25rem;
-	overflow: auto;
-}
-.markdown-content code {
-	font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-	font-size: 0.875rem;
-	padding: 0.2em 0.4em;
-	border-radius: 0.25rem;
-	background-color: rgba(88, 88, 88, 0.15);
-}
-.markdown-content pre code {
-	padding: 0;
-	background-color: transparent;
-}
 
 /* Typing indicator */
 .typing-indicator {
