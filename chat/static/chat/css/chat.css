@@ -23,6 +23,14 @@
 }
 
 /* Code blocks */
+.cyberpunk-gradient {
+	background: linear-gradient(
+		125deg,
+		#00072d 0%,
+		#001440 28.65%,
+		#001233 75.52%
+	);
+}
 
 /* Typing indicator */
 .typing-indicator {
@@ -92,8 +100,3 @@
 	opacity: 1;
 }
 
-/* Cyberpunk gradient (apply to main backgrounds as needed) */
-.cyberpunk-gradient {
-	background: linear-gradient(135deg, #0f0026 0%, #1a0a4a 40%, #0fffc1 100%);
-	background-color: #0f0026;
-}

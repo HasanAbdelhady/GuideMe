@@ -239,48 +239,73 @@ document.addEventListener("DOMContentLoaded", function () {
 	async function handleStreamResponse(response) {
 		if (!response.ok) throw new Error("Failed to get response");
 		removeTypingIndicator();
+
 		const messageDiv = document.createElement("div");
-		messageDiv.className = "message-enter bg-[#444654] px-4 md:px-6 py-6";
+		messageDiv.className = "message-enter  px-4 md:px-6 py-6";
 		messageDiv.innerHTML = `
-			<div class="flex gap-4 md:gap-6">
-				<div class="flex-shrink-0 w-7 h-7">
-					<div class="w-7 h-7 rounded-sm bg-[#11A27F] flex items-center justify-center text-white">
-						<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5">
-							<path d="M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-10.5V21" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
-						</svg>
-					</div>
-				</div>
-				<div class="flex-1 overflow-x-auto min-w-0">
-					<div class="prose prose-invert max-w-none markdown-content text-gray-100"></div>
-				</div>
-			</div>
-		`;
+						<div class="flex gap-4 md:gap-6">
+							<div class="flex-shrink-0 w-7 h-7">
+								<div class="w-7 h-7 rounded-sm bg-[#11A27F] flex items-center justify-center text-white">
+									<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5">
+										<path d="M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-10.5V21" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+									</svg>
+								</div>
+							</div>
+							<div class="flex-1 overflow-x-auto min-w-0">
+								<div class="prose prose-invert max-w-none markdown-content text-gray-100"></div>
+							</div>
+						</div>
+					`;
+
 		document.getElementById("chat-messages").appendChild(messageDiv);
-		const markdownContainer = messageDiv.querySelector(".markdown-content");
+		const markdownContainer =
+			messageDiv.querySelector(".markdown-content");
 		let assistantMessage = "";
+
 		try {
 			const reader = response.body.getReader();
 			const decoder = new TextDecoder();
+
 			while (true) {
 				const { done, value } = await reader.read();
 				if (done) break;
+
 				const chunk = decoder.decode(value);
 				const lines = chunk.split("\n\n");
+
 				for (const line of lines) {
 					if (line.startsWith("data: ")) {
 						try {
 							const data = JSON.parse(line.slice(6));
+
 							switch (data.type) {
 								case "content":
 									assistantMessage += data.content;
-									markdownContainer.textContent = data.content;
+									markdownContainer.innerHTML =
+										marked.parse(assistantMessage);
+									markdownContainer
+										.querySelectorAll("pre code")
+										.forEach((block) => {
+											if (!block.classList.contains("hljs")) {
+												hljs.highlightElement(block);
+											}
+										});
 									smoothScrollToBottom();
 									break;
+
 								case "error":
-									markdownContainer.textContent = `<div class="text-red-400">Error: ${data.content}</div>`;
+									markdownContainer.innerHTML = `<div class="text-red-400">Error: ${data.content}</div>`;
 									break;
+
 								case "done":
-									markdownContainer.textContent = data.content;
+									// Final formatting pass
+									markdownContainer.innerHTML =
+										marked.parse(assistantMessage);
+									markdownContainer
+										.querySelectorAll("pre code")
+										.forEach((block) => {
+											hljs.highlightElement(block);
+										});
 									break;
 							}
 						} catch (e) {
@@ -292,14 +317,14 @@ document.addEventListener("DOMContentLoaded", function () {
 		} catch (error) {
 			if (error.name !== "AbortError") {
 				console.error("Stream error:", error);
-				markdownContainer.textContent = `<div class="text-red-400">Error: ${error.message}</div>`;
+				markdownContainer.innerHTML = `<div class="text-red-400">Error: ${error.message}</div>`;
 			}
 		} finally {
 			stopButton.classList.add("hidden");
 			smoothScrollToBottom();
 		}
 	}
-
+	
 	function appendUserMessage(content) {
 		const messagesDiv = document.getElementById("chat-messages");
 		const placeholder = messagesDiv.querySelector(
