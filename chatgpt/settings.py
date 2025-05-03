@@ -120,7 +120,6 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 
 STATIC_URL = '/static/'
-STATICFILES_DIRS = [BASE_DIR / 'static']
 
 # Add these settings for authentication
 LOGIN_URL = 'login'  # Name of our login URL pattern

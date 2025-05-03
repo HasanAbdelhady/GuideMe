@@ -78,6 +78,8 @@ class LangChainRAG:
         splitter = RecursiveCharacterTextSplitter(
             chunk_size=1000, chunk_overlap=200)
         self.chunks = splitter.split_documents(docs)
+        if not self.chunks:
+            raise ValueError("No text could be extracted from the uploaded file. Please upload a file with extractable text.")
         # Embedding and vectorstore
         embeddings = HuggingFaceEmbeddings(
             model_name=self.embedding_model_name)
@@ -177,7 +179,7 @@ class ChatService:
             total += len(prompt_template.format(**msg).split())
         return total
 
-    def get_completion(self, messages, query=None, files_rag=None, chat_history_rag=None, max_tokens=6000, chat_id=None, is_new_chat=False):
+    def get_completion(self, messages, query=None, files_rag=None, chat_history_rag=None, max_tokens=6000, chat_id=None, is_new_chat=False, attached_file_name=None):
         # Always use cached file RAG if available and not a new chat
         if not files_rag and chat_id and not is_new_chat:
             files_rag = self.get_files_rag(chat_id)
@@ -190,9 +192,10 @@ class ChatService:
         if context.strip():
             for i, msg in enumerate(messages):
                 if msg["role"] == "user":  # Insert after the first user message (system prompt is now user)
+                    file_info = f" from the file '{attached_file_name}'" if attached_file_name else ""
                     context_msg = {
                         "role": "assistant",
-                        "content": f"The user has uploaded a file and/or provided chat history. Here is the extracted content from the uploaded file and/or chat history. Use this information to answer the user's question.\n\n[BEGIN CONTEXT]\n{context}\n[END CONTEXT]"
+                        "content": f"The user has uploaded a file{file_info} and/or provided chat history. Here is the extracted content from the uploaded file{file_info} and/or chat history. Use this information to answer the user's question.\n\n[BEGIN CONTEXT]\n{context}\n[END CONTEXT]"
                     }
                     messages.insert(i+1, context_msg)
                     break
@@ -208,7 +211,7 @@ class ChatService:
         )
         return completion.choices[0].message.content
 
-    def stream_completion(self, messages, query=None, files_rag=None, chat_history_rag=None, max_tokens=6000, chat_id=None, is_new_chat=False):
+    def stream_completion(self, messages, query=None, files_rag=None, chat_history_rag=None, max_tokens=6000, chat_id=None, is_new_chat=False, attached_file_name=None):
         # Always use cached file RAG if available and not a new chat
         if not files_rag and chat_id and not is_new_chat:
             files_rag = self.get_files_rag(chat_id)
@@ -221,9 +224,10 @@ class ChatService:
         if context.strip():
             for i, msg in enumerate(messages):
                 if msg["role"] == "user":  # Insert after the first user message (system prompt is now user)
+                    file_info = f" from the file '{attached_file_name}'" if attached_file_name else ""
                     context_msg = {
                         "role": "assistant",
-                        "content": f"The user has uploaded a file and/or provided chat history. Here is the extracted content from the uploaded file and/or chat history. Use this information to answer the user's question.\n\n[BEGIN CONTEXT]\n{context}\n[END CONTEXT]"
+                        "content": f"The user has uploaded a file{file_info} and/or provided chat history. Here is the extracted content from the uploaded file{file_info} and/or chat history. Use this information to answer the user's question.\n\n[BEGIN CONTEXT]\n{context}\n[END CONTEXT]"
                     }
                     messages.insert(i+1, context_msg)
                     break
