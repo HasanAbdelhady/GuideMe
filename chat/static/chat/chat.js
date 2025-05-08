@@ -96,7 +96,7 @@ document.addEventListener("DOMContentLoaded", function () {
 		removeTypingIndicator();
 
 		const typingDiv = document.createElement("div");
-		typingDiv.className = "message-enter bg-[#444654] px-4 md:px-6 py-6";
+		typingDiv.className = "message-enter px-4 md:px-6 py-6";
 		typingDiv.id = "typing-indicator";
 
 		typingDiv.innerHTML = `
@@ -172,9 +172,7 @@ document.addEventListener("DOMContentLoaded", function () {
 		if (placeholder) placeholder.remove();
 
 		const messageDiv = document.createElement("div");
-		messageDiv.className = `message-enter ${
-			role === "assistant" ? "bg-[#444654]" : ""
-		} px-4 md:px-6 py-6`;
+		messageDiv.className = `message-enter px-4 md:px-6 py-6`;
 
 		messageDiv.innerHTML = `
 			<div class="flex gap-4 md:gap-6 max-w-3xl mx-auto">
@@ -258,8 +256,7 @@ document.addEventListener("DOMContentLoaded", function () {
 					`;
 
 		document.getElementById("chat-messages").appendChild(messageDiv);
-		const markdownContainer =
-			messageDiv.querySelector(".markdown-content");
+		const markdownContainer = messageDiv.querySelector(".markdown-content");
 		let assistantMessage = "";
 
 		try {
@@ -281,8 +278,7 @@ document.addEventListener("DOMContentLoaded", function () {
 							switch (data.type) {
 								case "content":
 									assistantMessage += data.content;
-									markdownContainer.innerHTML =
-										marked.parse(assistantMessage);
+									markdownContainer.innerHTML = marked.parse(assistantMessage);
 									markdownContainer
 										.querySelectorAll("pre code")
 										.forEach((block) => {
@@ -299,8 +295,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
 								case "done":
 									// Final formatting pass
-									markdownContainer.innerHTML =
-										marked.parse(assistantMessage);
+									markdownContainer.innerHTML = marked.parse(assistantMessage);
 									markdownContainer
 										.querySelectorAll("pre code")
 										.forEach((block) => {
@@ -324,7 +319,7 @@ document.addEventListener("DOMContentLoaded", function () {
 			smoothScrollToBottom();
 		}
 	}
-	
+
 	function appendUserMessage(content) {
 		const messagesDiv = document.getElementById("chat-messages");
 		const placeholder = messagesDiv.querySelector(
@@ -445,7 +440,7 @@ document.addEventListener("DOMContentLoaded", function () {
 			removeTypingIndicator();
 			if (error.name !== "AbortError") {
 				const messageDiv = document.createElement("div");
-				messageDiv.className = "message-enter bg-[#444654] px-4 md:px-6 py-6";
+				messageDiv.className = "message-enter px-4 md:px-6 py-6";
 				messageDiv.innerHTML = `
 					<div class="chat-container flex gap-4 md:gap-6">
 						<div class="flex-shrink-0 w-7 h-7">
@@ -610,7 +605,7 @@ document.addEventListener("DOMContentLoaded", function () {
 				child.querySelector && child.querySelector("[class*='bg-#11A27F']")
 		);
 		if (icon) {
-			msg.classList.add("bg-[#444654]");
+			msg.classList.add("");
 		}
 	});
 

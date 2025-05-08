@@ -180,7 +180,19 @@ class ChatService:
         return total
 
     def get_completion(self, messages, query=None, files_rag=None, chat_history_rag=None, max_tokens=6000, chat_id=None, is_new_chat=False, attached_file_name=None):
-        # Always use cached file RAG if available and not a new chat
+        # Fast path for new chats - bypass all RAG and token enforcement
+        if is_new_chat:
+            groq_client = Groq()
+            completion = groq_client.chat.completions.create(
+                model="llama3-8b-8192",
+                messages=messages,
+                temperature=0.7,
+                max_completion_tokens=1024,
+                stream=False,
+            )
+            return completion.choices[0].message.content
+        
+        # Regular code for existing chats...
         if not files_rag and chat_id and not is_new_chat:
             files_rag = self.get_files_rag(chat_id)
         context = ""
@@ -212,18 +224,30 @@ class ChatService:
         return completion.choices[0].message.content
 
     def stream_completion(self, messages, query=None, files_rag=None, chat_history_rag=None, max_tokens=6000, chat_id=None, is_new_chat=False, attached_file_name=None):
-        # Always use cached file RAG if available and not a new chat
-        if not files_rag and chat_id and not is_new_chat:
+        # Fast path for new chats - bypass all RAG and token enforcement
+        if is_new_chat:
+            groq_client = Groq()
+            return groq_client.chat.completions.create(
+                model="llama3-8b-8192",
+                messages=messages,
+                temperature=0.7,
+                max_completion_tokens=1024,
+                stream=True,
+            )
+        
+        # Regular path for existing chats (with RAG, etc)
+        if not files_rag and chat_id:
             files_rag = self.get_files_rag(chat_id)
         context = ""
-        if not is_new_chat:
-            if files_rag and query:
-                context += files_rag.retrieve(query)
-            if chat_history_rag and query:
-                context += "\n" + chat_history_rag.retrieve(query)
+        if files_rag and query:
+            context += files_rag.retrieve(query)
+        if chat_history_rag and query:
+            context += "\n" + chat_history_rag.retrieve(query)
+        
+        # Rest of existing code...
         if context.strip():
             for i, msg in enumerate(messages):
-                if msg["role"] == "user":  # Insert after the first user message (system prompt is now user)
+                if msg["role"] == "user":
                     file_info = f" from the file '{attached_file_name}'" if attached_file_name else ""
                     context_msg = {
                         "role": "assistant",
@@ -231,8 +255,8 @@ class ChatService:
                     }
                     messages.insert(i+1, context_msg)
                     break
-        trimmed_messages = self.enforce_token_limit(
-            messages, max_tokens=max_tokens)
+        
+        trimmed_messages = self.enforce_token_limit(messages, max_tokens=max_tokens)
         groq_client = Groq()
         return groq_client.chat.completions.create(
             model="llama3-8b-8192",
@@ -245,7 +269,7 @@ class ChatService:
     def save_file(self, chat_id, uploaded_file):
         if uploaded_file:
             return default_storage.save(
-                f'chat_uploads/{chat_id}/{uploaded_file.name}',
+                f'media/chat_uploads/{chat_id}/{uploaded_file.name}',
                 uploaded_file
             )
         return None
