@@ -32,7 +32,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
 	function appendQuizMessage(quizHtml) {
 		const messageDiv = document.createElement("div");
-		messageDiv.className = "message-enter bg-[#444654] px-4 md:px-6 py-6";
+		messageDiv.className = "message-enter px-4 md:px-6 py-6";
 		messageDiv.innerHTML = `
 			<div class="chat-container flex gap-4 md:gap-6">
 				<div class="flex-shrink-0 w-7 h-7">

@@ -1,15 +1,28 @@
 <!-- Messages area -->
 <div id="chat-messages" class="space-y-5 mb-4 min-h-[calc(100vh-180px)]">
 	{% for msg in conversation %}
-	<div
-		class="message-enter {% if msg.role == 'assistant' %}{% endif %} px-4 md:px-6 py-6">
-		<div class="chat-container flex gap-4 md:gap-6">
-			<!-- User or Assistant icon -->
+	<div class="message-enter px-4 md:px-6 py-6">
+		{% if msg.role == "user" %}
+		<!-- User message - right aligned -->
+		<div
+			class="chat-container flex flex-row-reverse gap-4 md:gap-6 justify-start">
+			<!-- User icon - right side -->
 			<div class="flex-shrink-0 w-7 h-7">
-				{% if msg.role == "user" %}
 				<div
 					class="w-7 h-7 rounded-sm bg-[#5436DA] flex items-center justify-center text-white text-xs font-semibold">U</div>
-				{% else %}
+			</div>
+			<!-- Message content -->
+			<div class="overflow-x-auto max-w-[75%]">
+				<div class="user-message text-gray-100 bg-[#444654] p-3 rounded-lg">
+					<p class="whitespace-pre-wrap">{{ msg.text}}</p>
+				</div>
+			</div>
+		</div>
+		{% else %}
+		<!-- Assistant message - left aligned -->
+		<div class="chat-container flex gap-4 md:gap-6">
+			<!-- Assistant icon - left side -->
+			<div class="flex-shrink-0 w-7 h-7">
 				<div
 					class="cls w-7 h-7 rounded-sm bg-[#11A27F] flex items-center justify-center text-white">
 					<svg width="24" height="24" viewBox="0 0 24 24" fill="none"
@@ -20,22 +33,22 @@
 							stroke-linejoin="round"></path>
 					</svg>
 				</div>
-				{% endif %}
 			</div>
 			<!-- Message content -->
-			<div class="flex-1 overflow-x-auto min-w-0">
-				{% if msg.role == "assistant" and msg.text%}
+			<div class="flex-1 overflow-x-auto min-w-0 max-w-[85%]">
+				{% if msg.text %}
 				<div class="max-w-none markdown-content text-gray-100">
 					{{ msg.text |safe }}
 				</div>
 				{% else %}
 				<div
-					class="quiz-message max-w-none text-gray-100">
+					class="quiz-message max-w-none text-gray-100 bg-gray-700/70 p-2 rounded-xl ">
 					{{ msg.html | safe }}
 				</div>
-				{%endif%}
+				{% endif %}
 			</div>
 		</div>
+		{% endif %}
 	</div>
 	{% empty %}
 	<div class="flex flex-col items-center justify-center h-[calc(100vh-200px)]">

@@ -22,6 +22,7 @@ from django.views.decorators.http import require_POST
 import re
 chat_service = ChatService()
 
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Detailed system prompt for the "Learning How to Learn" expert.
@@ -92,16 +93,13 @@ class ChatView(View):
                 chat = Chat.objects.get(id=chat_id, user=request.user)
                 messages = chat.messages.all().order_by('created_at')
                 conversation = []
-                for msg in messages:
-                    if msg.content == '':
-                        print("here")
+                for i, msg in enumerate(messages):
+                    if msg.content == '' and i > 0 and msg.role == 'assistant':
                         conversation.append(
                             {'role': msg.role, 'html': msg.quiz_html})
                     else:
                         conversation.append(
                             {'role': msg.role, 'text': msg.content})
-                for i in conversation:
-                    print(i)
                 return render(request, self.template_name, {
                     "current_chat": chat,
                     "conversation": conversation,
@@ -145,10 +143,12 @@ class ChatStreamView(View):
                 if file_path:
                     files_rag = chat_service.build_rag(
                         file_path, file_ext, chat_id=chat.id)
+                    print(f"File rag: {files_rag}")
                     logger.info("LangChain RAG index built.")
-
+                        
             # Only use chat history for existing chats (not new chats)
-            is_new_chat = chat.title == "New Chat"
+            print(f"Chat message count: {chat.messages.count()}")
+            is_new_chat = chat.messages.count() == 1
             if use_history and not is_new_chat and (not uploaded_file or request.POST.get('include_history', 'false') == 'true'):
                 logger.info("Using chat history for RAG context.")
                 chat_history = chat_service.get_chat_history(chat)
@@ -170,19 +170,15 @@ class ChatStreamView(View):
                 logger.info("Chat title updated.")
 
             # Prepare message history
-            system_prompt = request.session.get('system_prompt', SYSTEM_PROMPT)
+            system_prompt = PreferenceService.get_system_prompt(request.user)
             messages = [{"role": "user", "content": system_prompt}]
             chat_history = chat_service.get_chat_history(chat)
             for msg in chat_history:
-                # Map any non-user role to 'assistant'
-                role = msg.role if msg.role == 'user' else 'assistant'
+                role = msg.role
                 messages.append({"role": role, "content": msg.content})
             # Only send the user's actual message to the LLM, not the '[Attached file: ...]' string
             messages.append({"role": "user", "content": prompt_text})
-
-            # Filter to only user/assistant roles (defensive)
-            messages = [m for m in messages if m["role"] in ("user", "assistant")]
-
+            
             logger.info(
                 f"Message history prepared with {len(messages)} messages")
 
@@ -211,11 +207,8 @@ class ChatStreamView(View):
                 message_count = len(messages)
                 max_tokens = 3500 if message_count < 10 else 4500
 
-                # Filter to only user/assistant roles (defensive)
-                filtered_messages = [m for m in messages if m["role"] in ("user", "assistant")]
-
                 stream = chat_service.stream_completion(
-                    filtered_messages,
+                    messages,
                     query=query,
                     max_tokens=max_tokens,
                     files_rag=files_rag,
@@ -337,59 +330,59 @@ def create_chat(request):
 # chat/views.py (updated quiz_view)
 
 
-@login_required
-def quiz_view(request):
-    if request.method == "POST":
-        lecture_text = request.POST.get("lecture_text", "").strip()
-        if not lecture_text:
-            return HttpResponse("Lecture text is required to generate a quiz.", status=400)
+# @login_required
+# def quiz_view(request):
+#     if request.method == "POST":
+#         lecture_text = request.POST.get("lecture_text", "").strip()
+#         if not lecture_text:
+#             return HttpResponse("Lecture text is required to generate a quiz.", status=400)
 
-        prefs = request.user.get_learning_preferences()
+#         prefs = request.user.get_learning_preferences()
 
-        # Build a dedicated prompt for quiz generation with user preferences
-        quiz_prompt = (
-            "You are LearningMaster, an expert in 'Learning How to Learn' and a skilled quizzer. "
-            f"The student prefers {prefs['learning_style']} learning styles and {prefs['study_time']} study sessions. "
-            "Generate an interactive multiple-choice quiz based on the following lecture text. "
-            f"{'Include visual elements and diagrams where possible.' if prefs['learning_style'] == 'visual' else ''} "
-            "Each question should have 4 possible answers, with only one correct answer. "
-            "Output the quiz as a complete HTML snippet that includes inline CSS and JavaScript. "
-            "The HTML should display the quiz questions, provide radio button options for each, "
-            "and include a 'Check Answer' button that reveals whether the selected answer is correct or not. "
-            "Lecture text:\n\n" + lecture_text
-        )
+#         # Build a dedicated prompt for quiz generation with user preferences
+#         quiz_prompt = (
+#             "You are LearningMaster, an expert in 'Learning How to Learn' and a skilled quizzer. "
+#             f"The student prefers {prefs['learning_style']} learning styles and {prefs['study_time']} study sessions. "
+#             "Generate an interactive multiple-choice quiz based on the following lecture text. "
+#             f"{'Include visual elements and diagrams where possible.' if prefs['learning_style'] == 'visual' else ''} "
+#             "Each question should have 4 possible answers, with only one correct answer. "
+#             "Output the quiz as a complete HTML snippet that includes inline CSS and JavaScript. "
+#             "The HTML should display the quiz questions, provide radio button options for each, "
+#             "and include a 'Check Answer' button that reveals whether the selected answer is correct or not. "
+#             "Lecture text:\n\n" + lecture_text
+#         )
 
-        try:
-            completion = groq_client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=[{"role": "system", "content": quiz_prompt}],
-                temperature=1,
-                max_completion_tokens=4096,
-                top_p=1,
-                stream=False,
-                stop=None,
-            )
-        except Exception as e:
-            return HttpResponse(f"Error calling Groq API: {e}", status=500)
+#         try:
+#             completion = groq_client.chat.completions.create(
+#                 model="llama-3.3-70b-versatile",
+#                 messages=[{"role": "system", "content": quiz_prompt}],
+#                 temperature=1,
+#                 max_completion_tokens=4096,
+#                 top_p=1,
+#                 stream=False,
+#                 stop=None,
+#             )
+#         except Exception as e:
+#             return HttpResponse(f"Error calling Groq API: {e}", status=500)
 
-        # Unescape HTML entities in the output and mark it as safe.
-        raw_quiz = completion.choices[0].message.content
-        unescaped_quiz = html.unescape(raw_quiz)
-        quiz_html = mark_safe(unescaped_quiz)
+#         # Unescape HTML entities in the output and mark it as safe.
+#         raw_quiz = completion.choices[0].message.content
+#         unescaped_quiz = html.unescape(raw_quiz)
+#         quiz_html = mark_safe(unescaped_quiz)
 
-        # Extract only the HTML part
-        match = re.search(r'(<div class="quiz-question".*)',
-                          quiz_html, re.DOTALL)
-        if match:
-            quiz_html = match.group(1)
+#         # Extract only the HTML part
+#         match = re.search(r'(<div class="quiz-question".*)',
+#                           quiz_html, re.DOTALL)
+#         if match:
+#             quiz_html = match.group(1)
 
-        context = {
-            "quiz_html": quiz_html,
-            "lecture_text": lecture_text,
-        }
-        return render(request, "chat/quiz.html", context)
+#         context = {
+#             "quiz_html": quiz_html,
+#             "lecture_text": lecture_text,
+#         }
+#         return render(request, "chat/quiz.html", context)
 
-    return render(request, "chat/quiz.html")
+#     return render(request, "chat/quiz.html")
 
 
 @login_required
@@ -482,7 +475,7 @@ def chat_quiz(request, chat_id):
         return JsonResponse({'error': 'Not enough content in this chat to generate a quiz. Please continue the conversation first.'}, status=400)
 
     prompt = f"""
-Create a multiple-choice quiz (4 options per question) based on the following conversation's relevant scientific information only, related to the learning.
+Create at least 2 multiple-choice quizzes (4 options per question) based on the following conversation's relevant scientific information only, related to the learning.
 For each question, use this HTML structure:
 <div class="quiz-question" data-correct="B">
   <div class="font-semibold mb-2">What is 2+2?</div>

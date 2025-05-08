@@ -6,7 +6,80 @@
 .group:hover .delete-chat-btn {
 	opacity: 1;
 }
+.markdown-content {
+	@apply text-gray-100;
+}
 
+.markdown-content > *:first-child {
+	margin-top: 0 !important;
+}
+
+.markdown-content > *:last-child {
+	margin-bottom: 0 !important;
+}
+
+.markdown-content p {
+	margin: 0.75em 0;
+	line-height: 1.7;
+	white-space: pre-wrap;
+}
+
+.markdown-content:not(:has(p, pre, ul, ol, blockquote)) {
+	white-space: pre-wrap;
+}
+
+.markdown-content pre {
+	position: relative;
+	margin: 1em 0;
+	padding: 1em;
+	border-radius: 0.5rem;
+	background: rgba(30, 41, 59, 0.75) !important;
+	border: 1px solid rgba(255, 255, 255, 0.1);
+	overflow-x: auto;
+}
+
+.markdown-content pre .copy-button {
+	position: absolute;
+	top: 0.5rem;
+	right: 0.5rem;
+	padding: 0.25rem 0.5rem;
+	font-size: 0.75rem;
+	color: #94a3b8;
+	background: rgba(30, 41, 59, 0.9);
+	border: 1px solid rgba(255, 255, 255, 0.1);
+	border-radius: 0.25rem;
+	opacity: 0;
+	transition: opacity 0.2s, color 0.2s;
+}
+
+.markdown-content pre:hover .copy-button {
+	opacity: 1;
+}
+
+.markdown-content pre .copy-button:hover {
+	color: #e2e8f0;
+}
+
+.markdown-content pre .copy-button.copied {
+	color: #4ade80;
+}
+
+.markdown-content code {
+	font-family: "Space Mono", monospace;
+	font-size: 0.9em;
+	padding: 0.2em 0.4em;
+	border-radius: 0.25rem;
+}
+
+.markdown-content:not(pre) > code {
+	background: rgba(30, 41, 59, 0.5);
+}
+
+.markdown-content pre > code {
+	padding: 0;
+	background: transparent;
+	white-space: pre;
+}
 /* Message styling */
 .message-enter {
 	animation: messageEnter 0.2s ease-out;
@@ -99,4 +172,3 @@
 .group:hover .rename-chat-btn {
 	opacity: 1;
 }
-
