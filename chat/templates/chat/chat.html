@@ -5,13 +5,22 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'chat/css/chat.css' %}">
+<style>
+  /* Basic Modal Styling - can be enhanced */
+  .rag-modal-overlay {
+    transition: opacity 0.3s ease-in-out;
+  }
+  .rag-modal-content {
+    transition: transform 0.3s ease-in-out;
+  }
+</style>
 {% endblock %}
 
 {% block content %}
 <!-- Sidebar toggle -->
 <button
 	id="sidebar-toggle"
-	class="fixed left-4 top-4 z-50 p-2 bg-[#202123] rounded hover:bg-[#2A2B32] transition-colors"
+	class="fixed left-4 top-4 z-50 p-2 bg-[#202123] rounded hover:bg-[#2A2B32] transition-colors md:block"
 	aria-label="Toggle sidebar">
 	<svg
 		xmlns="http://www.w3.org/2000/svg"
@@ -31,8 +40,20 @@
 
 <div id="main-content"
 	class="transition-all duration-300 ease-in-out min-h-screen">
-	{% if current_chat.id %}
-	<div class="fixed right-2 top-2 mb-2">
+
+  <!-- RAG Context Management Button -->
+  {% if not is_new_chat %}
+  <button id="manage-rag-context-btn"
+    title="Manage RAG Context"
+    class="fixed right-20 top-2 z-40 p-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 shadow-lg">
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4M4 7l8 4M12 11l8-4m-8 4v9m-8-5h16" />
+    </svg>
+  </button>
+  {% endif %}
+
+	{% if not is_new_chat %}
+	<div class="fixed right-2 top-2 mb-2 z-40">
 		<button id="quiz-button"
 			class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors font-semibold shadow">
 			Quiz
@@ -41,8 +62,6 @@
 	{% endif %}
 
 	<div class="mx-auto pt-14 pb-4 px-2 sm:px-4 max-w-3xl">
-		<!-- Quiz button (only show if not a new chat) -->
-		<!-- Mobile header -->
 		<div
 			class="md:hidden flex items-center justify-center p-2 mb-4 text-center">
 			<h1 class="text-lg font-medium truncate max-w-[250px]">
@@ -54,6 +73,50 @@
 		{% include "chat/chat_input.html" %}
 	</div>
 </div>
+
+<!-- RAG Context Management Modal -->
+<div id="rag-modal-overlay"
+  class="rag-modal-overlay fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[100] opacity-0 pointer-events-none">
+  <div id="rag-modal-content"
+    class="rag-modal-content bg-gray-800 p-6 rounded-xl shadow-2xl w-full max-w-lg transform scale-95">
+    <div class="flex justify-between items-center mb-4">
+      <h2 class="text-xl font-semibold text-gray-100">Manage RAG Context</h2>
+      <button id="close-rag-modal-btn" class="p-1 text-gray-400 hover:text-gray-200 rounded-full">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+
+    <!-- Current RAG Files -->
+    <div class="mb-6">
+      <h3 class="text-md font-medium text-gray-300 mb-2">Active RAG Files (<span id="rag-file-count">0</span>/3):</h3>
+      <div id="rag-files-list" class="space-y-2 max-h-48 overflow-y-auto pr-2">
+        <!-- JS will populate this -->
+        <p id="no-rag-files-message" class="text-gray-400 text-sm italic">No files added to RAG context yet.</p>
+      </div>
+    </div>
+
+    <!-- Upload Section -->
+    <div id="rag-upload-section" class="mb-4">
+      <label for="rag-file-input" class="block text-sm font-medium text-gray-300 mb-1">Upload New File to RAG:</label>
+      <div class="flex items-center space-x-2">
+        <input type="file" id="rag-file-input" accept=".pdf,.txt"
+          class="block w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-700 disabled:opacity-50 disabled:pointer-events-none" />
+        <button id="upload-rag-file-btn"
+          class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50 disabled:opacity-50">
+          Add to RAG
+        </button>
+      </div>
+       <p class="text-xs text-gray-500 mt-1">PDF or TXT files. Max 25MB each.</p>
+    </div>
+    <div id="rag-limit-reached-message" class="hidden text-sm text-yellow-400 bg-yellow-600/20 p-3 rounded-md mb-4">
+      RAG context file limit (3) reached. Remove a file to add a new one.
+    </div>
+
+  </div>
+</div>
+
 <script id="chat-config" type="application/json">
 	{"currentChatId": "{{ current_chat.id|default:'new' }}", "isNewChat": {{ is_new_chat|yesno:'true,false' }}}
 </script>
