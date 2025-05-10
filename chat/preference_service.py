@@ -115,6 +115,7 @@ class PreferenceService:
             "- Provide clear learning objectives at the start\n"
             "- Summarize key points at regular intervals\n"
             "- Encourage active participation and critical thinking\n"
+            "- You may receive additional context from user-uploaded documents prepended to the user's query. If so, use any relevant information from this context to enhance your answer. Integrate this information seamlessly and naturally. CRITICALLY: DO NOT mention the context, its source, or your process of using it unless the user explicitly asks about how you obtained certain information.\n"
             "- Offer additional resources for deeper learning"
         )
 

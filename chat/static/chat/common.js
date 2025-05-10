@@ -1,3 +1,4 @@
+
 // Common functions used across the application
 document.addEventListener("DOMContentLoaded", function () {
 	// Process existing markdown content
@@ -20,7 +21,7 @@ document.addEventListener("DOMContentLoaded", function () {
 	document.querySelectorAll(".message-enter").forEach((msg) => {
 		// Ensure proper backgrounds
 		if (msg.querySelector(".w-7.h-7.rounded-sm.bg-\\[\\#11A27F\\]")) {
-			msg.classList.add("bg-[#444654]");
+			msg.classList.add("");
 		}
 	});
 
