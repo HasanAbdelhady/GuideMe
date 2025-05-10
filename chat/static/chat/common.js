@@ -1,3 +1,4 @@
+
 // Common functions used across the application
 document.addEventListener("DOMContentLoaded", function () {
 	// Process existing markdown content

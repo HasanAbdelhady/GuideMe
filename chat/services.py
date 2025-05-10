@@ -16,6 +16,7 @@ from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
 from langchain.chains import RetrievalQA
 from langchain.prompts.example_selector import LengthBasedExampleSelector
+from langchain.docstore.document import Document
 
 # --- PDFMiner for PDF Loading ---
 from pdfminer.high_level import extract_text
@@ -62,29 +63,50 @@ class LangChainRAG:
         self.model = model
 
     def build_index(self, file_path, file_type="pdf"):
-        # Use PDFMiner for PDFs, TextLoader for txt
+        docs = []
         if file_type == "pdf":
-            # Extract text from PDF using pdfminer
-            text = extract_text(file_path)
-            temp_txt_path = file_path + ".txt"
-            with open(temp_txt_path, "w", encoding="utf-8") as f:
-                f.write(text)
-            # <-- specify encoding!
-            loader = TextLoader(temp_txt_path, encoding="utf-8")
-        else:
-            # <-- specify encoding!
-            loader = TextLoader(file_path, encoding="utf-8")
-        docs = loader.load()
+            text = extract_text(file_path) # This extracts all text from the PDF.
+            if text and text.strip(): # Check if text was extracted and is not just whitespace
+                # Create a single Document object from the entire PDF text.
+                # Add metadata for source identification.
+                docs = [Document(page_content=text, metadata={"source": os.path.basename(file_path)})]
+            # If no text, docs remains empty.
+        else: # For .txt and other text-based files
+            try:
+                loader = TextLoader(file_path, encoding="utf-8")
+                loaded_docs = loader.load()
+                if loaded_docs: # Ensure loader.load() returned documents
+                    docs = loaded_docs
+            except Exception as e:
+                # Ideally, log this error: logging.error(f"Failed to load text file {file_path}: {e}")
+                # For now, docs will remain empty, and the check below will catch it.
+                pass # docs remains empty
+        print(f"This is the docs: {docs}")
+        if not docs:
+            raise ValueError(
+                f"No text content could be loaded or extracted from {os.path.basename(file_path)}. "
+                "The file might be empty, a non-supported format, or PDF extraction yielded no text."
+            )
+
         splitter = RecursiveCharacterTextSplitter(
-            chunk_size=1000, chunk_overlap=200)
+            chunk_size=1000, chunk_overlap=100)
         self.chunks = splitter.split_documents(docs)
+
         if not self.chunks:
-            raise ValueError("No text could be extracted from the uploaded file. Please upload a file with extractable text.")
+            # This means content was loaded but produced no chunks.
+            raise ValueError(
+                f"Content from {os.path.basename(file_path)} loaded, but yielded no processable text chunks. "
+                "It might be too short or lack suitable structure for chunking."
+            )
+
         # Embedding and vectorstore
         embeddings = HuggingFaceEmbeddings(
             model_name=self.embedding_model_name)
+        # This step generates embeddings and builds the FAISS index, which is computationally intensive.
         self.vectorstore = FAISS.from_documents(self.chunks, embeddings)
-        self.retriever = self.vectorstore.as_retriever(search_kwargs={"k": 5})
+        print(f"This is the vectorstore: {self.vectorstore}")
+        self.retriever = self.vectorstore.as_retriever(search_kwargs={"k": 4})
+        print(f"This is the retriever: {self.retriever}")
         # Use GroqLangChainLLM instead of OpenAI
         llm = GroqLangChainLLM(model=self.model)
         self.qa_chain = RetrievalQA.from_chain_type(
@@ -183,9 +205,11 @@ class ChatService:
         # Fast path for new chats - bypass all RAG and token enforcement
         if is_new_chat:
             groq_client = Groq()
+            # Ensure messages is a list of dicts, not a QuerySet or other complex object
+            llm_messages = [{"role": msg['role'], "content": msg['content']} for msg in messages]
             completion = groq_client.chat.completions.create(
                 model="llama3-8b-8192",
-                messages=messages,
+                messages=llm_messages,
                 temperature=0.7,
                 max_completion_tokens=1024,
                 stream=False,
@@ -193,26 +217,48 @@ class ChatService:
             return completion.choices[0].message.content
         
         # Regular code for existing chats...
-        if not files_rag and chat_id and not is_new_chat:
+        current_messages = [msg for msg in messages] # Make a mutable copy
+
+        if not files_rag and chat_id: # Ensure files_rag is loaded if chat_id is available
             files_rag = self.get_files_rag(chat_id)
-        context = ""
-        if not is_new_chat:
-            if files_rag and query:
-                context += files_rag.retrieve(query)
-            if chat_history_rag and query:
-                context += "\n" + chat_history_rag.retrieve(query)
-        if context.strip():
-            for i, msg in enumerate(messages):
-                if msg["role"] == "user":  # Insert after the first user message (system prompt is now user)
-                    file_info = f" from the file '{attached_file_name}'" if attached_file_name else ""
-                    context_msg = {
-                        "role": "assistant",
-                        "content": f"The user has uploaded a file{file_info} and/or provided chat history. Here is the extracted content from the uploaded file{file_info} and/or chat history. Use this information to answer the user's question.\n\n[BEGIN CONTEXT]\n{context}\n[END CONTEXT]"
-                    }
-                    messages.insert(i+1, context_msg)
-                    break
-        trimmed_messages = self.enforce_token_limit(
-            messages, max_tokens=max_tokens)
+
+        context_str = ""
+        retrieved_context = "" # Initialize to ensure it's always a string
+        if files_rag and query:
+            retrieved_context = files_rag.retrieve(query)
+            self.logger.info(f"RAG retrieved_context for query '{query[:100]}...': '{str(retrieved_context)[:500]}...")
+            if retrieved_context: # Check if anything was actually retrieved
+                 context_str += str(retrieved_context) # Ensure it's a string
+        
+        # Placeholder for chat_history_rag if it were to be re-introduced and used similarly
+        # if chat_history_rag and query:
+        #     context_str += "\n" + chat_history_rag.retrieve(query)
+
+        if context_str.strip():
+            file_info = f" from the file '{attached_file_name}'" if attached_file_name else ""
+            # If attached_file_name is None but files_rag was used, try to get a source from RAG
+            if not file_info and files_rag and files_rag.chunks:
+                try:
+                    source_name = files_rag.chunks[0].metadata.get('source', 'the uploaded document')
+                    file_info = f" from {source_name}"
+                except (AttributeError, IndexError):
+                    file_info = " from the uploaded document" # Fallback
+
+            context_msg_content = (
+                f"Relevant context has been retrieved{file_info}. "
+                f"Use this information to answer the user's question or fulfill the request.\n\n"
+                f"[BEGIN CONTEXT]\n{context_str}\n[END CONTEXT]"
+            )
+            context_message = {"role": "assistant", "content": context_msg_content}
+            
+            # Insert context message right before the last message (current user query/instruction)
+            if current_messages:
+                current_messages.insert(-1, context_message)
+            else: # Should not happen if a query is present, but as a fallback
+                current_messages.append(context_message)
+
+        trimmed_messages = self.enforce_token_limit(current_messages, max_tokens=max_tokens)
+        
         groq_client = Groq()
         completion = groq_client.chat.completions.create(
             model="llama3-8b-8192",
@@ -227,36 +273,54 @@ class ChatService:
         # Fast path for new chats - bypass all RAG and token enforcement
         if is_new_chat:
             groq_client = Groq()
+            llm_messages = [{"role": msg['role'], "content": msg['content']} for msg in messages]
             return groq_client.chat.completions.create(
                 model="llama3-8b-8192",
-                messages=messages,
+                messages=llm_messages,
                 temperature=0.7,
                 max_completion_tokens=1024,
                 stream=True,
             )
         
-        # Regular path for existing chats (with RAG, etc)
-        if not files_rag and chat_id:
+        current_messages = [msg for msg in messages] # Make a mutable copy
+
+        if not files_rag and chat_id: # Ensure files_rag is loaded if chat_id is available
             files_rag = self.get_files_rag(chat_id)
-        context = ""
+
+        context_str = ""
+        retrieved_context = "" # Initialize
         if files_rag and query:
-            context += files_rag.retrieve(query)
-        if chat_history_rag and query:
-            context += "\n" + chat_history_rag.retrieve(query)
+            retrieved_context = files_rag.retrieve(query)
+            self.logger.info(f"RAG retrieved_context for query '{query[:100]}...': '{str(retrieved_context)[:500]}...")
+            if retrieved_context: # Check if anything was actually retrieved
+                 context_str += str(retrieved_context) # Ensure string
         
-        # Rest of existing code...
-        if context.strip():
-            for i, msg in enumerate(messages):
-                if msg["role"] == "user":
-                    file_info = f" from the file '{attached_file_name}'" if attached_file_name else ""
-                    context_msg = {
-                        "role": "assistant",
-                        "content": f"The user has uploaded a file{file_info} and/or provided chat history. Here is the extracted content from the uploaded file{file_info} and/or chat history. Use this information to answer the user's question.\n\n[BEGIN CONTEXT]\n{context}\n[END CONTEXT]"
-                    }
-                    messages.insert(i+1, context_msg)
-                    break
+        # Placeholder for chat_history_rag logic
+        # if chat_history_rag and query:
+        #     context_str += "\n" + chat_history_rag.retrieve(query)
         
-        trimmed_messages = self.enforce_token_limit(messages, max_tokens=max_tokens)
+        if context_str.strip():
+            file_info = f" from the file '{attached_file_name}'" if attached_file_name else ""
+            if not file_info and files_rag and files_rag.chunks: # Try to get source from RAG metadata
+                try:
+                    source_name = files_rag.chunks[0].metadata.get('source', 'the uploaded document')
+                    file_info = f" from {source_name}"
+                except (AttributeError, IndexError):
+                    file_info = " from the uploaded document"
+
+            context_msg_content = (
+                f"Relevant context has been retrieved{file_info}. "
+                f"Use this information to answer the user's question or fulfill the request.\n\n"
+                f"[BEGIN CONTEXT]\n{context_str}\n[END CONTEXT]"
+            )
+            context_message = {"role": "assistant", "content": context_msg_content}
+
+            if current_messages:
+                current_messages.insert(-1, context_message) # Insert before the last message
+            else:
+                current_messages.append(context_message)
+        
+        trimmed_messages = self.enforce_token_limit(current_messages, max_tokens=max_tokens)
         groq_client = Groq()
         return groq_client.chat.completions.create(
             model="llama3-8b-8192",
