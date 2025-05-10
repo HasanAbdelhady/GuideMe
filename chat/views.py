@@ -171,7 +171,7 @@ class ChatStreamView(View):
 
             # Prepare message history
             system_prompt = PreferenceService.get_system_prompt(request.user)
-            messages = [{"role": "user", "content": system_prompt}]
+            messages = [{"role": "system", "content": system_prompt}]
             chat_history = chat_service.get_chat_history(chat)
             for msg in chat_history:
                 role = msg.role
@@ -327,63 +327,6 @@ def create_chat(request):
     }, status=405)
 
 
-# chat/views.py (updated quiz_view)
-
-
-# @login_required
-# def quiz_view(request):
-#     if request.method == "POST":
-#         lecture_text = request.POST.get("lecture_text", "").strip()
-#         if not lecture_text:
-#             return HttpResponse("Lecture text is required to generate a quiz.", status=400)
-
-#         prefs = request.user.get_learning_preferences()
-
-#         # Build a dedicated prompt for quiz generation with user preferences
-#         quiz_prompt = (
-#             "You are LearningMaster, an expert in 'Learning How to Learn' and a skilled quizzer. "
-#             f"The student prefers {prefs['learning_style']} learning styles and {prefs['study_time']} study sessions. "
-#             "Generate an interactive multiple-choice quiz based on the following lecture text. "
-#             f"{'Include visual elements and diagrams where possible.' if prefs['learning_style'] == 'visual' else ''} "
-#             "Each question should have 4 possible answers, with only one correct answer. "
-#             "Output the quiz as a complete HTML snippet that includes inline CSS and JavaScript. "
-#             "The HTML should display the quiz questions, provide radio button options for each, "
-#             "and include a 'Check Answer' button that reveals whether the selected answer is correct or not. "
-#             "Lecture text:\n\n" + lecture_text
-#         )
-
-#         try:
-#             completion = groq_client.chat.completions.create(
-#                 model="llama-3.3-70b-versatile",
-#                 messages=[{"role": "system", "content": quiz_prompt}],
-#                 temperature=1,
-#                 max_completion_tokens=4096,
-#                 top_p=1,
-#                 stream=False,
-#                 stop=None,
-#             )
-#         except Exception as e:
-#             return HttpResponse(f"Error calling Groq API: {e}", status=500)
-
-#         # Unescape HTML entities in the output and mark it as safe.
-#         raw_quiz = completion.choices[0].message.content
-#         unescaped_quiz = html.unescape(raw_quiz)
-#         quiz_html = mark_safe(unescaped_quiz)
-
-#         # Extract only the HTML part
-#         match = re.search(r'(<div class="quiz-question".*)',
-#                           quiz_html, re.DOTALL)
-#         if match:
-#             quiz_html = match.group(1)
-
-#         context = {
-#             "quiz_html": quiz_html,
-#             "lecture_text": lecture_text,
-#         }
-#         return render(request, "chat/quiz.html", context)
-
-#     return render(request, "chat/quiz.html")
-
 
 @login_required
 def send_message(request, chat_id):
@@ -470,6 +413,7 @@ def chat_quiz(request, chat_id):
     chat = get_object_or_404(Chat, id=chat_id, user=request.user)
     messages = chat.messages.filter(
         role__in=['user', 'assistant']).order_by('created_at')
+    print(messages)
     content_text = "\n".join(m.content for m in messages)
     if messages.count() < 5 or len(content_text) < 500:
         return JsonResponse({'error': 'Not enough content in this chat to generate a quiz. Please continue the conversation first.'}, status=400)
@@ -478,15 +422,15 @@ def chat_quiz(request, chat_id):
 Create at least 2 multiple-choice quizzes (4 options per question) based on the following conversation's relevant scientific information only, related to the learning.
 For each question, use this HTML structure:
 <div class="quiz-question" data-correct="B">
-  <div class="font-semibold mb-2">What is 2+2?</div>
+  <div class="font-semibold mb-1">What is 2+2?</div>
   <form>
     <label><input type="radio" name="q1" value="A"> 3</label><br>
     <label><input type="radio" name="q1" value="B"> 4</label><br>
     <label><input type="radio" name="q1" value="C"> 5</label><br>
     <label><input type="radio" name="q1" value="D"> 6</label><br>
-    <button type="submit" class="mt-2 px-3 py-1 bg-blue-600 text-white rounded">Check Answer</button>
+    <button type="submit" class="mt-1.5 px-2 py-1 bg-blue-600 text-white rounded">Check Answer</button>
   </form>
-  <div class="quiz-feedback mt-2"></div>
+  <div class="quiz-feedback mt-1.5"></div>
 </div>
 Replace the question, answers, and correct value as appropriate.
 **Output ONLY the HTML for the quiz. Do NOT include any explanations, answers, or text outside the HTML.**
@@ -498,6 +442,7 @@ Conversation:
     try:
         quiz_html = chat_service.get_completion(
             messages=[{"role": "user", "content": prompt}],
+            query=prompt,
             max_tokens=1024,
             chat_id=chat.id,
             is_new_chat=False
