@@ -5,7 +5,7 @@ import time
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import StreamingHttpResponse, HttpResponse, JsonResponse
 from django.contrib.auth.decorators import login_required
-from .models import Chat, Message
+from .models import Chat, Message, ChatRAGFile
 from groq import Groq
 from django.utils.safestring import mark_safe
 import html
@@ -16,7 +16,7 @@ from django.core.files.storage import default_storage
 import io
 import os
 import json
-from .services import ChatService
+from .services import ChatService, LangChainRAG
 from .preference_service import PreferenceService
 from django.views.decorators.http import require_POST
 import re
@@ -24,22 +24,6 @@ chat_service = ChatService()
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-# Detailed system prompt for the "Learning How to Learn" expert.
-SYSTEM_PROMPT = (
-    "You are LearningMaster, an expert in the principles of 'Learning How to Learn'. "
-    "You possess extensive knowledge of effective learning techniques, cognitive psychology, memory retention strategies, "
-    "and resource recommendations across a wide range of subjects. Your goal is to help students study any subject by providing "
-    "clear, personalized, and effective study strategies that take into account their unique learning preferences. "
-    "Before answering any questions, if the student's preferred learning style (e.g., visual, auditory, kinesthetic, reading/writing) "
-    "is not clearly stated in their prompt, ask a clarifying question (or questions) to get that information, and then end your message "
-    "with the marker <<END_OF_QUESTION>>. Do not provide any further explanation until the student provides their learning style. "
-    "In addition to providing personalized study strategies, you excel at creating interactive quizzes that cover "
-    "the most vital parts of a lecture. When asked, generate multiple-choice quizzes with 4 answer options per question. "
-    "Each quiz should be output as a complete HTML snippet that includes inline CSS and JavaScript so that the quiz is interactive—"
-    "allowing the user to select an answer and then see whether they chose correctly. "
-    "Once you have the necessary information, provide a full, detailed answer and include recommendations for high-quality, freely available resources."
-)
 
 # Initialize the Groq client.
 groq_client = Groq()
@@ -121,158 +105,176 @@ class ChatStreamView(View):
             chat = get_object_or_404(Chat, id=chat_id, user=request.user)
             logger.info(f"Got chat: {chat}")
 
-            prompt_text = request.POST.get('prompt', '').strip()
-            logger.info(f"Prompt text: {prompt_text}")
+            user_typed_prompt = request.POST.get('prompt', '').strip()
+            logger.info(f"User typed prompt: {user_typed_prompt}")
 
             uploaded_file = request.FILES.get('file')
             logger.info(f"Uploaded file: {uploaded_file}")
 
-            attached_file_name = uploaded_file.name if uploaded_file else None
+            file_info_for_llm = None # To store dict from extract_text_from_uploaded_file
+            prompt_for_display_and_db = user_typed_prompt # This is what's saved and shown as user message
+            llm_query_content = user_typed_prompt # This will be augmented with file text for LLM
 
-            rag_strength = request.POST.get('rag_strength', 'high')
-            use_history = request.POST.get('use_history', 'true') == 'true'
-
-            files_rag = None
-            chat_history_rag = None
-            file_path, file_ext = "", ""
             if uploaded_file:
-                logger.info("Processing uploaded file for RAG context.")
-                file_path, file_ext = chat_service.process_file(uploaded_file)
-                saved_path = chat_service.save_file(chat.id, uploaded_file)
-                logger.info(f"File saved at: {saved_path}")
-                if file_path:
-                    files_rag = chat_service.build_rag(
-                        file_path, file_ext, chat_id=chat.id)
-                    print(f"File rag: {files_rag}")
-                    logger.info("LangChain RAG index built.")
-                        
-            # Only use chat history for existing chats (not new chats)
-            print(f"Chat message count: {chat.messages.count()}")
-            is_new_chat = chat.messages.count() == 1
-            if use_history and not is_new_chat and (not uploaded_file or request.POST.get('include_history', 'false') == 'true'):
-                logger.info("Using chat history for RAG context.")
-                chat_history = chat_service.get_chat_history(chat)
-                chat_history_text = "\n".join(
-                    [f"{msg.role}: {msg.content}" for msg in chat_history])
-                if chat_history_text.strip():
-                    chat_history_rag = chat_service.build_rag_from_text(
-                        chat_history_text, chat_id=chat.id)
-                    logger.info(
-                        f"History index built with {len(chat_history_rag.chunks) if chat_history_rag else 0} chunks")
+                file_info_for_llm = chat_service.extract_text_from_uploaded_file(uploaded_file)
+                # prompt_for_display_and_db is already user_typed_prompt which contains the file attachment string from JS
+                # llm_query_content will be further augmented
+                llm_query_content = (
+                    f"{user_typed_prompt}\n\n"
+                    f"[Content from uploaded file '{file_info_for_llm['filename']}':]\n"
+                    f"{file_info_for_llm['text_content']}\n"
+                    if user_typed_prompt 
+                    else f"[Content from uploaded file '{file_info_for_llm['filename']}':]\n{file_info_for_llm['text_content']}\n"
+                )
+                logger.info(f"LLM query content augmented with file text from: {file_info_for_llm['filename']}")
+                if file_info_for_llm['was_truncated']:
+                    logger.info(f"File {file_info_for_llm['filename']} was truncated. Original: {file_info_for_llm['original_char_count']} chars, Final: {file_info_for_llm['final_char_count']} chars.")
 
-            # Save user message
-            chat_service.create_message(chat, 'user', prompt_text)
-            logger.info("User message created.")
+            # RAG strength and use_history are no longer relevant for this part of the flow.
+            # files_rag for persistent RAG (Part 2) is not built or loaded here.
+            # chat_history_rag is completely removed.
 
-            # Update chat title if it's a new chat
-            if chat.title == "New Chat" and prompt_text:
-                chat_service.update_chat_title(chat, prompt_text)
+            # --- BEGIN: Integrate persisted RAG files ---
+            files_rag_instance = None
+            rag_mode_active_str = request.POST.get('rag_mode_active', 'true') # Get RAG mode from POST
+            rag_mode_active = rag_mode_active_str.lower() == 'true' # Convert to boolean
+
+            if rag_mode_active:
+                logger.info("RAG mode is ACTIVE. Attempting to build RAG index from persisted files.")
+                active_rag_files = chat.rag_files.all().order_by('-uploaded_at')
+                attached_file_names_for_rag_context = []
+
+                if active_rag_files:
+                    file_paths_and_types_for_rag = []
+                    for rag_file_entry in active_rag_files:
+                        file_path = rag_file_entry.file.path # Get the absolute path to the stored file
+                        _, file_ext = os.path.splitext(rag_file_entry.original_filename)
+                        file_type = file_ext.lower().strip('.') # e.g., 'pdf', 'txt'
+                        if file_type in ['pdf', 'txt']: # Only include supported types
+                            file_paths_and_types_for_rag.append((file_path, file_type))
+                            attached_file_names_for_rag_context.append(rag_file_entry.original_filename)
+                        else:
+                            logger.warning(f"Skipping RAG file {rag_file_entry.original_filename} due to unsupported type: {file_type}")
+                    
+                    if file_paths_and_types_for_rag:
+                        logger.info(f"Building RAG index from persisted files: {attached_file_names_for_rag_context}")
+                        files_rag_instance = LangChainRAG() # model is default
+                        try:
+                            files_rag_instance.build_index(file_paths_and_types_for_rag)
+                            logger.info(f"Successfully built RAG index from {len(file_paths_and_types_for_rag)} persisted files.")
+                        except Exception as e:
+                            logger.error(f"Failed to build RAG index from persisted files: {e}", exc_info=True)
+                            # files_rag_instance will remain None or be an empty RAG instance
+                            # Optionally notify user via SSE?
+            else:
+                logger.info("RAG mode is INACTIVE. Skipping RAG index build.")
+                attached_file_names_for_rag_context = [] # Ensure it's defined for stream_response
+            # --- END: Integrate persisted RAG files ---
+
+            # Determine if this is the very first message turn in a new chat.
+            # chat.messages.count() would be 1 if create_chat just saved the first message.
+            is_handling_continuation_of_new_chat = (chat.messages.count() == 1 and 
+                                                  chat.messages.first().content == user_typed_prompt)
+
+            if not is_handling_continuation_of_new_chat:
+                # This is a message in an existing chat, or if create_chat somehow didn't save the message.
+                # Save the user's current prompt (which includes the [Attached file: ...] if any).
+                chat_service.create_message(chat, 'user', user_typed_prompt)
+                logger.info("User message created for display in an existing chat context.")
+            else:
+                logger.info("Skipping user message save in ChatStreamView as create_chat already handled it.")
+
+            if chat.title == "New Chat" and user_typed_prompt: # Use original typed prompt for title
+                chat_service.update_chat_title(chat, user_typed_prompt)
                 logger.info("Chat title updated.")
 
-            # Prepare message history
-            system_prompt = PreferenceService.get_system_prompt(request.user)
-            messages = [{"role": "system", "content": system_prompt}]
-            chat_history = chat_service.get_chat_history(chat)
-            for msg in chat_history:
-                role = msg.role
-                messages.append({"role": role, "content": msg.content})
-            # Only send the user's actual message to the LLM, not the '[Attached file: ...]' string
-            messages.append({"role": "user", "content": prompt_text})
+            system_prompt_text = PreferenceService.get_system_prompt(request.user)
+            messages_for_llm = [{"role": "system", "content": system_prompt_text}]
             
-            logger.info(
-                f"Message history prepared with {len(messages)} messages")
+            # Get chat history (already saved messages)
+            chat_history_db = chat_service.get_chat_history(chat) # Gets all messages including the one just saved
+            for msg in chat_history_db[:-1]: # Exclude the very last user message we just constructed for display
+                messages_for_llm.append({"role": msg.role, "content": msg.content})
+            
+            # Add the current user query, potentially augmented with file text
+            messages_for_llm.append({"role": "user", "content": llm_query_content})
+            
+            logger.info(f"Message history prepared with {len(messages_for_llm)} messages for LLM.")
 
-            # Stream the response
+            is_new_chat_bool = chat.messages.count() == 1 # This flag is used by stream_completion.
+                                                          # It's true if this is the first turn (one user msg, one assistant to come)
+
             return self.stream_response(
-                chat,
-                messages,
-                query=prompt_text,
-                files_rag=files_rag,
-                chat_history_rag=chat_history_rag,
-                is_new_chat=is_new_chat,
-                attached_file_name=attached_file_name
+                chat=chat,
+                messages_for_llm=messages_for_llm,
+                query_for_rag=user_typed_prompt, 
+                files_rag_instance=files_rag_instance, # Pass the instance built from ChatRAGFiles
+                is_new_chat=is_new_chat_bool,
+                attached_file_name_for_rag=", ".join(attached_file_names_for_rag_context) if attached_file_names_for_rag_context else None, 
+                file_info_for_truncation_warning=file_info_for_llm # Pass dict for SSE warning
             )
 
         except Exception as e:
-            logger.error(
-                f"Exception in ChatStreamView.post: {str(e)}", exc_info=True)
+            logger.error(f"Exception in ChatStreamView.post: {str(e)}", exc_info=True)
             return JsonResponse({'error': str(e)}, status=500)
 
-    def stream_response(self, chat, messages, query=None, files_rag=None, chat_history_rag=None, is_new_chat=False, attached_file_name=None):
+    def stream_response(self, chat, messages_for_llm, query_for_rag=None, files_rag_instance=None, is_new_chat=False, attached_file_name_for_rag=None, file_info_for_truncation_warning=None):
         def event_stream():
             try:
                 logger.info("stream_response.event_stream started.")
                 accumulated_response = ""
 
-                message_count = len(messages)
-                max_tokens = 3500 if message_count < 10 else 4500
+                # Send truncation warning if applicable
+                if file_info_for_truncation_warning and file_info_for_truncation_warning['was_truncated']:
+                    warning_msg = (
+                        f"The content of '{file_info_for_truncation_warning['filename']}' was truncated "
+                        f"(from {file_info_for_truncation_warning['original_char_count']} to {file_info_for_truncation_warning['final_char_count']} characters) "
+                        f"because it was too long for direct processing with your message. "
+                        f"For full document analysis, please use the 'Manage RAG Context' feature (coming soon)."
+                    )
+                    logger.info(f"Sending truncation warning to client: {warning_msg}")
+                    yield f"data: {json.dumps({'type': 'file_info', 'status': 'truncated', 'message': warning_msg})}\n\n"
+
+                message_count = len(messages_for_llm)
+                # max_tokens might need dynamic adjustment based on actual content length
+                max_tokens_for_llm = 3500 if message_count < 10 else 4500 
 
                 stream = chat_service.stream_completion(
-                    messages,
-                    query=query,
-                    max_tokens=max_tokens,
-                    files_rag=files_rag,
-                    chat_history_rag=chat_history_rag,
-                    chat_id=chat.id,
+                    messages=messages_for_llm, # This now contains the augmented prompt
+                    query=query_for_rag,    # For explicit RAG (Part 2), not used if files_rag_instance is None
+                    files_rag=files_rag_instance, # Explicitly passed, None for Part 1
+                    max_tokens=max_tokens_for_llm,
+                    chat_id=chat.id, # Still useful for other things within stream_completion
                     is_new_chat=is_new_chat,
-                    attached_file_name=attached_file_name
+                    attached_file_name=attached_file_name_for_rag # For RAG context (Part 2)
                 )
                 logger.info("Got stream from chat_service.stream_completion.")
 
                 for chunk in stream:
-                    # Groq streaming returns objects with .choices[0].delta.content
                     content = getattr(chunk.choices[0].delta, "content", None)
                     if content:
                         accumulated_response += content
                         yield f"data: {json.dumps({'type': 'content', 'content': content})}\n\n"
 
                 if accumulated_response:
-                    chat_service.create_message(
-                        chat, 'assistant', accumulated_response)
-                    logger.info("Assistant message created.")
-
+                    chat_service.create_message(chat, 'assistant', accumulated_response)
+                    logger.info("Assistant message created from accumulated stream.")
                     yield f"data: {json.dumps({'type': 'done'})}\n\n"
-
-                    if files_rag or chat_history_rag:
+                    
+                    # Metadata about RAG (Part 2) usage - only if files_rag_instance was used
+                    if files_rag_instance:
                         rag_stats = {
-                            'file_chunks_used': len(files_rag.chunks) if files_rag else 0,
-                            'history_chunks_used': len(chat_history_rag.chunks) if chat_history_rag else 0
+                            'file_chunks_used': len(files_rag_instance.chunks) if files_rag_instance and hasattr(files_rag_instance, 'chunks') else 0,
+                            # 'history_chunks_used': 0 # chat_history_rag removed
                         }
                         yield f"data: {json.dumps({'type': 'metadata', 'content': rag_stats})}\n\n"
 
             except Exception as e:
-                logger.error(
-                    f"Exception in stream_response.event_stream: {str(e)}", exc_info=True)
+                logger.error(f"Exception in stream_response.event_stream: {str(e)}", exc_info=True)
                 yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
+                # Fallback logic removed as it was tied to old RAG-on-history approach
 
-                # Fallback to non-RAG response if RAG fails
-                try:
-                    if query and (files_rag or chat_history_rag):
-                        logger.info("Attempting fallback to non-RAG response")
-                        fallback_messages = [msg for msg in messages if not (
-                            'relevant context' in msg['content'].lower())]
-                        # Filter to only user/assistant roles (defensive)
-                        fallback_messages = [m for m in fallback_messages if m["role"] in ("user", "assistant")]
-                        fallback_response = chat_service.get_completion(
-                            fallback_messages,
-                            max_tokens=3500,
-                            chat_id=chat.id,
-                            is_new_chat=is_new_chat
-                        )
-                        yield f"data: {json.dumps({'type': 'info', 'content': 'RAG retrieval failed. Using standard response instead.'})}\n\n"
-                        if fallback_response:
-                            yield f"data: {json.dumps({'type': 'content', 'content': fallback_response})}\n\n"
-                            chat_service.create_message(
-                                chat, 'assistant', fallback_response)
-                            yield f"data: {json.dumps({'type': 'done'})}\n\n"
-                except Exception as fallback_error:
-                    logger.error(
-                        f"Fallback attempt also failed: {str(fallback_error)}", exc_info=True)
-
-        response = StreamingHttpResponse(
-            event_stream(),
-            content_type='text/event-stream'
-        )
+        response = StreamingHttpResponse(event_stream(), content_type='text/event-stream')
         response['Cache-Control'] = 'no-cache'
         response['X-Accel-Buffering'] = 'no'
         logger.info("StreamingHttpResponse returned.")
@@ -465,3 +467,59 @@ Conversation:
     )
 
     return JsonResponse({'quiz_html': quiz_html, 'message_id': quiz_msg.id})
+
+
+@method_decorator(login_required, name='dispatch')
+class ChatRAGFilesView(View):
+    def get(self, request, chat_id):
+        try:
+            chat = get_object_or_404(Chat, id=chat_id, user=request.user)
+            rag_files = chat.rag_files.all().order_by('-uploaded_at')
+            files_data = [
+                {"id": str(rag_file.id), "name": rag_file.original_filename}
+                for rag_file in rag_files
+            ]
+            return JsonResponse(files_data, safe=False)
+        except Chat.DoesNotExist:
+            return JsonResponse({'error': 'Chat not found'}, status=404)
+        except Exception as e:
+            logger.error(f"Error fetching RAG files for chat {chat_id}: {e}", exc_info=True)
+            return JsonResponse({'error': 'Could not retrieve RAG files.'}, status=500)
+
+    def post(self, request, chat_id):
+        MAX_RAG_FILES = 3
+        try:
+            chat = get_object_or_404(Chat, id=chat_id, user=request.user)
+
+            if chat.rag_files.count() >= MAX_RAG_FILES:
+                return JsonResponse({'error': f'RAG file limit ({MAX_RAG_FILES}) reached.'}, status=400)
+
+            uploaded_file = request.FILES.get('file')
+            if not uploaded_file:
+                return JsonResponse({'error': 'No file provided.'}, status=400)
+            
+            # Basic validation for file type (can be expanded)
+            allowed_extensions = ['.pdf', '.txt']
+            file_name, file_extension = os.path.splitext(uploaded_file.name)
+            if file_extension.lower() not in allowed_extensions:
+                return JsonResponse({'error': 'Invalid file type. Only PDF and TXT are allowed.'}, status=400)
+
+            # Create and save the ChatRAGFile instance
+            rag_file = ChatRAGFile(
+                chat=chat,
+                user=request.user,
+                file=uploaded_file,
+                original_filename=uploaded_file.name
+            )
+            rag_file.save() # This will call the upload_to logic in the model
+
+            return JsonResponse({
+                'success': True,
+                'file': {'id': str(rag_file.id), 'name': rag_file.original_filename}
+            }, status=201)
+
+        except Chat.DoesNotExist:
+            return JsonResponse({'error': 'Chat not found'}, status=404)
+        except Exception as e:
+            logger.error(f"Error uploading RAG file for chat {chat_id}: {e}", exc_info=True)
+            return JsonResponse({'error': 'Could not upload RAG file.'}, status=500)
