@@ -22,11 +22,12 @@ class Chat(models.Model):
 class Message(models.Model):
     chat = models.ForeignKey(
         Chat, on_delete=models.CASCADE, related_name='messages')
-    role = models.CharField(max_length=10)  # 'user' or 'assistant'
+    role = models.CharField(max_length=10, choices=[('user', 'User'), ('assistant', 'Assistant')])
     content = models.TextField(blank=True)  # For normal text
     type = models.CharField(
-        max_length=20, default='text')  # 'normal' or 'quiz' or 'text'
+        max_length=20, default='text')  # 'normal' or 'quiz' or 'text' or 'mindmap'
     quiz_html = models.TextField(blank=True, null=True)  # For quiz HTML
+    mindmap_html = models.TextField(blank=True, null=True)  # For mind map HTML
     created_at = models.DateTimeField(auto_now_add=True)
     is_edited = models.BooleanField(default=False)
     edited_at = models.DateTimeField(null=True, blank=True)

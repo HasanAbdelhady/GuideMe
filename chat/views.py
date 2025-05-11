@@ -21,6 +21,9 @@ from .preference_service import PreferenceService
 from django.views.decorators.http import require_POST
 import re
 from django.utils import timezone
+import asyncio
+from asgiref.sync import sync_to_async, async_to_sync
+
 chat_service = ChatService()
 
 logging.basicConfig(level=logging.INFO)
@@ -76,25 +79,34 @@ class ChatView(View):
         if chat_id:
             try:
                 chat = Chat.objects.get(id=chat_id, user=request.user)
-                messages = chat.messages.all().order_by('created_at')
+                db_messages = chat.messages.all().order_by('created_at') # Renamed to db_messages
                 conversation = []
-                for i, msg in enumerate(messages):
-                    if msg.content == '' and i > 0 and msg.role == 'assistant':
-                        conversation.append({
-                            'role': msg.role, 
-                            'html': msg.quiz_html, 
-                            'id': msg.id, 
-                            'created_at': msg.created_at.isoformat()
-                        })
-                    else:
-                        conversation.append({
-                            'role': msg.role, 
-                            'text': msg.content, 
-                            'id': msg.id, 
-                            'is_edited': msg.is_edited,
-                            'edited_at': msg.edited_at.isoformat() if msg.edited_at else None,
-                            'created_at': msg.created_at.isoformat()
-                        })
+                for msg_obj in db_messages: # Iterate over actual model instances
+                    msg_dict = {
+                        'role': msg_obj.role,
+                        'id': msg_obj.id,
+                        'created_at': msg_obj.created_at.isoformat(),
+                        'is_edited': msg_obj.is_edited,
+                        'edited_at': msg_obj.edited_at.isoformat() if msg_obj.edited_at else None,
+                        'text': None,        # Default to None
+                        'html': None,        # Default to None (used for quiz HTML by current template)
+                        'mindmap_html': None # Default to None (for mindmap HTML)
+                    }
+
+                    if msg_obj.role == 'assistant' and not msg_obj.content: # Assistant message with empty primary content
+                        if msg_obj.mindmap_html: # Check for mindmap_html first
+                            msg_dict['mindmap_html'] = msg_obj.mindmap_html
+                        elif msg_obj.quiz_html: # Then check for quiz_html
+                            msg_dict['html'] = msg_obj.quiz_html # Template expects 'html' for quiz
+                        else:
+                            # Fallback for assistant message with empty content but no special HTML
+                            # This case should ideally not be hit if content is empty only for quiz/mindmap
+                            msg_dict['text'] = '' 
+                    else: # User messages or assistant messages with actual text content
+                        msg_dict['text'] = msg_obj.content
+                    
+                    conversation.append(msg_dict)
+
                 return render(request, self.template_name, {
                     "current_chat": chat,
                     "conversation": conversation,
@@ -110,10 +122,17 @@ class ChatView(View):
 
 @method_decorator(login_required, name='dispatch')
 class ChatStreamView(View):
-    def post(self, request, chat_id):
+    async def post(self, request, chat_id):
         try:
-            logger.info(f"ChatStreamView.post called for chat_id={chat_id}")
-            chat = get_object_or_404(Chat, id=chat_id, user=request.user)
+            # Pre-load request.user in an async-safe way
+            user = await sync_to_async(lambda: request.user)()
+            if not await sync_to_async(lambda: user.is_authenticated)(): # Explicitly check authentication
+                return JsonResponse({'error': 'Authentication required'}, status=401)
+
+            logger.info(f"ChatStreamView.post called for chat_id={chat_id} by user {user.id}")
+            
+            # Use the pre-loaded 'user' object for DB queries
+            chat = await sync_to_async(get_object_or_404)(Chat, id=chat_id, user=user)
             logger.info(f"Got chat: {chat}")
 
             user_typed_prompt = request.POST.get('prompt', '').strip()
@@ -122,14 +141,12 @@ class ChatStreamView(View):
             uploaded_file = request.FILES.get('file')
             logger.info(f"Uploaded file: {uploaded_file}")
 
-            file_info_for_llm = None # To store dict from extract_text_from_uploaded_file
-            prompt_for_display_and_db = user_typed_prompt # This is what's saved and shown as user message
-            llm_query_content = user_typed_prompt # This will be augmented with file text for LLM
+            file_info_for_llm = None
+            prompt_for_display_and_db = user_typed_prompt
+            llm_query_content = user_typed_prompt
 
             if uploaded_file:
                 file_info_for_llm = chat_service.extract_text_from_uploaded_file(uploaded_file)
-                # prompt_for_display_and_db is already user_typed_prompt which contains the file attachment string from JS
-                # llm_query_content will be further augmented
                 llm_query_content = (
                     f"{user_typed_prompt}\n\n"
                     f"[Content from uploaded file '{file_info_for_llm['filename']}':]\n"
@@ -141,27 +158,29 @@ class ChatStreamView(View):
                 if file_info_for_llm['was_truncated']:
                     logger.info(f"File {file_info_for_llm['filename']} was truncated. Original: {file_info_for_llm['original_char_count']} chars, Final: {file_info_for_llm['final_char_count']} chars.")
 
-            # RAG strength and use_history are no longer relevant for this part of the flow.
-            # files_rag for persistent RAG (Part 2) is not built or loaded here.
-            # chat_history_rag is completely removed.
+            rag_mode_active_str = request.POST.get('rag_mode_active', 'false')
+            rag_mode_active = rag_mode_active_str.lower() == 'true'
+            mind_map_mode_active_str = request.POST.get('mind_map_mode_active', 'false')
+            mind_map_mode_active = mind_map_mode_active_str.lower() == 'true'
 
-            # --- BEGIN: Integrate persisted RAG files ---
-            files_rag_instance = None
-            rag_mode_active_str = request.POST.get('rag_mode_active', 'true') # Get RAG mode from POST
-            rag_mode_active = rag_mode_active_str.lower() == 'true' # Convert to boolean
+            if mind_map_mode_active:
+                rag_mode_active = False
+                logger.info("Mind Map mode is ACTIVE. RAG mode will be disabled if it was also active.")
 
+            files_rag_instance = None   
+            attached_file_names_for_rag_context = []
             if rag_mode_active:
                 logger.info("RAG mode is ACTIVE. Attempting to build RAG index from persisted files.")
-                active_rag_files = chat.rag_files.all().order_by('-uploaded_at')
-                attached_file_names_for_rag_context = []
+                active_rag_files_qs = await sync_to_async(list)(chat.rag_files.filter(user=user).all().order_by('-uploaded_at'))
+                active_rag_files = active_rag_files_qs
 
                 if active_rag_files:
                     file_paths_and_types_for_rag = []
                     for rag_file_entry in active_rag_files:
-                        file_path = rag_file_entry.file.path # Get the absolute path to the stored file
+                        file_path = rag_file_entry.file.path
                         _, file_ext = os.path.splitext(rag_file_entry.original_filename)
-                        file_type = file_ext.lower().strip('.') # e.g., 'pdf', 'txt'
-                        if file_type in ['pdf', 'txt']: # Only include supported types
+                        file_type = file_ext.lower().strip('.')
+                        if file_type in ['pdf', 'txt']:
                             file_paths_and_types_for_rag.append((file_path, file_type))
                             attached_file_names_for_rag_context.append(rag_file_entry.original_filename)
                         else:
@@ -169,42 +188,36 @@ class ChatStreamView(View):
                     
                     if file_paths_and_types_for_rag:
                         logger.info(f"Building RAG index from persisted files: {attached_file_names_for_rag_context}")
-                        files_rag_instance = LangChainRAG() # model is default
+                        files_rag_instance = LangChainRAG()
                         try:
-                            files_rag_instance.build_index(file_paths_and_types_for_rag)
+                            await sync_to_async(files_rag_instance.build_index)(file_paths_and_types_for_rag)
                             logger.info(f"Successfully built RAG index from {len(file_paths_and_types_for_rag)} persisted files.")
                         except Exception as e:
                             logger.error(f"Failed to build RAG index from persisted files: {e}", exc_info=True)
-                            # files_rag_instance will remain None or be an empty RAG instance
-                            # Optionally notify user via SSE?
             else:
                 logger.info("RAG mode is INACTIVE. Skipping RAG index build.")
-                attached_file_names_for_rag_context = [] # Ensure it's defined for stream_response
-            # --- END: Integrate persisted RAG files ---
 
             is_reprompt_after_edit = request.POST.get("is_reprompt_after_edit") == "true"
-
-            # Determine if this is the very first message turn in a new chat.
-            # chat.messages.count() would be 1 if create_chat just saved the first message.
-            is_handling_continuation_of_new_chat = (chat.messages.count() == 1 and 
-                                                  chat.messages.first().content == user_typed_prompt)
+            
+            current_message_count = await sync_to_async(chat.messages.count)()
+            is_handling_continuation_of_new_chat = (current_message_count == 1 and 
+                                                  (await sync_to_async(lambda: chat.messages.first().content)()) == user_typed_prompt)
 
             if not is_handling_continuation_of_new_chat and not is_reprompt_after_edit:
                 logger.info("User message will be saved in stream_response upon successful LLM interaction.")
             elif is_reprompt_after_edit:
                 logger.info("Skipping user message save as this is a re-prompt after an edit (no new user message to save).")
-            else: # is_handling_continuation_of_new_chat is true
+            else:
                 logger.info("Skipping user message save in ChatStreamView as create_chat already handled the initial user message.")
 
             if chat.title == "New Chat" and user_typed_prompt and not is_reprompt_after_edit:
-                # Update title only for genuinely new interactions, not for re-prompts after edit
-                chat_service.update_chat_title(chat, user_typed_prompt)
+                await sync_to_async(chat_service.update_chat_title)(chat, user_typed_prompt)
                 logger.info("Chat title updated.")
 
-            system_prompt_text = PreferenceService.get_system_prompt(request.user)
+            system_prompt_text = await sync_to_async(PreferenceService.get_system_prompt)(user)
             messages_for_llm = [{"role": "system", "content": system_prompt_text}]
             
-            chat_history_db = chat_service.get_chat_history(chat) # All messages currently in DB
+            chat_history_db = await sync_to_async(chat_service.get_chat_history)(chat)
 
             if is_handling_continuation_of_new_chat:
                 logger.info("First turn of new chat: LLM history will start with system prompt, current query will be added next.")
@@ -217,117 +230,152 @@ class ChatStreamView(View):
             
             logger.info(f"Message history prepared with {len(messages_for_llm)} messages for LLM. Last user message for LLM: {llm_query_content[:200]}...")
 
-            is_new_chat_bool = chat.messages.count() == 1 # This flag is used by stream_completion.
-                                                          # It's true if this is the first turn (one user msg, one assistant to come)
+            if mind_map_mode_active:
+                chat_history_for_mindmap_prompt = "\n".join([
+                    f"{hist_msg['role']}: {hist_msg['content']}" 
+                    for hist_msg in messages_for_llm[:-1]
+                ])
+                mindmap_specific_user_query = user_typed_prompt
+                mind_map_prompt = f"""Based on the following conversation history and the user's request, generate Markdown suitable for creating an interactive mind map using the markmap library. The user's request for the mind map is: '{mindmap_specific_user_query}'.
 
-            return self.stream_response(
+Focus on structuring the information hierarchically using Markdown headings (#, ##, ###, etc.) and lists (e.g., - item,  - subitem,    - sub-subitem). Sub-items should be indented correctly. Output ONLY the Markdown content for the mindmap. Do NOT include any other explanatory text, comments, or the user's request itself in the output. Ensure the Markdown is syntactically correct for Markmap (e.g. proper heading levels, list indentation).
+
+Conversation History (excluding the current mind map request):
+{chat_history_for_mindmap_prompt}
+
+User's Mind Map Request: '{mindmap_specific_user_query}'
+
+Respond with ONLY the Markmap Markdown:"""
+                messages_for_llm[-1]["content"] = mind_map_prompt
+                logger.info(f"Mind Map mode: Replaced user query with specialized prompt. New prompt starts with: {mind_map_prompt[:300]}...")
+
+            current_message_count_final = await sync_to_async(chat.messages.count)()
+            is_new_chat_bool = current_message_count_final <= 1
+
+            return await self.stream_response(
                 chat=chat,
                 messages_for_llm=messages_for_llm,
-                query_for_rag=user_typed_prompt, 
-                files_rag_instance=files_rag_instance, # Pass the instance built from ChatRAGFiles
+                query_for_rag=user_typed_prompt if rag_mode_active else None,
+                files_rag_instance=files_rag_instance if rag_mode_active else None,
                 is_new_chat=is_new_chat_bool,
-                current_user_prompt_for_saving = user_typed_prompt if not (is_handling_continuation_of_new_chat or is_reprompt_after_edit) else None, # Pass prompt to save, or None
-                attached_file_name_for_rag=", ".join(attached_file_names_for_rag_context) if attached_file_names_for_rag_context else None, 
-                file_info_for_truncation_warning=file_info_for_llm # Pass dict for SSE warning
+                current_user_prompt_for_saving = user_typed_prompt if not (is_handling_continuation_of_new_chat or is_reprompt_after_edit) else None,
+                attached_file_name_for_rag=", ".join(attached_file_names_for_rag_context) if rag_mode_active and attached_file_names_for_rag_context else None,
+                file_info_for_truncation_warning=file_info_for_llm,
+                mind_map_mode_active=mind_map_mode_active
             )
 
         except Exception as e:
             logger.error(f"Exception in ChatStreamView.post: {str(e)}", exc_info=True)
             return JsonResponse({'error': str(e)}, status=500)
 
-    def stream_response(self, chat, messages_for_llm, query_for_rag=None, files_rag_instance=None, is_new_chat=False, current_user_prompt_for_saving=None, attached_file_name_for_rag=None, file_info_for_truncation_warning=None):
-        def event_stream():
-            user_message_saved = False # Flag to track if user message has been saved
+    async def stream_response(self, chat, messages_for_llm, query_for_rag=None, files_rag_instance=None, is_new_chat=False, current_user_prompt_for_saving=None, attached_file_name_for_rag=None, file_info_for_truncation_warning=None, mind_map_mode_active=False):
+        async def event_stream_async():
+            user_message_saved = False
             try:
-                logger.info("stream_response.event_stream started.")
+                logger.info("stream_response.event_stream_async started.")
                 accumulated_response = ""
 
-                # Send truncation warning if applicable
                 if file_info_for_truncation_warning and file_info_for_truncation_warning['was_truncated']:
                     warning_msg = (
                         f"The content of '{file_info_for_truncation_warning['filename']}' was truncated "
                         f"(from {file_info_for_truncation_warning['original_char_count']} to {file_info_for_truncation_warning['final_char_count']} characters) "
                         f"because it was too long for direct processing with your message. "
-                        f"For full document analysis, please use the 'Manage RAG Context' feature (coming soon)."
+                        f"For full document analysis, please use the 'Manage RAG Context' feature."
                     )
                     logger.info(f"Sending truncation warning to client: {warning_msg}")
                     yield f"data: {json.dumps({'type': 'file_info', 'status': 'truncated', 'message': warning_msg})}\n\n"
 
-                message_count = len(messages_for_llm) # This is messages BEFORE enforce_token_limit
-                max_tokens_for_llm = 7000 # INCREASED for more history (was 3500/4500 based on message_count)
-                logger.info(f"[ChatStreamView.stream_response] Attempting to use max_tokens_for_llm: {max_tokens_for_llm} for ChatService's enforce_token_limit. Original message count for LLM (before limit): {message_count}")
+                max_tokens_for_llm = 7000
+                logger.info(f"[ChatStreamView.stream_response] Max tokens for LLM: {max_tokens_for_llm}")
 
-                stream = chat_service.stream_completion(
-                    messages=messages_for_llm, # This now contains the augmented prompt
-                    query=query_for_rag,    # For explicit RAG (Part 2), not used if files_rag_instance is None
-                    files_rag=files_rag_instance, # Explicitly passed, None for Part 1
+                if mind_map_mode_active:
+                    logger.info("Mind Map Mode: Using non-streaming get_completion for Markmap Markdown, then pyppeteer for image.")
+                    if not user_message_saved and current_user_prompt_for_saving:
+                        await sync_to_async(Message.objects.create)(chat=chat, role='user', content=current_user_prompt_for_saving)
+                        user_message_saved = True
+                        logger.info(f"User message '{current_user_prompt_for_saving[:50]}...' saved (Mind Map mode).")
+
+                    llm_markdown_response = await chat_service.get_completion(
+                        messages=messages_for_llm,
+                        max_tokens=2000, 
+                        chat_id=chat.id,
+                        is_new_chat=is_new_chat
+                    )
+
+                    if llm_markdown_response and llm_markdown_response.strip():
+                        unique_mindmap_id_base = f"mm_{chat.id}"
+                        image_data_url = await chat_service.generate_mindmap_image_data_url(llm_markdown_response, unique_mindmap_id_base)
+                        
+                        if image_data_url:
+                            img_tag_html = f'<img src="{image_data_url}" alt="Mind Map for {chat.title}" style="max-width: 100%; height: auto; border-radius: 8px;" />'
+                            assistant_msg_id = await sync_to_async(lambda: Message.objects.create(
+                                chat=chat,
+                                role='assistant',
+                                content='', 
+                                mindmap_html=img_tag_html,
+                                type='mindmap_image'
+                            ).id)()
+                            logger.info(f"Mind Map image generated and saved to message {assistant_msg_id}.")
+                            yield f"data: {json.dumps({'type': 'mindmap_image', 'image_html': img_tag_html, 'message_id': str(assistant_msg_id)})}\n\n"
+                        else:
+                            logger.error("Mind map image generation failed to return data URL.")
+                            yield f"data: {json.dumps({'type': 'error', 'content': 'Failed to generate mind map image.'})}\n\n"
+                    else:
+                        logger.error("LLM returned empty or invalid Markdown for Mind Map.")
+                        yield f"data: {json.dumps({'type': 'error', 'content': 'Failed to generate mind map: The AI did not return valid content.'})}\n\n"
+                    
+                    yield f"data: {json.dumps({'type': 'done'})}\n\n"
+                    return 
+                
+                if not user_message_saved and current_user_prompt_for_saving:
+                    await sync_to_async(Message.objects.create)(chat=chat, role='user', content=current_user_prompt_for_saving)
+                    user_message_saved = True
+                    logger.info(f"User message '{current_user_prompt_for_saving[:50]}...' saved (Normal stream mode).")
+
+                stream = await chat_service.stream_completion(
+                    messages=messages_for_llm, 
+                    query=query_for_rag,
+                    files_rag=files_rag_instance,
                     max_tokens=max_tokens_for_llm,
-                    chat_id=chat.id, # Still useful for other things within stream_completion
+                    chat_id=chat.id,
                     is_new_chat=is_new_chat,
-                    attached_file_name=attached_file_name_for_rag # For RAG context (Part 2)
+                    attached_file_name=attached_file_name_for_rag
                 )
                 
-                if type(stream) == str: # If stream_completion returned a string (direct RAG output)
-                    # This is now considered a direct response, not an error.
-                    if not user_message_saved and current_user_prompt_for_saving:
-                        chat_service.create_message(chat, 'user', current_user_prompt_for_saving)
-                        user_message_saved = True # Ensure flag is set if we proceed
-                        logger.info(f"User message '{current_user_prompt_for_saving[:50]}...' saved to DB (direct RAG output case).")
-
-                    # Save this direct string output as the assistant's message
-                    chat_service.create_message(chat, 'assistant', stream) # 'stream' here is the RAG content string
+                if type(stream) == str: 
+                    await sync_to_async(Message.objects.create)(chat=chat, role='assistant', content=stream)
                     logger.info(f"Direct RAG output saved as assistant message: {stream[:100]}...")
-                    
-                    # Send it as regular content to the client
                     yield f"data: {json.dumps({'type': 'content', 'content': stream})}\n\n"
-                    yield f"data: {json.dumps({'type': 'done'})}\n\n" # Indicate completion
-                    
-                    # Optionally, if you still want RAG metadata in this case:
+                    yield f"data: {json.dumps({'type': 'done'})}\n\n"
                     if files_rag_instance:
                          rag_stats = {
                             'file_chunks_used': len(files_rag_instance.chunks) if files_rag_instance and hasattr(files_rag_instance, 'chunks') else 0,
                          }
                          yield f"data: {json.dumps({'type': 'metadata', 'content': rag_stats})}\n\n"
-                    return # End the generator as we've sent the complete direct response
+                    return 
                 else:
-                    # This is the normal LLM stream iterator
                     logger.info("Got stream from chat_service.stream_completion.")
                     first_chunk_processed = False
                     for chunk in stream:
                         content = getattr(chunk.choices[0].delta, "content", None)
                         if content:
-                            # Save the user's message on first successful content chunk from LLM, if it's meant to be saved
-                            if not user_message_saved and current_user_prompt_for_saving:
-                                chat_service.create_message(chat, 'user', current_user_prompt_for_saving)
-                                user_message_saved = True
-                                logger.info(f"User message '{current_user_prompt_for_saving[:50]}...' saved to DB after successful LLM stream start.")
-                            
                             accumulated_response += content
                             yield f"data: {json.dumps({'type': 'content', 'content': content})}\n\n"
                             if not first_chunk_processed:
                                 first_chunk_processed = True
 
-                if accumulated_response: # Implies successful stream
-                    # If user message wasn't saved due to empty stream but no error, save it now if needed.
-                    if not user_message_saved and current_user_prompt_for_saving:
-                        chat_service.create_message(chat, 'user', current_user_prompt_for_saving)
-                        user_message_saved = True # Though already past stream, ensure flag is correct
-                        logger.info(f"User message '{current_user_prompt_for_saving[:50]}...' saved to DB before saving assistant response (empty stream case).")
-
-                    chat_service.create_message(chat, 'assistant', accumulated_response)
+                if accumulated_response: 
+                    await sync_to_async(Message.objects.create)(chat=chat, role='assistant', content=accumulated_response)
                     logger.info("Assistant message created from accumulated stream.")
                     yield f"data: {json.dumps({'type': 'done'})}\n\n"
-                    
-                    # Metadata about RAG (Part 2) usage - only if files_rag_instance was used
                     if files_rag_instance:
                         rag_stats = {
                             'file_chunks_used': len(files_rag_instance.chunks) if files_rag_instance and hasattr(files_rag_instance, 'chunks') else 0,
-                            # 'history_chunks_used': 0 # chat_history_rag removed
                         }
                         yield f"data: {json.dumps({'type': 'metadata', 'content': rag_stats})}\n\n"
 
             except APIStatusError as e:
-                logger.error(f"Groq APIStatusError in stream_response.event_stream: Status {e.status_code}, Response: {e.response.text if e.response else 'No response body'}", exc_info=True)
+                logger.error(f"Groq APIStatusError in stream_response.event_stream_async: Status {e.status_code}, Response: {e.response.text if e.response else 'No response body'}", exc_info=True)
                 user_message = "An API error occurred with the language model."
                 if e.status_code == 413:
                     try:
@@ -335,20 +383,31 @@ class ChatStreamView(View):
                         if error_detail.get('error', {}).get('type') == 'tokens' or 'tokens per minute (TPM)' in error_detail.get('error', {}).get('message', ''):
                             user_message = "The request is too large for the model. Please try reducing your message size or shortening the conversation if the history is very long."
                     except json.JSONDecodeError:
-                        # Fallback if response is not JSON, though Groq usually sends JSON errors
-                        if "Request too large" in str(e) or "tokens per minute (TPM)" in str(e): # Check string representation as a fallback
+                        if "Request too large" in str(e) or "tokens per minute (TPM)" in str(e):
                              user_message = "The request is too large for the model. Please try reducing your message size or shortening the conversation if the history is very long."
                 
                 yield f"data: {json.dumps({'type': 'error', 'content': user_message})}\n\n"
 
             except Exception as e:
-                logger.error(f"Generic exception in stream_response.event_stream: {str(e)}", exc_info=True)
+                logger.error(f"Generic exception in stream_response.event_stream_async: {str(e)}", exc_info=True)
                 yield f"data: {json.dumps({'type': 'error', 'content': 'An unexpected error occurred. Please try again.'})}\n\n"
+        
+        def sync_wrapper_for_event_stream():
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            gen = event_stream_async()
+            try:
+                while True:
+                    yield loop.run_until_complete(gen.__anext__())
+            except StopAsyncIteration:
+                pass
+            finally:
+                loop.close()
 
-        response = StreamingHttpResponse(event_stream(), content_type='text/event-stream')
+        response = StreamingHttpResponse(sync_wrapper_for_event_stream(), content_type='text/event-stream')
         response['Cache-Control'] = 'no-cache'
         response['X-Accel-Buffering'] = 'no'
-        logger.info("StreamingHttpResponse returned.")
+        logger.info("StreamingHttpResponse returned for mindmap (or other).")
         return response
 
 
@@ -484,7 +543,7 @@ Conversation:
 """
 
     try:
-        quiz_html_response = chat_service.get_completion(
+        quiz_html_response = async_to_sync(chat_service.get_completion)(
             messages=[{"role": "user", "content": prompt}],
             query=prompt, 
             max_tokens=1500, # Was 1024, can be 1500 for potentially larger HTML
