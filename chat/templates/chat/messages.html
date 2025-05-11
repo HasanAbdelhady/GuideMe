@@ -67,8 +67,6 @@
 				{% elif msg.diagram_image_url %}
 				<div
 					class="diagram-message-container bg-gray-800/50 p-2 my-2 rounded-lg shadow-md flex flex-col justify-center items-center">
-					<!-- Log the image path for debugging -->
-					<script>console.log("Diagram image path:", "{{ MEDIA_URL }}{{ msg.diagram_image_url }}");</script>
 					<img src="{{ MEDIA_URL }}{{ msg.diagram_image_url }}"
 						alt="Generated Diagram"
 						class="max-w-full h-auto rounded-md mb-1 cursor-pointer hover:opacity-90 transition-opacity"
