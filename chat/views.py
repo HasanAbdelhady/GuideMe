@@ -322,7 +322,7 @@ class ChatStreamView(View):
                             # Get just the filename from the path
                             image_filename = os.path.basename(image_file_path_str)
                             # Store as diagrams/filename.png
-                            image_url_for_template = f"../media/diagrams/{image_filename}"
+                            image_url_for_template = f"diagrams/{image_filename}"
                             logger.info(f"Simplified image URL: {image_url_for_template}")
                             
                             # Create a more concise diagram message text (prevent nesting)
