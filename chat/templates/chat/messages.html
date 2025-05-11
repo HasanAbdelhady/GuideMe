@@ -64,10 +64,18 @@
 				<div class="max-w-none markdown-content text-gray-100">
 					{{ msg.text |safe }}
 				</div>
-				{% elif msg.mindmap_html %}
+				{% elif msg.diagram_image_url %}
 				<div
-					class="mindmap-image-message-container bg-gray-800/50 p-1 rounded-lg shadow-md flex justify-center items-center">
-					{{ msg.mindmap_html|safe }}
+					class="diagram-message-container bg-gray-800/50 p-2 my-2 rounded-lg shadow-md flex flex-col justify-center items-center">
+					<!-- Log the image path for debugging -->
+					<script>console.log("Diagram image path:", "{{ MEDIA_URL }}{{ msg.diagram_image_url }}");</script>
+					<img src="{{ MEDIA_URL }}{{ msg.diagram_image_url }}"
+						alt="Generated Diagram"
+						class="max-w-full h-auto rounded-md mb-1 cursor-pointer hover:opacity-90 transition-opacity"
+						onclick="openImageModal('{{ MEDIA_URL }}{{ msg.diagram_image_url }}')">
+					{% if msg.text %}
+					<p class="text-xs text-gray-400 italic mt-1 text-center">{{ msg.text }}</p>
+					{% endif %}
 				</div>
 				{% elif msg.html %}
 				<div
