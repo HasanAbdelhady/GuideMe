@@ -14,6 +14,7 @@ window.currentChatId = currentChatId;
 window.isNewChat = isNewChat;
 let abortController = null;
 let isRAGActive = true; // Default if nothing in localStorage
+let isMindMapActive = false; // Default for Mind Map mode
 
 // Standard getCookie function (now global)
 window.getCookie = function (name) {
@@ -46,6 +47,7 @@ document.addEventListener("DOMContentLoaded", function () {
 	const ragToggleButton = document.getElementById("rag-toggle-button");
 	const quizButton = document.getElementById("quiz-button");
 	const quizButtonContainer = document.getElementById("quiz-button-container");
+	const mindMapToggleButton = document.getElementById("mindmap-toggle-button"); // Get the new button
 
 	// Sidebar toggle
 	let sidebarOpen = false;
@@ -365,6 +367,32 @@ document.addEventListener("DOMContentLoaded", function () {
 									smoothScrollToBottom();
 									break;
 
+								case "mindmap_image": // Handle new SSE event type for mind map static images
+									if (data.image_html) {
+										const mindMapImageMsgDiv = document.createElement("div");
+										mindMapImageMsgDiv.className =
+											"message-enter px-4 md:px-6 py-6";
+										mindMapImageMsgDiv.innerHTML = `
+											<div class="chat-container flex gap-4 md:gap-6">
+												<div class="flex-shrink-0 w-7 h-7">
+													<div class="cls w-10 h-7 p-1 rounded-sm bg-slate-100 flex items-center justify-center text-white">
+														<img src="/static/images/logo.png" alt="Assistant icon" class="h-5 w-7">
+													</div>
+												</div>
+												<div class="flex-1 overflow-x-auto min-w-0 max-w-[85%]">
+													<div class="mindmap-image-message-container bg-gray-800/50 p-1 rounded-lg shadow-md flex justify-center items-center">
+														${data.image_html} 
+													</div>
+												</div>
+											</div>
+										`;
+										document
+											.getElementById("chat-messages")
+											.appendChild(mindMapImageMsgDiv);
+										smoothScrollToBottom();
+									}
+									break;
+
 								case "file_info": // Handle new SSE event type
 									if (data.status === "truncated" && data.message) {
 										appendSystemNotification(data.message, "warning");
@@ -455,6 +483,7 @@ document.addEventListener("DOMContentLoaded", function () {
 			);
 			if (fileData) formData.append("file", fileData);
 			formData.append("rag_mode_active", isRAGActive); // Add RAG mode state
+			formData.append("mind_map_mode_active", isMindMapActive); // Add Mind Map mode state
 
 			if (isNewChat) {
 				const createResponse = await fetch("/chat/create/", {
@@ -994,6 +1023,8 @@ document.addEventListener("DOMContentLoaded", function () {
 		const savedRAGState = localStorage.getItem("ragModeActive");
 		if (savedRAGState !== null) {
 			isRAGActive = JSON.parse(savedRAGState);
+		} else {
+			localStorage.setItem("ragModeActive", JSON.stringify(isRAGActive)); // Save default if not present
 		}
 
 		// Initial styling based on loaded/default state
@@ -1002,20 +1033,81 @@ document.addEventListener("DOMContentLoaded", function () {
 		} else {
 			setInactiveStyles();
 		}
-		// Save the initial/loaded state back to localStorage in case it was newly defaulted
-		localStorage.setItem("ragModeActive", JSON.stringify(isRAGActive));
 
 		ragToggleButton.addEventListener("click", () => {
 			isRAGActive = !isRAGActive;
 			if (isRAGActive) {
 				setActiveStyles();
+				// If RAG becomes active, Mind Map must become inactive
+				if (isMindMapActive) {
+					isMindMapActive = false;
+					updateMindMapToggleButtonStyle(); // Update Mind Map button style
+					localStorage.setItem(
+						"mindMapActive",
+						JSON.stringify(isMindMapActive)
+					);
+				}
 			} else {
 				setInactiveStyles();
 			}
-			// Save updated state to localStorage
 			localStorage.setItem("ragModeActive", JSON.stringify(isRAGActive));
 			appendSystemNotification(
 				`RAG mode is now ${isRAGActive ? "ACTIVE" : "INACTIVE"}.`,
+				"info"
+			);
+		});
+	}
+
+	// Mind Map Toggle Button Logic
+	function updateMindMapToggleButtonStyle() {
+		if (!mindMapToggleButton) return;
+		if (isMindMapActive) {
+			mindMapToggleButton.textContent = "Mind Map: Active";
+			mindMapToggleButton.classList.remove("border-gray-600", "text-gray-400");
+			mindMapToggleButton.classList.add("border-purple-500", "text-purple-400"); // Example: Purple for active
+		} else {
+			mindMapToggleButton.textContent = "Mind Map: Inactive";
+			mindMapToggleButton.classList.remove(
+				"border-purple-500",
+				"text-purple-400"
+			);
+			mindMapToggleButton.classList.add("border-gray-600", "text-gray-400");
+		}
+	}
+
+	if (mindMapToggleButton) {
+		const savedMindMapState = localStorage.getItem("mindMapActive");
+		if (savedMindMapState !== null) {
+			isMindMapActive = JSON.parse(savedMindMapState);
+		} else {
+			localStorage.setItem("mindMapActive", JSON.stringify(isMindMapActive)); // Save default
+		}
+
+		updateMindMapToggleButtonStyle(); // Set initial style
+
+		mindMapToggleButton.addEventListener("click", () => {
+			isMindMapActive = !isMindMapActive;
+			updateMindMapToggleButtonStyle();
+			if (isMindMapActive) {
+				// If Mind Map becomes active, RAG must become inactive
+				if (isRAGActive) {
+					isRAGActive = false;
+					// Manually call RAG button's inactive styling logic if available, or replicate here
+					if (ragToggleButton) {
+						// Check if RAG button exists
+						ragToggleButton.textContent = "RAG Mode: Inactive";
+						ragToggleButton.classList.remove(
+							"border-green-500",
+							"text-green-400"
+						);
+						ragToggleButton.classList.add("border-gray-600", "text-gray-400");
+						localStorage.setItem("ragModeActive", JSON.stringify(isRAGActive));
+					}
+				}
+			}
+			localStorage.setItem("mindMapActive", JSON.stringify(isMindMapActive));
+			appendSystemNotification(
+				`Mind Map mode is now ${isMindMapActive ? "ACTIVE" : "INACTIVE"}.`,
 				"info"
 			);
 		});

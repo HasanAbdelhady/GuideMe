@@ -64,7 +64,12 @@
 				<div class="max-w-none markdown-content text-gray-100">
 					{{ msg.text |safe }}
 				</div>
-				{% else %}
+				{% elif msg.mindmap_html %}
+				<div
+					class="mindmap-image-message-container bg-gray-800/50 p-1 rounded-lg shadow-md flex justify-center items-center">
+					{{ msg.mindmap_html|safe }}
+				</div>
+				{% elif msg.html %}
 				<div
 					class="quiz-message max-w-none text-gray-100 bg-gray-700/70 p-2 rounded-xl ">
 					{{ msg.html | safe }}

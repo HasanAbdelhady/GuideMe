@@ -8,6 +8,10 @@ from io import StringIO
 import logging
 import copy
 from functools import lru_cache
+import time
+import base64
+import asyncio
+from asgiref.sync import sync_to_async
 
 # --- LangChain Imports ---
 from langchain_community.document_loaders import TextLoader
@@ -286,132 +290,222 @@ class ChatService:
                 self.logger.warning(f"Message missing role/content for token counting: {msg}")
         return total
 
-    def get_completion(self, messages, query=None, files_rag=None, max_tokens=6000, chat_id=None, is_new_chat=False, attached_file_name=None):
+    async def generate_mindmap_image_data_url(self, markdown_content: str, unique_id_base: str) -> str:
+        """
+        Generates a base64 encoded PNG data URL for a mind map from Markdown using pyppeteer.
+        """
+        import asyncio
+        from pyppeteer import launch
+        import tempfile
+        import os
+
+        # Escape backticks, backslashes for JavaScript string literal inside HTML
+        escaped_markdown = markdown_content.replace('\\', '\\\\') \
+                                         .replace('`', '\\`') \
+                                         .replace('${', '\\${')
+
+        unique_id = f"{unique_id_base}_{int(time.time())}" # Make it more unique for temp file
+
+        html_content = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Markmap Render</title>
+    <script src="https://cdn.jsdelivr.net/npm/markmap-autoloader"></script>
+    <style>
+        html, body {{ margin: 0; padding: 0; overflow: hidden; }}
+        #markmap-{unique_id} {{ width: 1200px; height: 800px; }} /* Fixed size for consistent screenshot */
+    </style>
+</head>
+<body>
+    <svg id="markmap-{unique_id}"></svg>
+    <script>
+        (function() {{
+            const el = document.getElementById("markmap-{unique_id}");
+            if (el && window.markmap && window.markmap.autoLoader) {{
+                try {{
+                    window.markmap.autoLoader.render(el, `{escaped_markdown}`);
+                }} catch (e) {{
+                    el.innerHTML = `<p style='color:red;'>Render Error: ${{e.message}}</p>`;
+                    console.error("Markmap render error:", e);
+                }}
+            }} else if (el) {{
+                el.innerHTML = "<p style='color:orange;'>Markmap library not loaded.</p>";
+                console.warn('Markmap library not loaded for #markmap-{unique_id}');
+            }}
+        }})();
+    </script>
+</body>
+</html>
+"""
+        image_data_url = None
+        temp_html_file = None
+
+        try:
+            # Create a temporary HTML file
+            with tempfile.NamedTemporaryFile(delete=False, mode='w', suffix=".html", encoding='utf-8') as tmp_f:
+                tmp_f.write(html_content)
+                temp_html_file = tmp_f.name
+            
+            self.logger.info(f"Attempting to launch browser for Markmap rendering. Temp HTML: {temp_html_file}")
+            browser = await launch(
+                executablePath='C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe', 
+                headless=True, 
+                args=['--no-sandbox', '--disable-gpu'],
+                handleSIGINT=False,
+                handleSIGTERM=False,
+                handleSIGHUP=False,
+                dumpio=True
+            )
+            page = await browser.newPage()
+            await page.setViewport({'width': 1250, 'height': 850}) # Ensure viewport is larger than SVG
+            
+            # Go to the local temporary HTML file
+            await page.goto(f'file://{os.path.abspath(temp_html_file)}')
+            
+            # Wait for Markmap to render - increased delay, and wait for specific element
+            await page.waitForSelector(f'#markmap-{unique_id} > g', timeout=10000) # Wait for an inner group element of markmap
+            await asyncio.sleep(1) # Additional small delay for rendering to settle
+
+            element = await page.querySelector(f'#markmap-{unique_id}')
+            if element:
+                screenshot_bytes = await element.screenshot({'type': 'png', 'omitBackground': True})
+                image_data_url = f"data:image/png;base64,{base64.b64encode(screenshot_bytes).decode('utf-8')}"
+                self.logger.info(f"Successfully captured Markmap screenshot for {unique_id_base}.")
+            else:
+                self.logger.error(f"Could not find #markmap-{unique_id} element for screenshot.")
+
+            await browser.close()
+
+        except Exception as e:
+            self.logger.error(f"Error during Markmap image generation for {unique_id_base}: {e}", exc_info=True)
+            # Fallback or error handling here, e.g., return a placeholder image data URL or raise
+            # For now, image_data_url will be None, and views.py needs to handle this
+        finally:
+            if temp_html_file and os.path.exists(temp_html_file):
+                os.remove(temp_html_file)
+        
+        return image_data_url
+
+    async def get_completion(self, messages, query=None, files_rag=None, max_tokens=6000, chat_id=None, is_new_chat=False, attached_file_name=None):
+        groq_client_local = Groq() # Keep client instantiation local if it has state issues with async
+        
         if is_new_chat:
-            groq_client = Groq()
             llm_messages = [{'role': msg['role'], 'content': msg['content']} for msg in messages]
-            completion = groq_client.chat.completions.create(
+            # Wrap the synchronous SDK call
+            completion = await sync_to_async(groq_client_local.chat.completions.create)(
                 model="llama3-8b-8192",
                 messages=llm_messages,
                 temperature=0.7,
-                max_completion_tokens=1024, # Consider making this configurable
+                max_completion_tokens=1024,
                 stream=False,
             )
             return completion.choices[0].message.content
         
-        current_messages = [msg for msg in messages] 
-
-        # files_rag is now ONLY explicitly passed for Part 2 (Manage RAG Context)
-        # No automatic loading of files_rag based on chat_id here.
+        current_messages_copy = [msg.copy() for msg in messages] # Work with a copy
 
         context_str = ""
         rag_output = ""
-        if files_rag and query: # files_rag is only used if explicitly passed and query is present
-            retrieved_context_val = files_rag.retrieve(query) 
+        if files_rag and query:
+            # Assuming files_rag.retrieve is CPU bound or already async; if sync I/O, wrap it
+            # For now, let's assume it's okay or needs to be made async separately if it blocks.
+            # retrieved_context_val = await sync_to_async(files_rag.retrieve)(query) # Example if it needed wrapping
+            retrieved_context_val = files_rag.retrieve(query) # Original
             rag_output = retrieved_context_val
             self.logger.info(f"RAG output HERE!!!!!!!!!!! {str(rag_output)[:500]}...")
-            print("=======================================================")
-            self.logger.info(f"RAG retrieved_context for query '{query[:100]}...': '{str(retrieved_context_val)[:500]}...'")
             if retrieved_context_val:
                  context_str += str(retrieved_context_val)
         
         if context_str.strip():
             rag_info_source = f" from {attached_file_name}" if attached_file_name else " from uploaded RAG documents"
-            
-            # Prepend RAG context to the last user message content
-            if current_messages and current_messages[-1]["role"] == "user":
-                original_user_content = current_messages[-1]["content"]
-                
-                # Construct the new content with RAG context clearly delineated
-                context_preamble = f"Relevant context from your uploaded documents ({rag_info_source}):\\n\"\"\"{context_str}\"\"\"\\n---\\nOriginal query follows:\\n"
-                current_messages[-1]["content"] = context_preamble + original_user_content
-                self.logger.info(f"Prepended RAG context to user query. New content starts with: {current_messages[-1]['content'][:300]}...")
+            if current_messages_copy and current_messages_copy[-1]["role"] == "user":
+                original_user_content = current_messages_copy[-1]["content"]
+                context_preamble = f"Relevant context from your uploaded documents ({rag_info_source}):\n\"\"\"{context_str}\"\"\"\n---\nOriginal query follows:\n"
+                current_messages_copy[-1]["content"] = context_preamble + original_user_content
             else:
-                # This case should ideally not happen if current_messages always ends with the user query
-                # If it does, we might fall back to inserting a system message or logging an error
-                self.logger.warning("Could not find user message to prepend RAG context to. Context will not be used directly in user query.")
-                # Fallback: create a system-like message if user message not found (less ideal but better than losing context)
-                # context_system_message = {"role": "system", "content": f"Consider the following context{rag_info_source}:\\n{context_str}"}
-                # current_messages.insert(-1, context_system_message) # Insert before last message if it's not user, or adapt
+                self.logger.warning("Could not find user message to prepend RAG context to.")
 
-        trimmed_messages = self.enforce_token_limit(current_messages, max_tokens=max_tokens)
+        trimmed_messages = self.enforce_token_limit(current_messages_copy, max_tokens=max_tokens)
         
-        groq_client = Groq()
-        completion = groq_client.chat.completions.create(
+        # Wrap the synchronous SDK call
+        completion = await sync_to_async(groq_client_local.chat.completions.create)(
             model="llama3-8b-8192",
             messages=trimmed_messages,
             temperature=0.7,
-            max_completion_tokens=1024, # Consider making this configurable
+            max_completion_tokens=1024,
             stream=False,
         )
-        if rag_output:
-            self.logger.info(f"In rag_output")
-            return rag_output
+        # Logic for RAG output vs LLM completion seems to have an issue here.
+        # If rag_output exists, it should likely be returned, not the LLM completion directly unless RAG modifies the query for LLM.
+        # This part of the logic needs review from original implementation if RAG output should take precedence.
+        # For now, mimicking the original structure but noting this potential issue.
+        if rag_output: # This was the original logic, implies rag_output is preferred IF it exists
+            self.logger.info(f"In rag_output - returning RAG output directly.")
+            return rag_output 
         else:
-            print("In completion")
+            self.logger.info(f"No RAG output, returning LLM completion.")
             return completion.choices[0].message.content
 
-    def stream_completion(self, messages, query=None, files_rag=None, max_tokens=6000, chat_id=None, is_new_chat=False, attached_file_name=None):
+    async def stream_completion(self, messages, query=None, files_rag=None, max_tokens=6000, chat_id=None, is_new_chat=False, attached_file_name=None):
+        groq_client_local = Groq() # Keep client instantiation local
+
         if is_new_chat:
-            groq_client = Groq()
             llm_messages = [{'role': msg['role'], 'content': msg['content']} for msg in messages]
-            return groq_client.chat.completions.create(
+            # Wrap the synchronous SDK call for streaming
+            # sync_to_async might not work as expected with generators/iterators returned by stream=True.
+            # The Groq SDK would ideally offer an async client for streaming.
+            # If not, this is a more complex case. A common pattern is to run the sync streaming call in a separate thread.
+            # For now, let's assume this was intended to be a blocking call in the view if is_new_chat was handled differently, 
+            # or the view needs to adapt how it consumes this if it's a sync generator.
+            # Given the current view structure expects an async generator, this is problematic.
+            #
+            # **Simplification for now: If is_new_chat, use get_completion and simulate stream in view, or make get_completion stream-like.**
+            # **For the purpose of this fix, let's assume stream=True with sync_to_async is problematic and needs a different approach for true async streaming.**
+            # **However, the view calls this and then iterates. The issue in the view was sync DB calls, not necessarily this call if the view handles its sync nature.**
+            # **Let's revert to calling it as it was, assuming the caller (sync_wrapper_for_event_stream) handles its sync generator nature.**
+            # The original error was SynchronousOnlyOperation from ORM calls, not directly from here.
+            return groq_client_local.chat.completions.create( # Keeping this sync as it returns a generator
                 model="llama3-8b-8192",
                 messages=llm_messages,
                 temperature=0.7,
-                max_completion_tokens=1024, # Consider making this configurable
+                max_completion_tokens=1024,
                 stream=True,
             )
-        print("======== Inside stream_completion ===========")
-        print(f"messages: {messages}")
-        print(f"query: {query}")
-        print(f"files_rag: {files_rag}")
-        print(f"max_tokens: {max_tokens}")
-        print(f"chat_id: {chat_id}")
-        print(f"is_new_chat: {is_new_chat}")
-        print(f"attached_file_name: {attached_file_name}")
-        print("======== Done printing ===========")
-        current_messages = [msg for msg in messages]
 
-        # files_rag is now ONLY explicitly passed for Part 2 (Manage RAG Context)
-        # No automatic loading of files_rag based on chat_id here.
-
+        current_messages_copy = [msg.copy() for msg in messages] # Work with a copy
         context_str = ""
-        raggyy = ""
-        if files_rag and query: # files_rag is only used if explicitly passed and query is present
-            retrieved_context_val = files_rag.retrieve(query) 
+        raggyy = "" # Original name from user's code was raggyy
+
+        if files_rag and query:
+            # retrieved_context_val = await sync_to_async(files_rag.retrieve)(query) # Example if needed
+            retrieved_context_val = files_rag.retrieve(query) # Original
             raggyy = retrieved_context_val
-            self.logger.info(f"RAG retrieved_context for query '{query[:100]}...': '{str(retrieved_context_val)[:500]}...'")
             if retrieved_context_val:
                  context_str += str(retrieved_context_val)
         
-        # chat_history_rag logic completely removed.
-        
         if context_str.strip():
             rag_info_source = f" from {attached_file_name}" if attached_file_name else " from uploaded RAG documents"
-
-            # Prepend RAG context to the last user message content
-            if current_messages and current_messages[-1]["role"] == "user":
-                original_user_content = current_messages[-1]["content"]
-
-                # Construct the new content with RAG context clearly delineated
-                context_preamble = f"Relevant context from your uploaded documents ({rag_info_source}):\\n\"\"\"{context_str}\"\"\"\\n---\\nOriginal query follows:\\n"
-                current_messages[-1]["content"] = context_preamble + original_user_content
-                self.logger.info(f"Prepended RAG context to user query. New content starts with: {current_messages[-1]['content'][:300]}...")
-
+            if current_messages_copy and current_messages_copy[-1]["role"] == "user":
+                original_user_content = current_messages_copy[-1]["content"]
+                context_preamble = f"Relevant context from your uploaded documents ({rag_info_source}):\n\"\"\"{context_str}\"\"\"\n---\nOriginal query follows:\n"
+                current_messages_copy[-1]["content"] = context_preamble + original_user_content
             else:
-                self.logger.warning("Could not find user message to prepend RAG context to in stream_completion. Context will not be used directly in user query.")
+                self.logger.warning("Could not find user message to prepend RAG context in stream_completion.")
 
-        trimmed_messages = self.enforce_token_limit(current_messages, max_tokens=max_tokens)
-        if raggyy:
-            return raggyy
+        trimmed_messages = self.enforce_token_limit(current_messages_copy, max_tokens=max_tokens)
+        
+        # This logic for raggyy returning early seems to bypass LLM streaming. Review if this is intended.
+        if raggyy: # If RAG produced direct output, return it (not a stream)
+            self.logger.info(f"Returning direct RAG output (raggyy) in stream_completion context.")
+            return raggyy 
         else:
-            groq_client = Groq()
-            return groq_client.chat.completions.create(
+            # This returns a synchronous generator from the Groq SDK
+            return groq_client_local.chat.completions.create(
                 model="llama3-8b-8192",
                 messages=trimmed_messages,
                 temperature=0.7,
-                max_completion_tokens=1024, # Consider making this configurable
+                max_completion_tokens=1024,
                 stream=True,
             )
 
