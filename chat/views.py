@@ -23,6 +23,7 @@ import re
 from django.utils import timezone
 import asyncio
 from asgiref.sync import sync_to_async, async_to_sync
+from django.conf import settings
 
 chat_service = ChatService()
 
@@ -90,19 +91,23 @@ class ChatView(View):
                         'edited_at': msg_obj.edited_at.isoformat() if msg_obj.edited_at else None,
                         'text': None,        # Default to None
                         'html': None,        # Default to None (used for quiz HTML by current template)
-                        'mindmap_html': None # Default to None (for mindmap HTML)
+                        'diagram_image_url': None # Initialize diagram_image_url
                     }
 
-                    if msg_obj.role == 'assistant' and not msg_obj.content: # Assistant message with empty primary content
-                        if msg_obj.mindmap_html: # Check for mindmap_html first
-                            msg_dict['mindmap_html'] = msg_obj.mindmap_html
-                        elif msg_obj.quiz_html: # Then check for quiz_html
-                            msg_dict['html'] = msg_obj.quiz_html # Template expects 'html' for quiz
+                    # Handle different message types properly
+                    if msg_obj.type == 'diagram' and msg_obj.diagram_image_url:
+                        # This is a diagram message
+                        msg_dict['diagram_image_url'] = msg_obj.diagram_image_url
+                        msg_dict['text'] = msg_obj.content  # Use the content as description text
+                        logger.info(f"Loaded diagram message with URL: {msg_obj.diagram_image_url}")
+                    elif msg_obj.role == 'assistant' and msg_obj.type == 'quiz':
+                        # This is a quiz message
+                        if msg_obj.quiz_html:
+                            msg_dict['html'] = msg_obj.quiz_html
                         else:
-                            # Fallback for assistant message with empty content but no special HTML
-                            # This case should ideally not be hit if content is empty only for quiz/mindmap
-                            msg_dict['text'] = '' 
-                    else: # User messages or assistant messages with actual text content
+                            msg_dict['text'] = msg_obj.content or ''
+                    else:
+                        # Regular text message
                         msg_dict['text'] = msg_obj.content
                     
                     conversation.append(msg_dict)
@@ -111,7 +116,8 @@ class ChatView(View):
                     "current_chat": chat,
                     "conversation": conversation,
                     "chats": chats,
-                    "is_new_chat": False
+                    "is_new_chat": False,
+                    "MEDIA_URL": settings.MEDIA_URL  # Add MEDIA_URL to the context
                 })
             except Chat.DoesNotExist:
                 return redirect('new_chat')
@@ -120,13 +126,12 @@ class ChatView(View):
         return redirect('new_chat')
 
 
-@method_decorator(login_required, name='dispatch')
+# @method_decorator(login_required, name='dispatch') # Ensure this is commented out
 class ChatStreamView(View):
     async def post(self, request, chat_id):
         try:
-            # Pre-load request.user in an async-safe way
-            user = await sync_to_async(lambda: request.user)()
-            if not await sync_to_async(lambda: user.is_authenticated)(): # Explicitly check authentication
+            user = await request.auser()
+            if not user.is_authenticated:
                 return JsonResponse({'error': 'Authentication required'}, status=401)
 
             logger.info(f"ChatStreamView.post called for chat_id={chat_id} by user {user.id}")
@@ -160,12 +165,10 @@ class ChatStreamView(View):
 
             rag_mode_active_str = request.POST.get('rag_mode_active', 'false')
             rag_mode_active = rag_mode_active_str.lower() == 'true'
-            mind_map_mode_active_str = request.POST.get('mind_map_mode_active', 'false')
-            mind_map_mode_active = mind_map_mode_active_str.lower() == 'true'
 
-            if mind_map_mode_active:
-                rag_mode_active = False
-                logger.info("Mind Map mode is ACTIVE. RAG mode will be disabled if it was also active.")
+            diagram_mode_active_str = request.POST.get('diagram_mode_active', 'false') # Get diagram_mode_active
+            diagram_mode_active = diagram_mode_active_str.lower() == 'true'
+            logger.info(f"Diagram mode active: {diagram_mode_active}")
 
             files_rag_instance = None   
             attached_file_names_for_rag_context = []
@@ -197,6 +200,11 @@ class ChatStreamView(View):
             else:
                 logger.info("RAG mode is INACTIVE. Skipping RAG index build.")
 
+            # Diagram mode takes precedence if active
+            if diagram_mode_active:
+                logger.info("Diagram mode is ACTIVE. RAG mode will be ignored for this turn if it was also active.")
+                rag_mode_active = False # Ensure RAG is off if diagram is on for this turn
+
             is_reprompt_after_edit = request.POST.get("is_reprompt_after_edit") == "true"
             
             current_message_count = await sync_to_async(chat.messages.count)()
@@ -222,32 +230,24 @@ class ChatStreamView(View):
             if is_handling_continuation_of_new_chat:
                 logger.info("First turn of new chat: LLM history will start with system prompt, current query will be added next.")
             else:
+                # For diagram generation, we might want the full history for context.
+                # For regular chat, it's already limited by get_chat_history.
                 for msg_data in chat_history_db:
-                    messages_for_llm.append({"role": msg_data.role, "content": msg_data.content})
-                logger.info(f"Ongoing chat or re-prompt: Added {len(chat_history_db)} messages from DB to LLM context.")
+                    # Don't include previous diagram placeholder texts or image URLs in LLM history for new diagram
+                    if diagram_mode_active and msg_data.type == 'diagram':
+                        if msg_data.content and not msg_data.content.startswith("[Diagram generated"):
+                             messages_for_llm.append({"role": msg_data.role, "content": msg_data.content})
+                        # else skip diagram placeholders for new diagram generation context
+                    else:
+                        messages_for_llm.append({"role": msg_data.role, "content": msg_data.content})
+
+                logger.info(f"Ongoing chat or re-prompt: Added {len(messages_for_llm) -1} messages from DB to LLM context (excluding system prompt).")
             
-            messages_for_llm.append({"role": "user", "content": llm_query_content})
+            # Add the current user query that might be for a diagram or regular chat
+            # llm_query_content already contains augmented file text if any
+            messages_for_llm.append({"role": "user", "content": llm_query_content}) 
             
             logger.info(f"Message history prepared with {len(messages_for_llm)} messages for LLM. Last user message for LLM: {llm_query_content[:200]}...")
-
-            if mind_map_mode_active:
-                chat_history_for_mindmap_prompt = "\n".join([
-                    f"{hist_msg['role']}: {hist_msg['content']}" 
-                    for hist_msg in messages_for_llm[:-1]
-                ])
-                mindmap_specific_user_query = user_typed_prompt
-                mind_map_prompt = f"""Based on the following conversation history and the user's request, generate Markdown suitable for creating an interactive mind map using the markmap library. The user's request for the mind map is: '{mindmap_specific_user_query}'.
-
-Focus on structuring the information hierarchically using Markdown headings (#, ##, ###, etc.) and lists (e.g., - item,  - subitem,    - sub-subitem). Sub-items should be indented correctly. Output ONLY the Markdown content for the mindmap. Do NOT include any other explanatory text, comments, or the user's request itself in the output. Ensure the Markdown is syntactically correct for Markmap (e.g. proper heading levels, list indentation).
-
-Conversation History (excluding the current mind map request):
-{chat_history_for_mindmap_prompt}
-
-User's Mind Map Request: '{mindmap_specific_user_query}'
-
-Respond with ONLY the Markmap Markdown:"""
-                messages_for_llm[-1]["content"] = mind_map_prompt
-                logger.info(f"Mind Map mode: Replaced user query with specialized prompt. New prompt starts with: {mind_map_prompt[:300]}...")
 
             current_message_count_final = await sync_to_async(chat.messages.count)()
             is_new_chat_bool = current_message_count_final <= 1
@@ -261,14 +261,15 @@ Respond with ONLY the Markmap Markdown:"""
                 current_user_prompt_for_saving = user_typed_prompt if not (is_handling_continuation_of_new_chat or is_reprompt_after_edit) else None,
                 attached_file_name_for_rag=", ".join(attached_file_names_for_rag_context) if rag_mode_active and attached_file_names_for_rag_context else None,
                 file_info_for_truncation_warning=file_info_for_llm,
-                mind_map_mode_active=mind_map_mode_active
+                diagram_mode_active=diagram_mode_active, # Pass diagram_mode_active
+                user_id_for_diagram=user.id if diagram_mode_active else None # Pass user_id for diagram path
             )
 
         except Exception as e:
             logger.error(f"Exception in ChatStreamView.post: {str(e)}", exc_info=True)
             return JsonResponse({'error': str(e)}, status=500)
 
-    async def stream_response(self, chat, messages_for_llm, query_for_rag=None, files_rag_instance=None, is_new_chat=False, current_user_prompt_for_saving=None, attached_file_name_for_rag=None, file_info_for_truncation_warning=None, mind_map_mode_active=False):
+    async def stream_response(self, chat, messages_for_llm, query_for_rag=None, files_rag_instance=None, is_new_chat=False, current_user_prompt_for_saving=None, attached_file_name_for_rag=None, file_info_for_truncation_warning=None, diagram_mode_active=False, user_id_for_diagram=None):
         async def event_stream_async():
             user_message_saved = False
             try:
@@ -288,50 +289,68 @@ Respond with ONLY the Markmap Markdown:"""
                 max_tokens_for_llm = 7000
                 logger.info(f"[ChatStreamView.stream_response] Max tokens for LLM: {max_tokens_for_llm}")
 
-                if mind_map_mode_active:
-                    logger.info("Mind Map Mode: Using non-streaming get_completion for Markmap Markdown, then pyppeteer for image.")
-                    if not user_message_saved and current_user_prompt_for_saving:
-                        await sync_to_async(Message.objects.create)(chat=chat, role='user', content=current_user_prompt_for_saving)
-                        user_message_saved = True
-                        logger.info(f"User message '{current_user_prompt_for_saving[:50]}...' saved (Mind Map mode).")
-
-                    llm_markdown_response = await chat_service.get_completion(
-                        messages=messages_for_llm,
-                        max_tokens=2000, 
-                        chat_id=chat.id,
-                        is_new_chat=is_new_chat
-                    )
-
-                    if llm_markdown_response and llm_markdown_response.strip():
-                        unique_mindmap_id_base = f"mm_{chat.id}"
-                        image_data_url = await chat_service.generate_mindmap_image_data_url(llm_markdown_response, unique_mindmap_id_base)
-                        
-                        if image_data_url:
-                            img_tag_html = f'<img src="{image_data_url}" alt="Mind Map for {chat.title}" style="max-width: 100%; height: auto; border-radius: 8px;" />'
-                            assistant_msg_id = await sync_to_async(lambda: Message.objects.create(
-                                chat=chat,
-                                role='assistant',
-                                content='', 
-                                mindmap_html=img_tag_html,
-                                type='mindmap_image'
-                            ).id)()
-                            logger.info(f"Mind Map image generated and saved to message {assistant_msg_id}.")
-                            yield f"data: {json.dumps({'type': 'mindmap_image', 'image_html': img_tag_html, 'message_id': str(assistant_msg_id)})}\n\n"
-                        else:
-                            logger.error("Mind map image generation failed to return data URL.")
-                            yield f"data: {json.dumps({'type': 'error', 'content': 'Failed to generate mind map image.'})}\n\n"
-                    else:
-                        logger.error("LLM returned empty or invalid Markdown for Mind Map.")
-                        yield f"data: {json.dumps({'type': 'error', 'content': 'Failed to generate mind map: The AI did not return valid content.'})}\n\n"
-                    
-                    yield f"data: {json.dumps({'type': 'done'})}\n\n"
-                    return 
-                
                 if not user_message_saved and current_user_prompt_for_saving:
                     await sync_to_async(Message.objects.create)(chat=chat, role='user', content=current_user_prompt_for_saving)
                     user_message_saved = True
                     logger.info(f"User message '{current_user_prompt_for_saving[:50]}...' saved (Normal stream mode).")
 
+                if diagram_mode_active:
+                    logger.info(f"Diagram mode active in event_stream. User query for diagram: {messages_for_llm[-1]['content'][:100]}...") # messages_for_llm[-1] is the current user prompt
+                    
+                    # For diagram history, we use messages_for_llm which includes system prompt and history
+                    # The user_query for generate_diagram_image should be the specific diagram request part
+                    # current_user_prompt_for_saving is the raw user input.
+                    # llm_query_content (which is in messages_for_llm[-1]['content']) might include file augmentations.
+                    # We need to decide if file augmentations go into the 'topic' for diagram.
+                    # Using current_user_prompt_for_saving as the 'topic' seems most direct for what the user asked to diagram.
+                    
+                    diagram_topic_query = current_user_prompt_for_saving if current_user_prompt_for_saving else messages_for_llm[-1]['content']
+
+                    image_file_path = await chat_service.generate_diagram_image(
+                        chat_history_messages=messages_for_llm[:-1], # Pass history without current user message yet
+                        user_query=diagram_topic_query, 
+                        chat_id=chat.id,
+                        user_id=user_id_for_diagram
+                    )
+
+                    if image_file_path:
+                        # Simplify path handling - convert all paths to strings
+                        image_file_path_str = str(image_file_path)
+                        
+                        # Much simpler URL handling - just use the filename directly with diagrams/ prefix
+                        try:
+                            # Get just the filename from the path
+                            image_filename = os.path.basename(image_file_path_str)
+                            # Store as diagrams/filename.png
+                            image_url_for_template = f"../media/diagrams/{image_filename}"
+                            logger.info(f"Simplified image URL: {image_url_for_template}")
+                            
+                            # Create a more concise diagram message text (prevent nesting)
+                            diagram_message_content = f"Diagram for: {diagram_topic_query[:100]}"
+                            
+                            # Make sure to store both the text and the image URL
+                            new_diagram_message = await sync_to_async(Message.objects.create)(
+                                chat=chat, 
+                                role='assistant', 
+                                content=diagram_message_content,  # Simple text description 
+                                type='diagram',                   # Set type to diagram
+                                diagram_image_url=image_url_for_template  # Store the image URL
+                            )
+                            logger.info(f"Diagram message saved with ID {new_diagram_message.id}. Image URL: {image_url_for_template}")
+                            yield f"data: {json.dumps({'type': 'diagram_image', 'image_url': image_url_for_template, 'message_id': new_diagram_message.id, 'text_content': diagram_message_content})}\n\n"
+                        except Exception as e:
+                            logger.error(f"Error processing image path: {e}", exc_info=True)
+                            image_url_for_template = None
+                            yield f"data: {json.dumps({'type': 'error', 'content': 'Error processing image path.'})}\n\n"
+                    else:
+                        logger.error("Diagram generation failed (image_file_path is None).")
+                        yield f"data: {json.dumps({'type': 'error', 'content': 'Failed to generate the diagram for your request.'})}\n\n"
+                    
+                    # Always end the stream properly for diagrams
+                    yield f"data: {json.dumps({'type': 'done'})}\n\n"
+                    return # Diagram mode concludes here
+
+                # --- Regular streaming / RAG mode ---
                 stream = await chat_service.stream_completion(
                     messages=messages_for_llm, 
                     query=query_for_rag,

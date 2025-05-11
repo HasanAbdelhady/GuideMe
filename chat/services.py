@@ -9,7 +9,7 @@ import logging
 import copy
 from functools import lru_cache
 import time
-import base64
+# import base64 # No longer needed if generate_mindmap_image_data_url is removed
 import asyncio
 from asgiref.sync import sync_to_async
 
@@ -31,6 +31,12 @@ from typing import Optional, List, Any
 from groq import Groq
 from pydantic import PrivateAttr
 
+import graphviz # Added for diagram generation
+import re # Added for sanitizing filenames
+
+
+def sanitize_filename(filename):
+    return re.sub(r'[<>:"/\\|?*]', '_', filename)
 
 class GroqLangChainLLM(LLM):
     model: str = "llama3-8b-8192"
@@ -290,111 +296,15 @@ class ChatService:
                 self.logger.warning(f"Message missing role/content for token counting: {msg}")
         return total
 
-    async def generate_mindmap_image_data_url(self, markdown_content: str, unique_id_base: str) -> str:
-        """
-        Generates a base64 encoded PNG data URL for a mind map from Markdown using pyppeteer.
-        """
-        import asyncio
-        from pyppeteer import launch
-        import tempfile
-        import os
-
-        # Escape backticks, backslashes for JavaScript string literal inside HTML
-        escaped_markdown = markdown_content.replace('\\', '\\\\') \
-                                         .replace('`', '\\`') \
-                                         .replace('${', '\\${')
-
-        unique_id = f"{unique_id_base}_{int(time.time())}" # Make it more unique for temp file
-
-        html_content = f"""
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <title>Markmap Render</title>
-    <script src="https://cdn.jsdelivr.net/npm/markmap-autoloader"></script>
-    <style>
-        html, body {{ margin: 0; padding: 0; overflow: hidden; }}
-        #markmap-{unique_id} {{ width: 1200px; height: 800px; }} /* Fixed size for consistent screenshot */
-    </style>
-</head>
-<body>
-    <svg id="markmap-{unique_id}"></svg>
-    <script>
-        (function() {{
-            const el = document.getElementById("markmap-{unique_id}");
-            if (el && window.markmap && window.markmap.autoLoader) {{
-                try {{
-                    window.markmap.autoLoader.render(el, `{escaped_markdown}`);
-                }} catch (e) {{
-                    el.innerHTML = `<p style='color:red;'>Render Error: ${{e.message}}</p>`;
-                    console.error("Markmap render error:", e);
-                }}
-            }} else if (el) {{
-                el.innerHTML = "<p style='color:orange;'>Markmap library not loaded.</p>";
-                console.warn('Markmap library not loaded for #markmap-{unique_id}');
-            }}
-        }})();
-    </script>
-</body>
-</html>
-"""
-        image_data_url = None
-        temp_html_file = None
-
-        try:
-            # Create a temporary HTML file
-            with tempfile.NamedTemporaryFile(delete=False, mode='w', suffix=".html", encoding='utf-8') as tmp_f:
-                tmp_f.write(html_content)
-                temp_html_file = tmp_f.name
-            
-            self.logger.info(f"Attempting to launch browser for Markmap rendering. Temp HTML: {temp_html_file}")
-            browser = await launch(
-                executablePath='C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe', 
-                headless=True, 
-                args=['--no-sandbox', '--disable-gpu'],
-                handleSIGINT=False,
-                handleSIGTERM=False,
-                handleSIGHUP=False,
-                dumpio=True
-            )
-            page = await browser.newPage()
-            await page.setViewport({'width': 1250, 'height': 850}) # Ensure viewport is larger than SVG
-            
-            # Go to the local temporary HTML file
-            await page.goto(f'file://{os.path.abspath(temp_html_file)}')
-            
-            # Wait for Markmap to render - increased delay, and wait for specific element
-            await page.waitForSelector(f'#markmap-{unique_id} > g', timeout=10000) # Wait for an inner group element of markmap
-            await asyncio.sleep(1) # Additional small delay for rendering to settle
-
-            element = await page.querySelector(f'#markmap-{unique_id}')
-            if element:
-                screenshot_bytes = await element.screenshot({'type': 'png', 'omitBackground': True})
-                image_data_url = f"data:image/png;base64,{base64.b64encode(screenshot_bytes).decode('utf-8')}"
-                self.logger.info(f"Successfully captured Markmap screenshot for {unique_id_base}.")
-            else:
-                self.logger.error(f"Could not find #markmap-{unique_id} element for screenshot.")
-
-            await browser.close()
-
-        except Exception as e:
-            self.logger.error(f"Error during Markmap image generation for {unique_id_base}: {e}", exc_info=True)
-            # Fallback or error handling here, e.g., return a placeholder image data URL or raise
-            # For now, image_data_url will be None, and views.py needs to handle this
-        finally:
-            if temp_html_file and os.path.exists(temp_html_file):
-                os.remove(temp_html_file)
-        
-        return image_data_url
-
     async def get_completion(self, messages, query=None, files_rag=None, max_tokens=6000, chat_id=None, is_new_chat=False, attached_file_name=None):
         groq_client_local = Groq() # Keep client instantiation local if it has state issues with async
         
         if is_new_chat:
             llm_messages = [{'role': msg['role'], 'content': msg['content']} for msg in messages]
-            # Wrap the synchronous SDK call
-            completion = await sync_to_async(groq_client_local.chat.completions.create)(
+            # This part should be sync or wrapped if get_completion is to be truly async.
+            # For now, assuming it's called in a context that can handle this if it blocks briefly,
+            # or that this path is less critical for full async behavior if it's just for the first message.
+            completion = (groq_client_local.chat.completions.create)(
                 model="llama3-8b-8192",
                 messages=llm_messages,
                 temperature=0.7,
@@ -532,3 +442,287 @@ class ChatService:
             return
         chat.title = title_text[:50] + ('...' if len(title_text) > 50 else '')
         chat.save()
+
+    async def generate_diagram_image(self, chat_history_messages, user_query, chat_id, user_id):
+        self.logger.info(f"Starting diagram generation for chat {chat_id}, user query: {user_query}")
+        prompt_content_generation = (
+            'You are an expert explainer working in a multi-agent system.\\n'
+            'Your job is to generate a clear, structured, and technically accurate description of a given topic so it can be turned into a diagram.\\n'
+            'Requirements:\\n'
+            '- Break down the topic into logical steps, layers, or components.\\n'
+            '- Describe each part in order of how it flows or interacts with others.\\n'
+            '- Focus on function, purpose, input/output, and relationships.\\n'
+            '- Keep the explanation concise but informative — not too short, not too long.\\n'
+            '- The description should be suitable for transforming into a technical diagram using Graphviz.\\n'
+            'Your output must be plain text, without code or special formatting.'
+        )
+        
+        messages_for_description = chat_history_messages + [{"role": "user", "content": user_query}]
+        messages_for_description.insert(0, {"role": "system", "content": prompt_content_generation})
+        self.logger.info(f"Messages for description LLM call (first few): {str(messages_for_description)[:200]}")
+
+        try:
+            structured_description_content = await self.get_completion(
+                messages=messages_for_description,
+                max_tokens=1500, 
+                chat_id=chat_id 
+            )
+            self.logger.info(f"Received structured description: {structured_description_content[:200]}...")
+            if not structured_description_content or not structured_description_content.strip():
+                self.logger.error("LLM failed to generate a structured description.")
+                return None
+        except Exception as e:
+            self.logger.error(f"Error getting structured description from LLM: {e}", exc_info=True)
+            return None
+
+        # Simplified prompt for Graphviz code generation
+        prompt_graphviz_code_generation = (
+            "You are an expert technical diagram assistant. Your task is to generate ONLY Python code using the Graphviz library "
+            "to create an educational diagram based on the provided structured description.\\n\\n"
+            "IMPORTANT: Return ONLY the exact Python code with no explanations, no markdown formatting, no ```python blocks, and no comments outside the code. "
+            "Start your response directly with 'from graphviz import Digraph' or the appropriate import statement.\\n\\n"
+            "The Python script should:\\n"
+            "- Import `Digraph` from `graphviz` (e.g., `from graphviz import Digraph`).\\n"
+            "- Create a `Digraph` object with ONLY the format parameter: `g = Digraph(format='png')`.\\n"
+            "- Set other graph attributes using the `.attr()` method AFTER creation: `g.attr(dpi='300')` and `g.attr(rankdir='TB')`.\\n"
+            "- Define nodes using `g.node(node_id, label, shape='box', style='filled,rounded', fillcolor='color')`. Do NOT use invalid attributes like 'parent'.\\n"
+            "- Define edges using `g.edge(parent_id, child_id, label=optional_label)`. ALWAYS ensure all parentheses are properly closed.\\n"
+            "- EXAMPLE of a correct edge definition: `g.edge(\"node1\", \"node2\", label=\"connects to\")` - note the closing parenthesis.\\n"
+            "- Create hierarchical relationships by explicitly creating edges between nodes, not by adding nodes with 'parent' attributes.\\n"
+            "- For mind maps specifically, use a central node and connect all main concepts to it.\\n"
+            "- Optionally, use subgraphs/clusters for logical grouping.\\n"
+            "- Optionally, include educational annotations as separate nodes.\\n"
+            "- CAREFULLY check your code for syntax errors, especially unclosed parentheses in method calls.\\n"
+            "- Always conclude with `g.render('diagram_output', view=False, cleanup=True)` to generate the diagram.\\n\\n"
+        )
+        
+        messages_for_graphviz = [
+            {"role": "system", "content": prompt_graphviz_code_generation},
+            {"role": "user", "content": structured_description_content} # The LLM-generated description
+        ]
+        self.logger.info(f"Messages for Graphviz LLM call (system prompt length: {len(prompt_graphviz_code_generation)}, user content length: {len(structured_description_content) if structured_description_content else 0})")
+
+        try:
+            graphviz_code_response = await self.get_completion(
+                messages=messages_for_graphviz,
+                max_tokens=2500, # Allow ample tokens for code generation
+                chat_id=chat_id
+            )
+            self.logger.info(f"Received Graphviz code response (first 200 chars): {graphviz_code_response[:200] if graphviz_code_response else 'Empty response'}...")
+            if not graphviz_code_response or not graphviz_code_response.strip():
+                self.logger.error("LLM failed to generate Graphviz code (empty response).")
+                return None
+        except Exception as e:
+            self.logger.error(f"Error getting Graphviz code from LLM: {e}", exc_info=True)
+            return None
+
+        # Since the prompt now asks for ONLY Python code, no ```python ``` block is expected.
+        # We'll take the response as is, after stripping whitespace.
+        graphviz_code = graphviz_code_response.strip()
+        
+        # Extract only the actual Python code, removing any explanatory text
+        if "```" in graphviz_code:
+            # If the response has code blocks, extract the content between the first set of ``` markers
+            try:
+                code_parts = graphviz_code.split("```")
+                if len(code_parts) >= 3:  # At least one complete code block
+                    graphviz_code = code_parts[1].strip()
+                    # If it starts with 'python', remove that too
+                    if graphviz_code.startswith("python"):
+                        graphviz_code = graphviz_code[6:].strip()
+            except Exception as e:
+                self.logger.error(f"Error extracting code block: {e}", exc_info=True)
+        else:
+            # If no code blocks, try to find the first line that looks like Python code
+            lines = graphviz_code.split('\n')
+            start_idx = 0
+            for i, line in enumerate(lines):
+                if line.strip().startswith("from") or line.strip().startswith("import") or "Digraph" in line:
+                    start_idx = i
+                    break
+            graphviz_code = "\n".join(lines[start_idx:])
+        
+        self.logger.info(f"Cleaned Graphviz code (first 100 chars): {graphviz_code[:100]}...")
+        
+        # More lenient check - only require import and Digraph creation
+        if not ("from graphviz import Digraph" in graphviz_code and "Digraph(" in graphviz_code):
+            self.logger.error(f"Generated Graphviz code does not appear to be valid. Preview: {graphviz_code[:500]}")
+            return None
+            
+        # Add fallback .render() call if missing
+        if ".render(" not in graphviz_code:
+            self.logger.info("Adding fallback .render() call to Graphviz code")
+            # Add render call to the end of the code
+            graphviz_code += "\n\n# Fallback render call\ng.render('diagram_output', view=False, cleanup=True)"
+            
+        # Pre-process the code to handle common issues
+        # Remove invalid 'parent' attribute which is a common mistake in the generated code
+        graphviz_code = re.sub(r'parent\s*=\s*[\'"].*?[\'"]', '', graphviz_code)
+        self.logger.info(f"Pre-processed Graphviz code (first 300 chars): {graphviz_code[:300]}...")
+
+        # Add syntax validation and correction for common issues
+        def validate_and_fix_syntax(code):
+            # Check for and fix unclosed parentheses in edge definitions
+            fixed_code = []
+            in_edge_def = False
+            paren_count = 0
+            
+            for line in code.split('\n'):
+                if 'g.edge(' in line:
+                    # Count opening and closing parentheses
+                    open_count = line.count('(')
+                    close_count = line.count(')')
+                    
+                    if open_count > close_count:
+                        # Unclosed parenthesis - add missing closing parenthesis
+                        self.logger.info(f"Fixing unclosed parenthesis in edge definition: {line}")
+                        line = line + ')' * (open_count - close_count)
+                
+                fixed_code.append(line)
+            
+            return '\n'.join(fixed_code)
+            
+        # Apply syntax fixes
+        graphviz_code = validate_and_fix_syntax(graphviz_code)
+        self.logger.info("Applied syntax validation and fixes to Graphviz code")
+
+        def _render_graphviz_sync(code_to_execute, base_filename, topic_name_from_query):
+            # Simplify path structure to match actual storage location
+            diagram_dir = os.path.join('media', 'diagrams')
+            os.makedirs(diagram_dir, exist_ok=True)
+            
+            # Create a more standardized filename
+            safe_topic = sanitize_filename(topic_name_from_query).replace(' ', '_')
+            timestamp = int(time.time())
+            filename = f"{base_filename}_{safe_topic}_{timestamp}.png"
+            output_filepath = os.path.join(diagram_dir, filename)
+            
+            # Get absolute paths for clarity in logging
+            abs_diagram_dir = os.path.abspath(diagram_dir)
+            abs_output_filepath = os.path.abspath(output_filepath)
+            self.logger.info(f"Diagram directory (absolute): {abs_diagram_dir}")
+            self.logger.info(f"Output filepath (absolute): {abs_output_filepath}")
+            
+            # For the URL, we'll return just the path relative to media directory
+            relative_url_path = f"diagrams/{filename}"
+
+            try:
+                # First validate code syntax before executing
+                import ast
+                try:
+                    ast.parse(code_to_execute)
+                    self.logger.info("Code syntax validation passed")
+                except SyntaxError as se:
+                    self.logger.error(f"Syntax error in generated code: {se}")
+                    # Try simple syntax fixes for common errors
+                    line_number = se.lineno if hasattr(se, 'lineno') else -1
+                    if line_number > 0:
+                        lines = code_to_execute.split('\n')
+                        if line_number <= len(lines):
+                            problematic_line = lines[line_number - 1]
+                            self.logger.error(f"Problematic line ({line_number}): {problematic_line}")
+                            # Try to fix specific syntax issues like unclosed parentheses
+                            if '(' in problematic_line and ')' not in problematic_line:
+                                lines[line_number - 1] = problematic_line + ')'
+                                self.logger.info(f"Attempted to fix unclosed parenthesis: {lines[line_number - 1]}")
+                                code_to_execute = '\n'.join(lines)
+                                try:
+                                    ast.parse(code_to_execute)
+                                    self.logger.info("Code syntax fixed and now valid")
+                                except SyntaxError:
+                                    self.logger.error("Failed to fix syntax error")
+                
+                # Log the cleaned code for debugging
+                self.logger.info(f"About to execute graphviz code:\n---CODE START---\n{code_to_execute}\n---CODE END---")
+                
+                local_namespace = {}
+                # Provide necessary imports to the execution scope
+                exec_globals = {"graphviz": graphviz, "Digraph": graphviz.Digraph, "os": os}
+                exec(code_to_execute, exec_globals, local_namespace)
+                
+                # The LLM should have created a Digraph object, commonly 'g'
+                # and called g.render(). We will try to find the path it rendered to,
+                # or use our standard path if the LLM's .render() call was generic.
+                
+                graph_object_name = None
+                for name, val in local_namespace.items():
+                    if isinstance(val, graphviz.Digraph):
+                        graph_object_name = name
+                        self.logger.info(f"Found graph object: {name}")
+                        break
+                
+                if graph_object_name:
+                    graph_obj = local_namespace[graph_object_name]
+                    # Ensure our desired output settings are applied if possible,
+                    # though the prompt asks the LLM to set them.
+                    graph_obj.format = 'png'
+                    
+                    # The LLM was instructed to call .render().
+                    # If it used a generic name like 'diagram_output', our output_filepath_stem will be used.
+                    # If it created a file, we need to find it.
+                    # For robust_ness, we will call render again with our explicit path.
+                    # This ensures the file is where we expect it.
+                    filepath_without_ext = os.path.splitext(output_filepath)[0]  # Remove .png extension for render
+                    self.logger.info(f"About to render graph to {filepath_without_ext}")
+                    rendered_path = graph_obj.render(filename=filepath_without_ext, view=False, cleanup=True)
+                    self.logger.info(f"Graph rendered to: {rendered_path}")
+                    
+                    if os.path.exists(rendered_path) and rendered_path.lower().endswith('.png'):
+                        self.logger.info(f"Diagram successfully rendered to: {rendered_path}")
+                        return relative_url_path
+                    elif os.path.exists(output_filepath): # Check our expected path with .png
+                        self.logger.info(f"Diagram successfully rendered, found at expected path: {output_filepath}")
+                        return relative_url_path
+                    else:
+                        self.logger.error(f"Graphviz render did not produce expected PNG file. Checked: {rendered_path} and {output_filepath}. Render output from LLM may have been different or failed silently.")
+                        # Attempt to list files in diagram_dir for debugging
+                        try:
+                            files_in_dir = os.listdir(diagram_dir)
+                            self.logger.info(f"Files in {diagram_dir}: {files_in_dir}")
+                            # Search for any PNG files that might have been created with a different name
+                            png_files = [f for f in files_in_dir if f.endswith('.png') and f.startswith(os.path.basename(filepath_without_ext))]
+                            if png_files:
+                                self.logger.info(f"Found possible match: {png_files[0]}")
+                                return f"diagrams/{png_files[0]}"
+                        except Exception as e:
+                            self.logger.error(f"Error listing directory: {e}")
+                        
+                        # Fallback: Try to render directly with the filename
+                        try:
+                            self.logger.info("Attempting direct render call as fallback")
+                            graph_obj.render('diagram_output', view=False, cleanup=True)
+                            
+                            # Check if the fallback created a file
+                            fallback_file = 'diagram_output.png'
+                            if os.path.exists(fallback_file):
+                                # Move the file to our target location
+                                import shutil
+                                shutil.move(fallback_file, output_filepath)
+                                self.logger.info(f"Fallback render succeeded, moved to: {output_filepath}")
+                                return relative_url_path
+                        except Exception as e_fallback:
+                            self.logger.error(f"Fallback render also failed: {e_fallback}")
+
+                    # Try really hard to find any generated image before giving up
+                    for ext in ['.png', '.jpg', '.jpeg', '.svg']:
+                        potential_file = filepath_without_ext + ext
+                        if os.path.exists(potential_file):
+                            self.logger.info(f"Found image with different extension: {potential_file}")
+                            # Adjust the relative URL path to match the actual extension
+                            return f"diagrams/{os.path.basename(potential_file)}"
+                else:
+                    self.logger.error("Graphviz code did not define a discoverable Digraph object in local_namespace.")
+                    # Look for any graph-related objects in namespace for debugging
+                    graph_related = {name: type(val) for name, val in local_namespace.items()}
+                    self.logger.error(f"Objects in namespace: {graph_related}")
+                    return None
+            except Exception as e_exec:
+                self.logger.error(f"Error executing generated Graphviz code: {e_exec}", exc_info=True)
+                return None
+
+        try:
+            image_file_path = await sync_to_async(_render_graphviz_sync, thread_sensitive=False)(graphviz_code, "diagram", user_query)
+            return image_file_path 
+        except Exception as e_render:
+            self.logger.error(f"Error during sync_to_async call for Graphviz rendering: {e_render}", exc_info=True)
+            return None

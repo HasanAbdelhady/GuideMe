@@ -13,8 +13,9 @@ let isNewChat = chatConfig.isNewChat;
 window.currentChatId = currentChatId;
 window.isNewChat = isNewChat;
 let abortController = null;
-let isRAGActive = true; // Default if nothing in localStorage
+let isRAGActive = false; // Default if nothing in localStorage
 let isMindMapActive = false; // Default for Mind Map mode
+let isDiagramModeActive = false; // Default for Diagram mode
 
 // Standard getCookie function (now global)
 window.getCookie = function (name) {
@@ -32,8 +33,94 @@ window.getCookie = function (name) {
 	return cookieValue;
 };
 
+// Image modal functions - global scope for inline event handlers
+function openImageModal(imgSrc) {
+	// Create modal overlay if it doesn't exist
+	let modalOverlay = document.getElementById("image-modal-overlay");
+	if (!modalOverlay) {
+		modalOverlay = document.createElement("div");
+		modalOverlay.id = "image-modal-overlay";
+		modalOverlay.className =
+			"fixed inset-0 bg-black bg-opacity-80 z-50 flex items-center justify-center opacity-0 pointer-events-none transition-opacity duration-300";
+		modalOverlay.innerHTML = `
+			<div class="relative max-w-full max-h-full p-4">
+				<img id="modal-image" src="" alt="Enlarged diagram" class="max-w-full max-h-[90vh] rounded-lg shadow-xl transform scale-95 transition-transform duration-300">
+				<button id="close-image-modal" class="absolute top-0 right-0 -mt-4 -mr-4 bg-red-600 text-white rounded-full p-2 hover:bg-red-700 focus:outline-none">
+					<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+					</svg>
+				</button>
+			</div>
+		`;
+		document.body.appendChild(modalOverlay);
+
+		// Add event listener to close when clicked outside or on close button
+		modalOverlay.addEventListener("click", (e) => {
+			if (e.target === modalOverlay) {
+				closeImageModal();
+			}
+		});
+		document
+			.getElementById("close-image-modal")
+			.addEventListener("click", closeImageModal);
+	}
+
+	// Set the image source and show the modal
+	const modalImage = document.getElementById("modal-image");
+	modalImage.src = imgSrc;
+
+	// Show the modal with animation
+	modalOverlay.classList.remove("opacity-0", "pointer-events-none");
+	setTimeout(() => {
+		document.getElementById("modal-image").classList.remove("scale-95");
+		document.getElementById("modal-image").classList.add("scale-100");
+	}, 10);
+}
+
+function closeImageModal() {
+	const modalOverlay = document.getElementById("image-modal-overlay");
+	if (modalOverlay) {
+		document.getElementById("modal-image").classList.remove("scale-100");
+		document.getElementById("modal-image").classList.add("scale-95");
+		modalOverlay.classList.add("opacity-0");
+		setTimeout(() => {
+			modalOverlay.classList.add("pointer-events-none");
+		}, 300);
+	}
+}
+
 // Wrap all logic in DOMContentLoaded
 document.addEventListener("DOMContentLoaded", function () {
+	console.log("Initializing chat.js");
+
+	// Load saved states at the beginning, before initializing UI
+	const savedRAGState = localStorage.getItem("ragModeActive");
+	if (savedRAGState !== null) {
+		isRAGActive = JSON.parse(savedRAGState);
+		console.log("Loaded RAG state:", isRAGActive);
+	} else {
+		localStorage.setItem("ragModeActive", JSON.stringify(isRAGActive));
+	}
+
+	const savedDiagramModeState = localStorage.getItem("diagramModeActive");
+	if (savedDiagramModeState !== null) {
+		isDiagramModeActive = JSON.parse(savedDiagramModeState);
+		console.log("Loaded diagram mode state:", isDiagramModeActive);
+	} else {
+		localStorage.setItem(
+			"diagramModeActive",
+			JSON.stringify(isDiagramModeActive)
+		);
+	}
+
+	const savedMindMapState = localStorage.getItem("mindMapActive");
+	if (savedMindMapState !== null) {
+		isMindMapActive = JSON.parse(savedMindMapState);
+		console.log("Loaded mind map state:", isMindMapActive);
+	} else {
+		localStorage.setItem("mindMapActive", JSON.stringify(isMindMapActive));
+	}
+
 	// DOM elements
 	const form = document.getElementById("chat-form");
 	const textarea = document.getElementById("prompt");
@@ -44,10 +131,15 @@ document.addEventListener("DOMContentLoaded", function () {
 	const sidebarToggle = document.getElementById("sidebar-toggle");
 	const sidebar = document.getElementById("sidebar");
 	const mainContent = document.getElementById("main-content");
-	const ragToggleButton = document.getElementById("rag-toggle-button");
+	const ragToggleButton = document.getElementById("rag-mode-toggle");
+	const manageRagContextBtn = document.getElementById("manage-rag-context-btn");
 	const quizButton = document.getElementById("quiz-button");
 	const quizButtonContainer = document.getElementById("quiz-button-container");
-	const mindMapToggleButton = document.getElementById("mindmap-toggle-button"); // Get the new button
+	const mindMapToggleButton = document.getElementById("mindmap-toggle-button");
+	const diagramModeToggleButton = document.getElementById(
+		"diagram-mode-toggle"
+	);
+	const ragModalOverlay = document.getElementById("rag-modal-overlay");
 
 	// Sidebar toggle
 	let sidebarOpen = false;
@@ -367,6 +459,52 @@ document.addEventListener("DOMContentLoaded", function () {
 									smoothScrollToBottom();
 									break;
 
+								case "diagram_image":
+									console.log("Received diagram image data:", data);
+									// Remove the typing container since we're going to add a new diagram container
+									messageDiv.remove();
+
+									// Construct the full image URL
+									let imageUrl = data.image_url;
+									if (imageUrl) {
+										// Make sure we have the proper /media/ prefix
+										if (
+											!imageUrl.startsWith("http") &&
+											!imageUrl.startsWith("/media/")
+										) {
+											imageUrl = `/media/${imageUrl}`;
+										}
+										console.log("Full diagram image URL:", imageUrl);
+									} else {
+										console.error("Missing image URL in diagram data:", data);
+									}
+
+									// Create a diagram message container
+									const diagramMsgDiv = document.createElement("div");
+									diagramMsgDiv.className = "message-enter px-4 md:px-6 py-6";
+									diagramMsgDiv.innerHTML = `
+										<div class="chat-container flex gap-4 md:gap-6">
+											<div class="flex-shrink-0 w-7 h-7">
+												<div class="cls w-10 h-7 p-1 rounded-sm bg-slate-100 flex items-center justify-center text-white">
+													<img src="/static/images/logo.png" alt="Assistant icon" class="h-5 w-7">
+												</div>
+											</div>
+											<div class="flex-1 overflow-x-auto min-w-0 max-w-[85%]">
+												<div class="diagram-message-container bg-gray-800/50 p-2 my-2 rounded-lg shadow-md flex flex-col justify-center items-center">
+													<img src="${imageUrl}" alt="Generated Diagram" class="max-w-full h-auto rounded-md mb-1 cursor-pointer hover:opacity-90 transition-opacity" onclick="openImageModal('${imageUrl}')">
+													<p class="text-xs text-gray-400 italic mt-1 text-center">${
+														data.text_content || ""
+													}</p>
+												</div>
+											</div>
+										</div>
+									`;
+									document
+										.getElementById("chat-messages")
+										.appendChild(diagramMsgDiv);
+									smoothScrollToBottom();
+									break;
+
 								case "mindmap_image": // Handle new SSE event type for mind map static images
 									if (data.image_html) {
 										const mindMapImageMsgDiv = document.createElement("div");
@@ -482,8 +620,16 @@ document.addEventListener("DOMContentLoaded", function () {
 				document.querySelector("[name=csrfmiddlewaretoken]").value
 			);
 			if (fileData) formData.append("file", fileData);
-			formData.append("rag_mode_active", isRAGActive); // Add RAG mode state
-			formData.append("mind_map_mode_active", isMindMapActive); // Add Mind Map mode state
+
+			console.log("Submitting form with states:", {
+				isRAGActive,
+				isMindMapActive,
+				isDiagramModeActive
+			});
+
+			formData.append("rag_mode_active", isRAGActive.toString());
+			formData.append("mind_map_mode_active", isMindMapActive.toString());
+			formData.append("diagram_mode_active", isDiagramModeActive.toString());
 
 			if (isNewChat) {
 				const createResponse = await fetch("/chat/create/", {
@@ -763,8 +909,6 @@ document.addEventListener("DOMContentLoaded", function () {
 	}
 
 	// --- RAG Context Management UI --- //
-	const manageRagContextBtn = document.getElementById("manage-rag-context-btn");
-	const ragModalOverlay = document.getElementById("rag-modal-overlay");
 	const ragModalContent = document.getElementById("rag-modal-content");
 	const closeRagModalBtn = document.getElementById("close-rag-modal-btn");
 	const ragFilesListDiv = document.getElementById("rag-files-list");
@@ -1007,25 +1151,27 @@ document.addEventListener("DOMContentLoaded", function () {
 
 	// RAG Toggle Button Logic
 	if (ragToggleButton) {
+		console.log("Found RAG toggle button", isRAGActive);
+
 		const setActiveStyles = () => {
-			ragToggleButton.textContent = "RAG Mode: Active";
-			ragToggleButton.classList.remove("border-gray-600", "text-gray-400");
-			ragToggleButton.classList.add("border-green-500", "text-green-400");
+			console.log("Setting RAG active styles");
+			// For icons, we change the SVG color
+			if (ragToggleButton.querySelector("svg")) {
+				ragToggleButton.querySelector("svg").classList.remove("text-gray-400");
+				ragToggleButton.querySelector("svg").classList.add("text-green-400");
+				ragToggleButton.classList.add("bg-gray-800"); // Add background for better visual feedback
+			}
 		};
 
 		const setInactiveStyles = () => {
-			ragToggleButton.textContent = "RAG Mode: Inactive";
-			ragToggleButton.classList.remove("border-green-500", "text-green-400");
-			ragToggleButton.classList.add("border-gray-600", "text-gray-400");
+			console.log("Setting RAG inactive styles");
+			// For icons, we reset the SVG color
+			if (ragToggleButton.querySelector("svg")) {
+				ragToggleButton.querySelector("svg").classList.remove("text-green-400");
+				ragToggleButton.querySelector("svg").classList.add("text-gray-400");
+				ragToggleButton.classList.remove("bg-gray-800"); // Remove background
+			}
 		};
-
-		// Load RAG state from localStorage
-		const savedRAGState = localStorage.getItem("ragModeActive");
-		if (savedRAGState !== null) {
-			isRAGActive = JSON.parse(savedRAGState);
-		} else {
-			localStorage.setItem("ragModeActive", JSON.stringify(isRAGActive)); // Save default if not present
-		}
 
 		// Initial styling based on loaded/default state
 		if (isRAGActive) {
@@ -1035,16 +1181,27 @@ document.addEventListener("DOMContentLoaded", function () {
 		}
 
 		ragToggleButton.addEventListener("click", () => {
+			console.log("RAG button clicked, current state:", isRAGActive);
 			isRAGActive = !isRAGActive;
+			console.log("Toggling RAG mode to:", isRAGActive);
+
 			if (isRAGActive) {
 				setActiveStyles();
-				// If RAG becomes active, Mind Map must become inactive
+				// If RAG becomes active, disable other modes
 				if (isMindMapActive) {
 					isMindMapActive = false;
-					updateMindMapToggleButtonStyle(); // Update Mind Map button style
+					updateMindMapToggleButtonStyle();
 					localStorage.setItem(
 						"mindMapActive",
 						JSON.stringify(isMindMapActive)
+					);
+				}
+				if (isDiagramModeActive) {
+					isDiagramModeActive = false;
+					updateDiagramModeToggleButtonStyle();
+					localStorage.setItem(
+						"diagramModeActive",
+						JSON.stringify(isDiagramModeActive)
 					);
 				}
 			} else {
@@ -1056,53 +1213,132 @@ document.addEventListener("DOMContentLoaded", function () {
 				"info"
 			);
 		});
+	} else {
+		console.warn("RAG toggle button not found in the DOM");
+	}
+
+	// Diagram Mode Toggle Button Logic
+	function updateDiagramModeToggleButtonStyle() {
+		if (!diagramModeToggleButton) return;
+		if (isDiagramModeActive) {
+			console.log("Setting diagram mode active styles");
+			if (diagramModeToggleButton.querySelector("svg")) {
+				diagramModeToggleButton
+					.querySelector("svg")
+					.classList.remove("text-gray-400");
+				diagramModeToggleButton
+					.querySelector("svg")
+					.classList.add("text-blue-400");
+				diagramModeToggleButton.classList.add("bg-gray-800"); // Add background for better visual feedback
+			}
+		} else {
+			console.log("Setting diagram mode inactive styles");
+			if (diagramModeToggleButton.querySelector("svg")) {
+				diagramModeToggleButton
+					.querySelector("svg")
+					.classList.remove("text-blue-400");
+				diagramModeToggleButton
+					.querySelector("svg")
+					.classList.add("text-gray-400");
+				diagramModeToggleButton.classList.remove("bg-gray-800"); // Remove background
+			}
+		}
+	}
+
+	if (diagramModeToggleButton) {
+		console.log("Found diagram mode toggle button", isDiagramModeActive);
+
+		updateDiagramModeToggleButtonStyle(); // Set initial style
+
+		diagramModeToggleButton.addEventListener("click", () => {
+			console.log(
+				"Diagram mode button clicked, current state:",
+				isDiagramModeActive
+			);
+			isDiagramModeActive = !isDiagramModeActive;
+			console.log("Toggling diagram mode to:", isDiagramModeActive);
+
+			updateDiagramModeToggleButtonStyle();
+			if (isDiagramModeActive) {
+				// If Diagram Mode becomes active, disable other modes
+				if (isRAGActive) {
+					isRAGActive = false;
+					setInactiveStyles(); // Use the RAG inactive style function
+					localStorage.setItem("ragModeActive", JSON.stringify(isRAGActive));
+				}
+				if (isMindMapActive) {
+					isMindMapActive = false;
+					updateMindMapToggleButtonStyle();
+					localStorage.setItem(
+						"mindMapActive",
+						JSON.stringify(isMindMapActive)
+					);
+				}
+			}
+			localStorage.setItem(
+				"diagramModeActive",
+				JSON.stringify(isDiagramModeActive)
+			);
+			appendSystemNotification(
+				`Diagram mode is now ${isDiagramModeActive ? "ACTIVE" : "INACTIVE"}.`,
+				"info"
+			);
+		});
+	} else {
+		console.warn("Diagram mode toggle button not found in the DOM");
 	}
 
 	// Mind Map Toggle Button Logic
 	function updateMindMapToggleButtonStyle() {
 		if (!mindMapToggleButton) return;
 		if (isMindMapActive) {
-			mindMapToggleButton.textContent = "Mind Map: Active";
-			mindMapToggleButton.classList.remove("border-gray-600", "text-gray-400");
-			mindMapToggleButton.classList.add("border-purple-500", "text-purple-400"); // Example: Purple for active
+			console.log("Setting mind map active styles");
+			if (mindMapToggleButton.querySelector("svg")) {
+				mindMapToggleButton
+					.querySelector("svg")
+					.classList.remove("text-gray-400");
+				mindMapToggleButton
+					.querySelector("svg")
+					.classList.add("text-purple-400");
+				mindMapToggleButton.classList.add("bg-gray-800"); // Add background for better visual feedback
+			}
 		} else {
-			mindMapToggleButton.textContent = "Mind Map: Inactive";
-			mindMapToggleButton.classList.remove(
-				"border-purple-500",
-				"text-purple-400"
-			);
-			mindMapToggleButton.classList.add("border-gray-600", "text-gray-400");
+			console.log("Setting mind map inactive styles");
+			if (mindMapToggleButton.querySelector("svg")) {
+				mindMapToggleButton
+					.querySelector("svg")
+					.classList.remove("text-purple-400");
+				mindMapToggleButton.querySelector("svg").classList.add("text-gray-400");
+				mindMapToggleButton.classList.remove("bg-gray-800"); // Remove background
+			}
 		}
 	}
 
 	if (mindMapToggleButton) {
-		const savedMindMapState = localStorage.getItem("mindMapActive");
-		if (savedMindMapState !== null) {
-			isMindMapActive = JSON.parse(savedMindMapState);
-		} else {
-			localStorage.setItem("mindMapActive", JSON.stringify(isMindMapActive)); // Save default
-		}
+		console.log("Found mind map toggle button", isMindMapActive);
 
 		updateMindMapToggleButtonStyle(); // Set initial style
 
 		mindMapToggleButton.addEventListener("click", () => {
+			console.log("Mind map button clicked, current state:", isMindMapActive);
 			isMindMapActive = !isMindMapActive;
+			console.log("Toggling mind map mode to:", isMindMapActive);
+
 			updateMindMapToggleButtonStyle();
 			if (isMindMapActive) {
-				// If Mind Map becomes active, RAG must become inactive
+				// If Mind Map becomes active, disable other modes
 				if (isRAGActive) {
 					isRAGActive = false;
-					// Manually call RAG button's inactive styling logic if available, or replicate here
-					if (ragToggleButton) {
-						// Check if RAG button exists
-						ragToggleButton.textContent = "RAG Mode: Inactive";
-						ragToggleButton.classList.remove(
-							"border-green-500",
-							"text-green-400"
-						);
-						ragToggleButton.classList.add("border-gray-600", "text-gray-400");
-						localStorage.setItem("ragModeActive", JSON.stringify(isRAGActive));
-					}
+					setInactiveStyles(); // Use the RAG inactive style function
+					localStorage.setItem("ragModeActive", JSON.stringify(isRAGActive));
+				}
+				if (isDiagramModeActive) {
+					isDiagramModeActive = false;
+					updateDiagramModeToggleButtonStyle();
+					localStorage.setItem(
+						"diagramModeActive",
+						JSON.stringify(isDiagramModeActive)
+					);
 				}
 			}
 			localStorage.setItem("mindMapActive", JSON.stringify(isMindMapActive));
@@ -1111,132 +1347,95 @@ document.addEventListener("DOMContentLoaded", function () {
 				"info"
 			);
 		});
-	}
-
-	// Initialize code block features for messages already on the page
-	document
-		.querySelectorAll("#chat-messages .message-enter")
-		.forEach((messageElement) => {
-			if (typeof initializeCodeBlockFeatures === "function") {
-				// We need to target the actual content div within the message element
-				const contentDiv = messageElement.querySelector(
-					".markdown-content, .quiz-message"
-				);
-				if (contentDiv) {
-					initializeCodeBlockFeatures(contentDiv);
-				}
-			}
-		});
-
-	// Make necessary functions global for message_edit.js
-	window.createTypingIndicator = createTypingIndicator;
-	window.removeTypingIndicator = removeTypingIndicator;
-	window.smoothScrollToBottom = smoothScrollToBottom;
-	window.appendMessage = appendMessage; // Note: This is the patched version if _appendMessagePatched is true
-	window.handleStreamResponse = handleStreamResponse;
-	// getCookie and adjustMainTextareaHeight are already global
-
-	// --- BEGIN QUIZ BUTTON LOGIC ---
-	if (quizButton && quizButtonContainer) {
-		quizButton.addEventListener("click", async () => {
-			if (window.currentChatId && window.currentChatId !== "new") {
-				createTypingIndicator();
-				try {
-					const response = await fetch(`/chat/${window.currentChatId}/quiz/`, {
-						method: "POST",
-						headers: {
-							"X-CSRFToken": window.getCookie("csrftoken")
-						}
-						// No body or Content-Type application/json as per previous fixes
-					});
-					removeTypingIndicator();
-
-					if (response.ok) {
-						const data = await response.json();
-						if (data.quiz_html) {
-							const messagesDiv = document.getElementById("chat-messages");
-							const messageDiv = document.createElement("div");
-							messageDiv.className = "message-enter px-4 md:px-6 py-6";
-
-							const iconHtml = `<div class="cls w-10 h-7 p-1 rounded-sm bg-slate-100 flex items-center justify-center text-white"><img src="/static/images/logo.png" alt="Assistant icon" class="h-5 w-7"></div>`;
-							const actualContentHtml = `<div class="quiz-message max-w-none text-gray-100 bg-gray-700/70 p-2 rounded-xl">${data.quiz_html}</div>`;
-
-							messageDiv.innerHTML = `
-								<div class="chat-container flex gap-4 md:gap-6">
-									<div class="flex-shrink-0 w-7 h-7">${iconHtml}</div>
-									<div class="flex-1 overflow-x-auto min-w-0 max-w-[85%]">${actualContentHtml}</div>
-								</div>`;
-							messagesDiv.appendChild(messageDiv);
-							smoothScrollToBottom();
-							if (window.initializeCodeBlockFeatures) {
-								window.initializeCodeBlockFeatures(messageDiv);
-							}
-							// Ensure any existing quiz specific JS initializers for HTML quizzes are called if quiz.js is ever repopulated.
-							// e.g. if (window.initializeHtmlQuiz) { window.initializeHtmlQuiz(messageDiv); }
-						} else if (data.error) {
-							appendSystemNotification(
-								`Error generating quiz: ${data.error}`,
-								"error"
-							);
-						} else {
-							appendSystemNotification(
-								"Received an unexpected response for the quiz.",
-								"error"
-							);
-						}
-					} else {
-						let errorText = "Failed to generate quiz. Server error.";
-						try {
-							const errorData = await response.json();
-							errorText = errorData.error || response.statusText;
-						} catch (e) {
-							// Keep default errorText if response is not JSON or parsing fails
-							console.warn(
-								"Could not parse error response as JSON for quiz generation failure."
-							);
-						}
-						appendSystemNotification(
-							`Error generating quiz: ${errorText}`,
-							"error"
-						);
-					}
-				} catch (error) {
-					removeTypingIndicator();
-					console.error("Error fetching quiz:", error);
-					appendSystemNotification(
-						`Error fetching quiz: ${error.message}`,
-						"error"
-					);
-				}
-			} else {
-				appendSystemNotification(
-					"Please start a chat first to generate a quiz.",
-					"info"
-				);
-			}
-		});
 	} else {
-		console.warn(
-			"Quiz button or its container not found. Quiz functionality may be limited."
-		);
+		console.warn("Mind Map toggle button not found in the DOM");
 	}
 
-	window.updateQuizButtonVisibility = function () {
-		if (quizButtonContainer) {
-			if (
-				window.isNewChat ||
-				!window.currentChatId ||
-				window.currentChatId === "new"
-			) {
-				quizButtonContainer.classList.add("hidden");
-			} else {
-				quizButtonContainer.classList.remove("hidden");
-			}
+	// Initial calls for existing messages (if any)
+	document.querySelectorAll(".markdown-content").forEach((messageElement) => {
+		if (!messageElement.closest(".quiz-message")) {
+			// Don't run on quiz HTML containers
+			initializeCodeBlockFeatures(messageElement);
 		}
-	};
-	// Initial call to set visibility
-	window.updateQuizButtonVisibility();
-	// --- END QUIZ BUTTON LOGIC ---
+	});
+	hljs.highlightAll();
+	if (document.getElementById("chat-messages").children.length > 1) {
+		// more than just placeholder
+		smoothScrollToBottom();
+	}
+
+	// --- RAG Context Modal ---
+	// const manageRagContextBtn = document.getElementById("manage-rag-context-btn"); // REMOVE this redeclaration
+	// const ragModalOverlay = document.getElementById("rag-modal-overlay"); // REMOVE this redeclaration
+	if (manageRagContextBtn) {
+		manageRagContextBtn.addEventListener("click", openRAGModal);
+	}
+
+	// Make sure this new function is defined in your JS
+	function appendDiagramMessage(imageUrl, textContent, messageId) {
+		const messagesDiv = document.getElementById("chat-messages");
+
+		// Remove empty placeholder if present
+		const placeholder = messagesDiv.querySelector(
+			".flex.flex-col.items-center.justify-center"
+		);
+		if (placeholder) placeholder.remove();
+
+		console.log("Appending diagram message with image URL:", imageUrl);
+
+		// Ensure imageUrl has the proper media URL prefix
+		if (
+			imageUrl &&
+			!imageUrl.startsWith("http") &&
+			!imageUrl.startsWith("/media/")
+		) {
+			imageUrl = `/media/${imageUrl}`;
+			console.log("Updated image URL with media prefix:", imageUrl);
+		}
+
+		const messageDiv = document.createElement("div");
+		messageDiv.className = "message-enter px-4 md:px-6 py-6";
+		messageDiv.setAttribute("data-message-id", messageId); // For potential future use
+
+		messageDiv.innerHTML = `
+			<div class="chat-container flex gap-4 md:gap-6">
+				<div class="flex-shrink-0 w-7 h-7">
+					<div class="cls w-10 h-7 p-1 rounded-sm bg-slate-100 flex items-center justify-center text-white">
+						<img src="/static/images/logo.png" alt="Assistant icon" class="h-5 w-7">
+					</div>
+				</div>
+				<div class="flex-1 overflow-x-auto min-w-0 max-w-[85%]">
+					<div class="diagram-message-container bg-gray-800/50 p-2 my-2 rounded-lg shadow-md flex flex-col justify-center items-center">
+						<img src="${imageUrl}" alt="${textContent || "Generated Diagram"}" 
+							class="max-w-full h-auto rounded-md mb-1 cursor-pointer hover:opacity-90 transition-opacity" 
+							onclick="openImageModal('${imageUrl}')">
+						${
+							textContent
+								? `<p class="text-xs text-gray-400 italic mt-1 text-center">${textContent}</p>`
+								: ""
+						}
+					</div>
+				</div>
+			</div>
+		`;
+
+		messagesDiv.appendChild(messageDiv);
+		smoothScrollToBottom();
+	}
+
+	// Make existing diagram images clickable
+	document.querySelectorAll(".diagram-message-container img").forEach((img) => {
+		if (!img.hasAttribute("onclick")) {
+			img.classList.add(
+				"cursor-pointer",
+				"hover:opacity-90",
+				"transition-opacity"
+			);
+			img.addEventListener("click", function () {
+				openImageModal(this.src);
+			});
+		}
+	});
 });
 
 // Utility: Fix quiz-message blocks that are wrapped in <pre><code>
