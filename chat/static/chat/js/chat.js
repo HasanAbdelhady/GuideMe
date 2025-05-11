@@ -13,7 +13,23 @@ let isNewChat = chatConfig.isNewChat;
 window.currentChatId = currentChatId;
 window.isNewChat = isNewChat;
 let abortController = null;
-let isRAGActive = true; // RAG is active by default
+let isRAGActive = true; // Default if nothing in localStorage
+
+// Standard getCookie function (now global)
+window.getCookie = function (name) {
+	let cookieValue = null;
+	if (document.cookie && document.cookie !== "") {
+		const cookies = document.cookie.split(";");
+		for (let i = 0; i < cookies.length; i++) {
+			const cookie = cookies[i].trim();
+			if (cookie.substring(0, name.length + 1) === name + "=") {
+				cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+				break;
+			}
+		}
+	}
+	return cookieValue;
+};
 
 // Wrap all logic in DOMContentLoaded
 document.addEventListener("DOMContentLoaded", function () {
@@ -75,15 +91,15 @@ document.addEventListener("DOMContentLoaded", function () {
 		}
 	});
 
-	// Auto-resize textarea
-	function adjustTextareaHeight() {
+	// Auto-resize textarea (now global for main prompt)
+	window.adjustMainTextareaHeight = function () {
 		textarea.style.height = "auto";
 		textarea.style.height =
 			(textarea.scrollHeight < 200 ? textarea.scrollHeight : 200) + "px";
-	}
+	};
 
-	textarea.addEventListener("input", adjustTextareaHeight);
-	textarea.addEventListener("focus", adjustTextareaHeight);
+	textarea.addEventListener("input", window.adjustMainTextareaHeight);
+	textarea.addEventListener("focus", window.adjustMainTextareaHeight);
 
 	// Submit form on Enter (without Shift)
 	textarea.addEventListener("keydown", function (e) {
@@ -104,10 +120,8 @@ document.addEventListener("DOMContentLoaded", function () {
 		typingDiv.innerHTML = `
 			<div class="chat-container flex gap-4 md:gap-6">
 				<div class="flex-shrink-0 w-7 h-7">
-					<div class="w-7 h-7 rounded-sm bg-[#11A27F] flex items-center justify-center text-white">
-						<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5">
-							<path d="M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-10.5V21" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
-						</svg>
+					<div class="cls w-10 h-7 p-1 rounded-sm bg-slate-100 flex items-center justify-center text-white">
+						<img src="/static/images/logo.png" alt="Assistant icon" class="h-5 w-7">
 					</div>
 				</div>
 				<div class="flex-1">
@@ -160,7 +174,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
 	// Initialize textarea
 	if (textarea.value) {
-		adjustTextareaHeight();
+		window.adjustMainTextareaHeight();
 	}
 
 	// Append message
@@ -176,50 +190,68 @@ document.addEventListener("DOMContentLoaded", function () {
 		const messageDiv = document.createElement("div");
 		messageDiv.className = `message-enter px-4 md:px-6 py-6`;
 
+		let iconHtml = "";
+		let contentWrapperClass = "";
+		let actualContentHtml = "";
+		let mainContainerClass = "chat-container flex gap-4 md:gap-6";
+
+		if (role === "user") {
+			mainContainerClass =
+				"chat-container flex flex-row-reverse gap-4 md:gap-6 justify-start";
+			iconHtml = `<div class="w-7 h-7 rounded-sm bg-[#5436DA] flex items-center justify-center text-white text-xs font-semibold">U</div>`;
+			contentWrapperClass = "overflow-x-auto max-w-[75%]";
+			actualContentHtml = `<div class="user-message text-gray-100 bg-[#444654] p-3 rounded-lg"><p class="whitespace-pre-wrap">${content}</p></div>`;
+		} else {
+			// Assistant
+			iconHtml = `<div class="cls w-10 h-7 p-1 rounded-sm bg-slate-100 flex items-center justify-center text-white">
+								<img src="/static/images/logo.png" alt="Assistant icon" class="h-5 w-7">
+							</div>`;
+			contentWrapperClass = "flex-1 overflow-x-auto min-w-0 max-w-[85%]";
+			if (
+				content.includes('<div class="quiz-question"') ||
+				content.includes('<div class="quiz-message"')
+			) {
+				actualContentHtml = `<div class="quiz-message max-w-none text-gray-100 bg-gray-700/70 p-2 rounded-xl">${content}</div>`;
+			} else {
+				// For normal assistant messages, create an empty div, content will be set later by textContent
+				actualContentHtml = `<div class="max-w-none markdown-content text-gray-100"></div>`;
+			}
+		}
+
 		messageDiv.innerHTML = `
-			<div class="flex gap-4 md:gap-6 max-w-3xl mx-auto">
+			<div class="${mainContainerClass}">
 				<div class="flex-shrink-0 w-7 h-7">
-					${
-						role === "user"
-							? `<div class="w-7 h-7 rounded-sm bg-[#5436DA] flex items-center justify-center text-white text-xs font-semibold">U</div>`
-							: `<div class="w-7 h-7 rounded-sm bg-[#11A27F] flex items-center justify-center text-white">
-								<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5">
-									<path d="M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-10.5V21" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
-								</svg>
-							</div>`
-					}
+					${iconHtml}
 				</div>
-				<div class="flex-1 overflow-x-auto min-w-0 ${
-					role === "assistant"
-						? "markdown-content prose prose-invert max-w-none"
-						: ""
-				}">
-					${role === "assistant" ? "" : `<p class="whitespace-pre-wrap">${content}</p>`}
+				<div class="${contentWrapperClass}">
+					${actualContentHtml}
 				</div>
 			</div>
 		`;
 
 		messagesDiv.appendChild(messageDiv);
 
-		// If assistant and content is quiz, render as HTML
+		// If assistant and content is NOT quiz, set textContent for later parsing by marked.js
 		if (role === "assistant") {
-			const container = messageDiv.querySelector(".markdown-content");
-			if (container) {
-				if (
+			if (
+				!(
 					content.includes('<div class="quiz-question"') ||
 					content.includes('<div class="quiz-message"')
-				) {
-					container.innerHTML = content;
-				} else {
-					container.textContent = content;
+				)
+			) {
+				const markdownContainer = messageDiv.querySelector(".markdown-content");
+				if (markdownContainer) {
+					markdownContainer.textContent = content;
 				}
 			}
 		}
 
 		smoothScrollToBottom();
-		return role === "assistant"
-			? messageDiv.querySelector(".markdown-content")
-			: null;
+		// Return the div where content (text or HTML) is placed.
+		if (role === "assistant") {
+			return messageDiv.querySelector(".markdown-content, .quiz-message");
+		}
+		return null; // For user messages, not typically needed by caller
 	}
 
 	// New function to append system notifications
@@ -280,18 +312,16 @@ document.addEventListener("DOMContentLoaded", function () {
 		removeTypingIndicator();
 
 		const messageDiv = document.createElement("div");
-		messageDiv.className = "message-enter  px-4 md:px-6 py-6";
+		messageDiv.className = "message-enter px-4 md:px-6 py-6";
 		messageDiv.innerHTML = `
-			<div class="flex gap-4 md:gap-6">
+			<div class="chat-container flex gap-4 md:gap-6">
 				<div class="flex-shrink-0 w-7 h-7">
-					<div class="w-7 h-7 rounded-sm bg-[#11A27F] flex items-center justify-center text-white">
-						<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5">
-							<path d="M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-10.5V21" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
-						</svg>
+					<div class="cls w-10 h-7 p-1 rounded-sm bg-slate-100 flex items-center justify-center text-white">
+						<img src="/static/images/logo.png" alt="Assistant icon" class="h-5 w-7">
 					</div>
 				</div>
-				<div class="flex-1 overflow-x-auto min-w-0">
-					<div class="prose prose-invert max-w-none markdown-content text-gray-100"></div>
+				<div class="flex-1 overflow-x-auto min-w-0 max-w-[85%]">
+					<div class="max-w-none markdown-content text-gray-100"></div>
 				</div>
 			</div>
 		`;
@@ -327,6 +357,9 @@ document.addEventListener("DOMContentLoaded", function () {
 												hljs.highlightElement(block);
 											}
 										});
+									if (typeof initializeCodeBlockFeatures === "function") {
+										initializeCodeBlockFeatures(markdownContainer);
+									}
 									smoothScrollToBottom();
 									break;
 
@@ -348,6 +381,9 @@ document.addEventListener("DOMContentLoaded", function () {
 										.forEach((block) => {
 											hljs.highlightElement(block);
 										});
+									if (typeof initializeCodeBlockFeatures === "function") {
+										initializeCodeBlockFeatures(markdownContainer);
+									}
 									break;
 							}
 						} catch (e) {
@@ -376,12 +412,14 @@ document.addEventListener("DOMContentLoaded", function () {
 		const messageDiv = document.createElement("div");
 		messageDiv.className = "message-enter px-4 md:px-6 py-6";
 		messageDiv.innerHTML = `
-			<div class="chat-container flex gap-4 md:gap-6">
+			<div class="chat-container flex flex-row-reverse gap-4 md:gap-6 justify-start">
 				<div class="flex-shrink-0 w-7 h-7">
 					<div class="w-7 h-7 rounded-sm bg-[#5436DA] flex items-center justify-center text-white text-xs font-semibold">U</div>
 				</div>
-				<div class="flex-1 overflow-x-auto min-w-0">
-					<p class="whitespace-pre-wrap">${content}</p>
+				<div class="overflow-x-auto max-w-[75%]">
+					<div class="user-message text-gray-100 bg-[#444654] p-3 rounded-lg">
+						<p class="whitespace-pre-wrap">${content}</p>
+					</div>
 				</div>
 			</div>
 		`;
@@ -401,7 +439,7 @@ document.addEventListener("DOMContentLoaded", function () {
 		if (!promptText && !fileData) return;
 		appendUserMessage(promptText);
 		textarea.value = "";
-		adjustTextareaHeight();
+		window.adjustMainTextareaHeight();
 		if (fileData) clearFileSelection();
 		createTypingIndicator();
 		stopButton.classList.remove("hidden");
@@ -414,7 +452,7 @@ document.addEventListener("DOMContentLoaded", function () {
 				document.querySelector("[name=csrfmiddlewaretoken]").value
 			);
 			if (fileData) formData.append("file", fileData);
-			formData.append('rag_mode_active', isRAGActive); // Add RAG mode state
+			formData.append("rag_mode_active", isRAGActive); // Add RAG mode state
 
 			if (isNewChat) {
 				const createResponse = await fetch("/chat/create/", {
@@ -493,10 +531,8 @@ document.addEventListener("DOMContentLoaded", function () {
 				messageDiv.innerHTML = `
 					<div class="chat-container flex gap-4 md:gap-6">
 						<div class="flex-shrink-0 w-7 h-7">
-							<div class="w-7 h-7 rounded-sm bg-[#11A27F] flex items-center justify-center text-white">
-								<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5">
-									<path d="M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-10.5V21" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
-								</svg>
+							<div class="cls w-10 h-7 p-1 rounded-sm bg-slate-100 flex items-center justify-center text-white">
+								<img src="/static/images/logo.png" alt="Assistant icon" class="h-5 w-7">
 							</div>
 						</div>
 						<div class="flex-1 overflow-x-auto min-w-0">
@@ -660,7 +696,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
 	window.scrollTo({ top: document.body.scrollHeight, behavior: "auto" });
 	if (textarea.value) {
-		adjustTextareaHeight();
+		window.adjustMainTextareaHeight();
 	}
 
 	// Unwrap quiz-message code blocks on load
@@ -676,6 +712,20 @@ document.addEventListener("DOMContentLoaded", function () {
 			const result = origAppendMessage(role, content);
 			fixEscapedQuizMessages();
 			fixFirstLineQuizPreCode();
+			// If it's an assistant message, its content might have been set and needs features.
+			// The `result` from the modified appendMessage is the content container for assistant.
+			if (role === "assistant" && result) {
+				// Assuming marked and hljs have run or will run if it's markdown.
+				// For safety, ensure this runs after any markdown parsing and highlighting.
+				// This might need to be more targeted if appendMessage itself doesn't trigger hljs.
+				// However, typically hljs is called on the container after marked.parse.
+				setTimeout(() => {
+					// Use a timeout to ensure DOM update and hljs completion
+					if (typeof initializeCodeBlockFeatures === "function") {
+						initializeCodeBlockFeatures(result);
+					}
+				}, 0);
+			}
 			return result;
 		};
 		window._appendMessagePatched = true;
@@ -692,7 +742,9 @@ document.addEventListener("DOMContentLoaded", function () {
 	const uploadRagFileBtn = document.getElementById("upload-rag-file-btn");
 	const ragFileCountSpan = document.getElementById("rag-file-count");
 	const ragUploadSection = document.getElementById("rag-upload-section");
-	const ragLimitReachedMessage = document.getElementById("rag-limit-reached-message");
+	const ragLimitReachedMessage = document.getElementById(
+		"rag-limit-reached-message"
+	);
 
 	let currentRAGFiles = []; // To store {id: '...', name: '...'} objects
 	const MAX_RAG_FILES = 3;
@@ -716,16 +768,17 @@ document.addEventListener("DOMContentLoaded", function () {
 	}
 
 	function renderRAGFilesList(files) {
-        if (!ragFilesListDiv || !noRagFilesMessage) return;
+		if (!ragFilesListDiv || !noRagFilesMessage) return;
 		currentRAGFiles = files;
-		ragFilesListDiv.innerHTML = ''; 
+		ragFilesListDiv.innerHTML = "";
 		if (files.length === 0) {
 			noRagFilesMessage.classList.remove("hidden");
 		} else {
 			noRagFilesMessage.classList.add("hidden");
-			files.forEach(file => {
+			files.forEach((file) => {
 				const fileEl = document.createElement("div");
-				fileEl.className = "flex items-center justify-between bg-gray-700 p-2 rounded-md text-sm hover:bg-gray-600/80 transition-colors";
+				fileEl.className =
+					"flex items-center justify-between bg-gray-700 p-2 rounded-md text-sm hover:bg-gray-600/80 transition-colors";
 				fileEl.innerHTML = `
           <span class=\"text-gray-200 truncate max-w-[80%]\" title=\"${file.name}\">${file.name}</span>
           <button class=\"delete-rag-file-btn p-1 text-red-400 hover:text-red-300 rounded-full focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50\" data-file-id=\"${file.id}\" title=\"Remove from RAG context\">
@@ -735,17 +788,26 @@ document.addEventListener("DOMContentLoaded", function () {
           </button>
         `;
 				ragFilesListDiv.appendChild(fileEl);
-				const deleteBtn = fileEl.querySelector('.delete-rag-file-btn');
-                if(deleteBtn) {
-                    deleteBtn.addEventListener('click', () => handleDeleteRAGFile(file.id));
-                }
+				const deleteBtn = fileEl.querySelector(".delete-rag-file-btn");
+				if (deleteBtn) {
+					deleteBtn.addEventListener("click", () =>
+						handleDeleteRAGFile(file.id)
+					);
+				}
 			});
 		}
 		updateRAGFileLimitView();
 	}
 
 	function updateRAGFileLimitView() {
-        if (!ragFileCountSpan || !ragUploadSection || !ragLimitReachedMessage || !ragFileInput || !uploadRagFileBtn) return;
+		if (
+			!ragFileCountSpan ||
+			!ragUploadSection ||
+			!ragLimitReachedMessage ||
+			!ragFileInput ||
+			!uploadRagFileBtn
+		)
+			return;
 		ragFileCountSpan.textContent = currentRAGFiles.length;
 		if (currentRAGFiles.length >= MAX_RAG_FILES) {
 			ragUploadSection.classList.add("hidden");
@@ -761,81 +823,137 @@ document.addEventListener("DOMContentLoaded", function () {
 	}
 
 	async function fetchRAGFiles() {
-        if (isNewChat || !currentChatId || currentChatId === 'new') {
-            renderRAGFilesList([]);
-            return;
-        }
+		if (isNewChat || !currentChatId || currentChatId === "new") {
+			renderRAGFilesList([]);
+			return;
+		}
 		// Placeholder: API call to GET /chat/<currentChatId>/rag-files/
 		console.log("Fetching RAG files for chat:", currentChatId);
 		// Simulated API call
 		try {
-            const response = await fetch(`/chat/${currentChatId}/rag-files/`);
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to fetch RAG files');
-            }
-            const files = await response.json();
-            renderRAGFilesList(files);
-        } catch (error) {
-            console.error("Error fetching RAG files:", error);
-            appendSystemNotification("Could not load RAG files: " + error.message, "error");
-            renderRAGFilesList([]); // Show empty on error too
-        }
+			const response = await fetch(`/chat/${currentChatId}/rag-files/`);
+			if (!response.ok) {
+				const errorData = await response.json();
+				throw new Error(errorData.error || "Failed to fetch RAG files");
+			}
+			const files = await response.json();
+			renderRAGFilesList(files);
+		} catch (error) {
+			console.error("Error fetching RAG files:", error);
+			appendSystemNotification(
+				"Could not load RAG files: " + error.message,
+				"error"
+			);
+			renderRAGFilesList([]); // Show empty on error too
+		}
 	}
 
 	async function handleRAGFileUpload() {
-        if (isNewChat || !currentChatId || currentChatId === 'new') return;
+		if (isNewChat || !currentChatId || currentChatId === "new") return;
 		const file = ragFileInput.files[0];
 		if (!file) {
-			appendSystemNotification("Please select a file to upload to RAG.", "warning");
+			appendSystemNotification(
+				"Please select a file to upload to RAG.",
+				"warning"
+			);
 			return;
 		}
 		console.log("Uploading RAG file:", file.name, "for chat:", currentChatId);
 
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('csrfmiddlewaretoken', document.querySelector("[name=csrfmiddlewaretoken]").value);
+		const formData = new FormData();
+		formData.append("file", file);
+		formData.append(
+			"csrfmiddlewaretoken",
+			document.querySelector("[name=csrfmiddlewaretoken]").value
+		);
 
-        try {
-            const response = await fetch(`/chat/${currentChatId}/rag-files/`, {
-                method: 'POST',
-                body: formData,
-                headers: {
-                    // 'Content-Type': 'multipart/form-data' is automatically set by browser for FormData
-                    'X-CSRFToken': document.querySelector("[name=csrfmiddlewaretoken]").value // Django needs this for non-session auth too sometimes
-                }
-            });
+		try {
+			const response = await fetch(`/chat/${currentChatId}/rag-files/`, {
+				method: "POST",
+				body: formData,
+				headers: {
+					// 'Content-Type': 'multipart/form-data' is automatically set by browser for FormData
+					"X-CSRFToken": document.querySelector("[name=csrfmiddlewaretoken]")
+						.value // Django needs this for non-session auth too sometimes
+				}
+			});
 
-            const data = await response.json();
+			const data = await response.json();
 
-            if (!response.ok) {
-                throw new Error(data.error || `Failed to upload file (status: ${response.status})`);
-            }
+			if (!response.ok) {
+				throw new Error(
+					data.error || `Failed to upload file (status: ${response.status})`
+				);
+			}
 
-            if (data.success && data.file) {
-                appendSystemNotification(`Successfully added '${data.file.name}' to RAG context.`, "info");
-                fetchRAGFiles(); // Refresh the list
-            } else {
-                throw new Error(data.error || 'Upload completed but response format was unexpected.');
-            }
+			if (data.success && data.file) {
+				appendSystemNotification(
+					`Successfully added '${data.file.name}' to RAG context.`,
+					"info"
+				);
+				fetchRAGFiles(); // Refresh the list
+			} else {
+				throw new Error(
+					data.error || "Upload completed but response format was unexpected."
+				);
+			}
+		} catch (error) {
+			console.error("Error uploading RAG file:", error);
+			appendSystemNotification(`Upload failed: ${error.message}`, "error");
+		}
 
-        } catch (error) {
-            console.error("Error uploading RAG file:", error);
-            appendSystemNotification(`Upload failed: ${error.message}`, "error");
-        }
-
-		ragFileInput.value = ''; // Clear the input
+		ragFileInput.value = ""; // Clear the input
 	}
 
 	async function handleDeleteRAGFile(fileId) {
-        if (isNewChat || !currentChatId || currentChatId === 'new') return;
-		if (!confirm("Are you sure you want to remove this file from the RAG context?")) return;
+		if (isNewChat || !currentChatId || currentChatId === "new") return;
+		if (
+			!confirm(
+				"Are you sure you want to remove this file from the RAG context?"
+			)
+		)
+			return;
 		console.log("Deleting RAG file:", fileId, "for chat:", currentChatId);
-        // Add API call logic here later
-        // For now, simulate success and refresh
-        // appendSystemNotification(`Simulated deletion of RAG file ${fileId}.`, "info");
-        // fetchRAGFiles(); // Refresh list after simulated (or real) deletion
-        alert("RAG file deletion functionality is not yet connected to the backend.");
+
+		try {
+			const response = await fetch(
+				`/chat/${currentChatId}/rag-files/${fileId}/delete/`,
+				{
+					method: "DELETE",
+					headers: {
+						"X-CSRFToken": document.querySelector("[name=csrfmiddlewaretoken]")
+							.value,
+						"Content-Type": "application/json"
+					}
+				}
+			);
+
+			if (!response.ok) {
+				const errorData = await response.json();
+				throw new Error(
+					errorData.error ||
+						`Failed to delete RAG file (status: ${response.status})`
+				);
+			}
+
+			// Assuming the response is successful (e.g., 204 No Content or a JSON with success)
+			// const data = await response.json(); // If response has body
+			// if (data.success) { // If response has body and a success flag
+			appendSystemNotification(
+				`Successfully removed file from RAG context.`,
+				"info"
+			);
+			fetchRAGFiles(); // Refresh the list
+			// } else {
+			//     throw new Error(data.error || 'Deletion reported unsuccessful by server.');
+			// }
+		} catch (error) {
+			console.error("Error deleting RAG file:", error);
+			appendSystemNotification(
+				`Failed to remove file: ${error.message}`,
+				"error"
+			);
+		}
 	}
 
 	// Event Listeners
@@ -852,23 +970,38 @@ document.addEventListener("DOMContentLoaded", function () {
 			}
 		});
 	}
-	if(uploadRagFileBtn){
-		uploadRagFileBtn.addEventListener('click', handleRAGFileUpload);
+	if (uploadRagFileBtn) {
+		uploadRagFileBtn.addEventListener("click", handleRAGFileUpload);
 	}
 
 	// RAG Toggle Button Logic
 	if (ragToggleButton) {
 		const setActiveStyles = () => {
 			ragToggleButton.textContent = "RAG Mode: Active";
-			ragToggleButton.classList.remove("border-gray-600", "text-gray-400"); // Default/Inactive styles
+			ragToggleButton.classList.remove("border-gray-600", "text-gray-400");
 			ragToggleButton.classList.add("border-green-500", "text-green-400");
 		};
 
 		const setInactiveStyles = () => {
 			ragToggleButton.textContent = "RAG Mode: Inactive";
 			ragToggleButton.classList.remove("border-green-500", "text-green-400");
-			ragToggleButton.classList.add("border-gray-600", "text-gray-400"); // Apply default/inactive styles
+			ragToggleButton.classList.add("border-gray-600", "text-gray-400");
 		};
+
+		// Load RAG state from localStorage
+		const savedRAGState = localStorage.getItem("ragModeActive");
+		if (savedRAGState !== null) {
+			isRAGActive = JSON.parse(savedRAGState);
+		}
+
+		// Initial styling based on loaded/default state
+		if (isRAGActive) {
+			setActiveStyles();
+		} else {
+			setInactiveStyles();
+		}
+		// Save the initial/loaded state back to localStorage in case it was newly defaulted
+		localStorage.setItem("ragModeActive", JSON.stringify(isRAGActive));
 
 		ragToggleButton.addEventListener("click", () => {
 			isRAGActive = !isRAGActive;
@@ -877,17 +1010,37 @@ document.addEventListener("DOMContentLoaded", function () {
 			} else {
 				setInactiveStyles();
 			}
-			appendSystemNotification(`RAG mode is now ${isRAGActive ? "ACTIVE" : "INACTIVE"}.`, "info");
+			// Save updated state to localStorage
+			localStorage.setItem("ragModeActive", JSON.stringify(isRAGActive));
+			appendSystemNotification(
+				`RAG mode is now ${isRAGActive ? "ACTIVE" : "INACTIVE"}.`,
+				"info"
+			);
 		});
-
-		// Initial styling based on default state
-		if (isRAGActive) {
-		    setActiveStyles();
-		} else {
-		    setInactiveStyles(); // Should match default HTML state if RAG starts inactive
-		}
 	}
 
+	// Initialize code block features for messages already on the page
+	document
+		.querySelectorAll("#chat-messages .message-enter")
+		.forEach((messageElement) => {
+			if (typeof initializeCodeBlockFeatures === "function") {
+				// We need to target the actual content div within the message element
+				const contentDiv = messageElement.querySelector(
+					".markdown-content, .quiz-message"
+				);
+				if (contentDiv) {
+					initializeCodeBlockFeatures(contentDiv);
+				}
+			}
+		});
+
+	// Make necessary functions global for message_edit.js
+	window.createTypingIndicator = createTypingIndicator;
+	window.removeTypingIndicator = removeTypingIndicator;
+	window.smoothScrollToBottom = smoothScrollToBottom;
+	window.appendMessage = appendMessage; // Note: This is the patched version if _appendMessagePatched is true
+	window.handleStreamResponse = handleStreamResponse;
+	// getCookie and adjustMainTextareaHeight are already global
 });
 
 // Utility: Fix quiz-message blocks that are wrapped in <pre><code>
