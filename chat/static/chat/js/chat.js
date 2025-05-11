@@ -44,6 +44,8 @@ document.addEventListener("DOMContentLoaded", function () {
 	const sidebar = document.getElementById("sidebar");
 	const mainContent = document.getElementById("main-content");
 	const ragToggleButton = document.getElementById("rag-toggle-button");
+	const quizButton = document.getElementById("quiz-button");
+	const quizButtonContainer = document.getElementById("quiz-button-container");
 
 	// Sidebar toggle
 	let sidebarOpen = false;
@@ -471,7 +473,7 @@ document.addEventListener("DOMContentLoaded", function () {
 				if (!data.success) {
 					throw new Error(data.error || "Failed to create chat");
 				}
-				window.history.pushState({}, "", data.redirect_url);
+				history.pushState({}, "", data.redirect_url);
 				currentChatId = data.chat_id;
 				isNewChat = false;
 				const mobileHeader = document.querySelector(".md\\:hidden h1");
@@ -1041,6 +1043,108 @@ document.addEventListener("DOMContentLoaded", function () {
 	window.appendMessage = appendMessage; // Note: This is the patched version if _appendMessagePatched is true
 	window.handleStreamResponse = handleStreamResponse;
 	// getCookie and adjustMainTextareaHeight are already global
+
+	// --- BEGIN QUIZ BUTTON LOGIC ---
+	if (quizButton && quizButtonContainer) {
+		quizButton.addEventListener("click", async () => {
+			if (window.currentChatId && window.currentChatId !== "new") {
+				createTypingIndicator();
+				try {
+					const response = await fetch(`/chat/${window.currentChatId}/quiz/`, {
+						method: "POST",
+						headers: {
+							"X-CSRFToken": window.getCookie("csrftoken")
+						}
+						// No body or Content-Type application/json as per previous fixes
+					});
+					removeTypingIndicator();
+
+					if (response.ok) {
+						const data = await response.json();
+						if (data.quiz_html) {
+							const messagesDiv = document.getElementById("chat-messages");
+							const messageDiv = document.createElement("div");
+							messageDiv.className = "message-enter px-4 md:px-6 py-6";
+
+							const iconHtml = `<div class="cls w-10 h-7 p-1 rounded-sm bg-slate-100 flex items-center justify-center text-white"><img src="/static/images/logo.png" alt="Assistant icon" class="h-5 w-7"></div>`;
+							const actualContentHtml = `<div class="quiz-message max-w-none text-gray-100 bg-gray-700/70 p-2 rounded-xl">${data.quiz_html}</div>`;
+
+							messageDiv.innerHTML = `
+								<div class="chat-container flex gap-4 md:gap-6">
+									<div class="flex-shrink-0 w-7 h-7">${iconHtml}</div>
+									<div class="flex-1 overflow-x-auto min-w-0 max-w-[85%]">${actualContentHtml}</div>
+								</div>`;
+							messagesDiv.appendChild(messageDiv);
+							smoothScrollToBottom();
+							if (window.initializeCodeBlockFeatures) {
+								window.initializeCodeBlockFeatures(messageDiv);
+							}
+							// Ensure any existing quiz specific JS initializers for HTML quizzes are called if quiz.js is ever repopulated.
+							// e.g. if (window.initializeHtmlQuiz) { window.initializeHtmlQuiz(messageDiv); }
+						} else if (data.error) {
+							appendSystemNotification(
+								`Error generating quiz: ${data.error}`,
+								"error"
+							);
+						} else {
+							appendSystemNotification(
+								"Received an unexpected response for the quiz.",
+								"error"
+							);
+						}
+					} else {
+						let errorText = "Failed to generate quiz. Server error.";
+						try {
+							const errorData = await response.json();
+							errorText = errorData.error || response.statusText;
+						} catch (e) {
+							// Keep default errorText if response is not JSON or parsing fails
+							console.warn(
+								"Could not parse error response as JSON for quiz generation failure."
+							);
+						}
+						appendSystemNotification(
+							`Error generating quiz: ${errorText}`,
+							"error"
+						);
+					}
+				} catch (error) {
+					removeTypingIndicator();
+					console.error("Error fetching quiz:", error);
+					appendSystemNotification(
+						`Error fetching quiz: ${error.message}`,
+						"error"
+					);
+				}
+			} else {
+				appendSystemNotification(
+					"Please start a chat first to generate a quiz.",
+					"info"
+				);
+			}
+		});
+	} else {
+		console.warn(
+			"Quiz button or its container not found. Quiz functionality may be limited."
+		);
+	}
+
+	window.updateQuizButtonVisibility = function () {
+		if (quizButtonContainer) {
+			if (
+				window.isNewChat ||
+				!window.currentChatId ||
+				window.currentChatId === "new"
+			) {
+				quizButtonContainer.classList.add("hidden");
+			} else {
+				quizButtonContainer.classList.remove("hidden");
+			}
+		}
+	};
+	// Initial call to set visibility
+	window.updateQuizButtonVisibility();
+	// --- END QUIZ BUTTON LOGIC ---
 });
 
 // Utility: Fix quiz-message blocks that are wrapped in <pre><code>

@@ -362,15 +362,25 @@ class ChatService:
                 max_completion_tokens=1024, # Consider making this configurable
                 stream=True,
             )
-        
+        print("======== Inside stream_completion ===========")
+        print(f"messages: {messages}")
+        print(f"query: {query}")
+        print(f"files_rag: {files_rag}")
+        print(f"max_tokens: {max_tokens}")
+        print(f"chat_id: {chat_id}")
+        print(f"is_new_chat: {is_new_chat}")
+        print(f"attached_file_name: {attached_file_name}")
+        print("======== Done printing ===========")
         current_messages = [msg for msg in messages]
 
         # files_rag is now ONLY explicitly passed for Part 2 (Manage RAG Context)
         # No automatic loading of files_rag based on chat_id here.
 
         context_str = ""
+        raggyy = ""
         if files_rag and query: # files_rag is only used if explicitly passed and query is present
             retrieved_context_val = files_rag.retrieve(query) 
+            raggyy = retrieved_context_val
             self.logger.info(f"RAG retrieved_context for query '{query[:100]}...': '{str(retrieved_context_val)[:500]}...'")
             if retrieved_context_val:
                  context_str += str(retrieved_context_val)
@@ -393,15 +403,17 @@ class ChatService:
                 self.logger.warning("Could not find user message to prepend RAG context to in stream_completion. Context will not be used directly in user query.")
 
         trimmed_messages = self.enforce_token_limit(current_messages, max_tokens=max_tokens)
-        print()
-        groq_client = Groq()
-        return groq_client.chat.completions.create(
-            model="llama3-8b-8192",
-            messages=trimmed_messages,
-            temperature=0.7,
-            max_completion_tokens=1024, # Consider making this configurable
-            stream=True,
-        )
+        if raggyy:
+            return raggyy
+        else:
+            groq_client = Groq()
+            return groq_client.chat.completions.create(
+                model="llama3-8b-8192",
+                messages=trimmed_messages,
+                temperature=0.7,
+                max_completion_tokens=1024, # Consider making this configurable
+                stream=True,
+            )
 
     def save_file(self, chat_id, uploaded_file):
         if uploaded_file:
