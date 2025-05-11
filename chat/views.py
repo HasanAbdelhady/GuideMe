@@ -6,7 +6,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.http import StreamingHttpResponse, HttpResponse, JsonResponse
 from django.contrib.auth.decorators import login_required
 from .models import Chat, Message, ChatRAGFile
-from groq import Groq
+from groq import Groq, APIStatusError
 from django.utils.safestring import mark_safe
 import html
 from django.views import View
@@ -190,15 +190,11 @@ class ChatStreamView(View):
                                                   chat.messages.first().content == user_typed_prompt)
 
             if not is_handling_continuation_of_new_chat and not is_reprompt_after_edit:
-                # This is a message in an existing chat, or if create_chat somehow didn't save the message,
-                # AND it's not a re-prompt after an edit.
-                # Save the user's current prompt (which includes the [Attached file: ...] if any).
-                chat_service.create_message(chat, 'user', user_typed_prompt)
-                logger.info("User message created for display in an existing chat context.")
+                logger.info("User message will be saved in stream_response upon successful LLM interaction.")
             elif is_reprompt_after_edit:
-                logger.info("Skipping user message save in ChatStreamView as this is a re-prompt after an edit.")
+                logger.info("Skipping user message save as this is a re-prompt after an edit (no new user message to save).")
             else: # is_handling_continuation_of_new_chat is true
-                logger.info("Skipping user message save in ChatStreamView as create_chat already handled it.")
+                logger.info("Skipping user message save in ChatStreamView as create_chat already handled the initial user message.")
 
             if chat.title == "New Chat" and user_typed_prompt and not is_reprompt_after_edit:
                 # Update title only for genuinely new interactions, not for re-prompts after edit
@@ -208,15 +204,18 @@ class ChatStreamView(View):
             system_prompt_text = PreferenceService.get_system_prompt(request.user)
             messages_for_llm = [{"role": "system", "content": system_prompt_text}]
             
-            # Get chat history (already saved messages)
-            chat_history_db = chat_service.get_chat_history(chat) # Gets all messages including the one just saved
-            for msg in chat_history_db[:-1]: # Exclude the very last user message we just constructed for display
-                messages_for_llm.append({"role": msg.role, "content": msg.content})
+            chat_history_db = chat_service.get_chat_history(chat) # All messages currently in DB
+
+            if is_handling_continuation_of_new_chat:
+                logger.info("First turn of new chat: LLM history will start with system prompt, current query will be added next.")
+            else:
+                for msg_data in chat_history_db:
+                    messages_for_llm.append({"role": msg_data.role, "content": msg_data.content})
+                logger.info(f"Ongoing chat or re-prompt: Added {len(chat_history_db)} messages from DB to LLM context.")
             
-            # Add the current user query, potentially augmented with file text
             messages_for_llm.append({"role": "user", "content": llm_query_content})
             
-            logger.info(f"Message history prepared with {len(messages_for_llm)} messages for LLM.")
+            logger.info(f"Message history prepared with {len(messages_for_llm)} messages for LLM. Last user message for LLM: {llm_query_content[:200]}...")
 
             is_new_chat_bool = chat.messages.count() == 1 # This flag is used by stream_completion.
                                                           # It's true if this is the first turn (one user msg, one assistant to come)
@@ -227,6 +226,7 @@ class ChatStreamView(View):
                 query_for_rag=user_typed_prompt, 
                 files_rag_instance=files_rag_instance, # Pass the instance built from ChatRAGFiles
                 is_new_chat=is_new_chat_bool,
+                current_user_prompt_for_saving = user_typed_prompt if not (is_handling_continuation_of_new_chat or is_reprompt_after_edit) else None, # Pass prompt to save, or None
                 attached_file_name_for_rag=", ".join(attached_file_names_for_rag_context) if attached_file_names_for_rag_context else None, 
                 file_info_for_truncation_warning=file_info_for_llm # Pass dict for SSE warning
             )
@@ -235,8 +235,9 @@ class ChatStreamView(View):
             logger.error(f"Exception in ChatStreamView.post: {str(e)}", exc_info=True)
             return JsonResponse({'error': str(e)}, status=500)
 
-    def stream_response(self, chat, messages_for_llm, query_for_rag=None, files_rag_instance=None, is_new_chat=False, attached_file_name_for_rag=None, file_info_for_truncation_warning=None):
+    def stream_response(self, chat, messages_for_llm, query_for_rag=None, files_rag_instance=None, is_new_chat=False, current_user_prompt_for_saving=None, attached_file_name_for_rag=None, file_info_for_truncation_warning=None):
         def event_stream():
+            user_message_saved = False # Flag to track if user message has been saved
             try:
                 logger.info("stream_response.event_stream started.")
                 accumulated_response = ""
@@ -265,15 +266,54 @@ class ChatStreamView(View):
                     is_new_chat=is_new_chat,
                     attached_file_name=attached_file_name_for_rag # For RAG context (Part 2)
                 )
-                logger.info("Got stream from chat_service.stream_completion.")
+                
+                if type(stream) == str: # If stream_completion returned a string (direct RAG output)
+                    # This is now considered a direct response, not an error.
+                    if not user_message_saved and current_user_prompt_for_saving:
+                        chat_service.create_message(chat, 'user', current_user_prompt_for_saving)
+                        user_message_saved = True # Ensure flag is set if we proceed
+                        logger.info(f"User message '{current_user_prompt_for_saving[:50]}...' saved to DB (direct RAG output case).")
 
-                for chunk in stream:
-                    content = getattr(chunk.choices[0].delta, "content", None)
-                    if content:
-                        accumulated_response += content
-                        yield f"data: {json.dumps({'type': 'content', 'content': content})}\n\n"
+                    # Save this direct string output as the assistant's message
+                    chat_service.create_message(chat, 'assistant', stream) # 'stream' here is the RAG content string
+                    logger.info(f"Direct RAG output saved as assistant message: {stream[:100]}...")
+                    
+                    # Send it as regular content to the client
+                    yield f"data: {json.dumps({'type': 'content', 'content': stream})}\n\n"
+                    yield f"data: {json.dumps({'type': 'done'})}\n\n" # Indicate completion
+                    
+                    # Optionally, if you still want RAG metadata in this case:
+                    if files_rag_instance:
+                         rag_stats = {
+                            'file_chunks_used': len(files_rag_instance.chunks) if files_rag_instance and hasattr(files_rag_instance, 'chunks') else 0,
+                         }
+                         yield f"data: {json.dumps({'type': 'metadata', 'content': rag_stats})}\n\n"
+                    return # End the generator as we've sent the complete direct response
+                else:
+                    # This is the normal LLM stream iterator
+                    logger.info("Got stream from chat_service.stream_completion.")
+                    first_chunk_processed = False
+                    for chunk in stream:
+                        content = getattr(chunk.choices[0].delta, "content", None)
+                        if content:
+                            # Save the user's message on first successful content chunk from LLM, if it's meant to be saved
+                            if not user_message_saved and current_user_prompt_for_saving:
+                                chat_service.create_message(chat, 'user', current_user_prompt_for_saving)
+                                user_message_saved = True
+                                logger.info(f"User message '{current_user_prompt_for_saving[:50]}...' saved to DB after successful LLM stream start.")
+                            
+                            accumulated_response += content
+                            yield f"data: {json.dumps({'type': 'content', 'content': content})}\n\n"
+                            if not first_chunk_processed:
+                                first_chunk_processed = True
 
-                if accumulated_response:
+                if accumulated_response: # Implies successful stream
+                    # If user message wasn't saved due to empty stream but no error, save it now if needed.
+                    if not user_message_saved and current_user_prompt_for_saving:
+                        chat_service.create_message(chat, 'user', current_user_prompt_for_saving)
+                        user_message_saved = True # Though already past stream, ensure flag is correct
+                        logger.info(f"User message '{current_user_prompt_for_saving[:50]}...' saved to DB before saving assistant response (empty stream case).")
+
                     chat_service.create_message(chat, 'assistant', accumulated_response)
                     logger.info("Assistant message created from accumulated stream.")
                     yield f"data: {json.dumps({'type': 'done'})}\n\n"
@@ -286,10 +326,24 @@ class ChatStreamView(View):
                         }
                         yield f"data: {json.dumps({'type': 'metadata', 'content': rag_stats})}\n\n"
 
+            except APIStatusError as e:
+                logger.error(f"Groq APIStatusError in stream_response.event_stream: Status {e.status_code}, Response: {e.response.text if e.response else 'No response body'}", exc_info=True)
+                user_message = "An API error occurred with the language model."
+                if e.status_code == 413:
+                    try:
+                        error_detail = e.response.json()
+                        if error_detail.get('error', {}).get('type') == 'tokens' or 'tokens per minute (TPM)' in error_detail.get('error', {}).get('message', ''):
+                            user_message = "The request is too large for the model. Please try reducing your message size or shortening the conversation if the history is very long."
+                    except json.JSONDecodeError:
+                        # Fallback if response is not JSON, though Groq usually sends JSON errors
+                        if "Request too large" in str(e) or "tokens per minute (TPM)" in str(e): # Check string representation as a fallback
+                             user_message = "The request is too large for the model. Please try reducing your message size or shortening the conversation if the history is very long."
+                
+                yield f"data: {json.dumps({'type': 'error', 'content': user_message})}\n\n"
+
             except Exception as e:
-                logger.error(f"Exception in stream_response.event_stream: {str(e)}", exc_info=True)
-                yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
-                # Fallback logic removed as it was tied to old RAG-on-history approach
+                logger.error(f"Generic exception in stream_response.event_stream: {str(e)}", exc_info=True)
+                yield f"data: {json.dumps({'type': 'error', 'content': 'An unexpected error occurred. Please try again.'})}\n\n"
 
         response = StreamingHttpResponse(event_stream(), content_type='text/event-stream')
         response['Cache-Control'] = 'no-cache'
@@ -345,42 +399,6 @@ def create_chat(request):
         'error': 'Invalid request method'
     }, status=405)
 
-
-
-@login_required
-def send_message(request, chat_id):
-    """Handle sending a message in a specific chat."""
-    if request.method != 'POST':
-        return JsonResponse({'error': 'Method not allowed'}, status=405)
-
-    try:
-        # Get the current chat
-        chat = get_object_or_404(Chat, id=chat_id, user=request.user)
-
-        # Parse the incoming message
-        data = json.loads(request.body)
-        user_message = data.get('message', '').strip()
-
-        if not user_message:
-            return JsonResponse({'error': 'Message is required'}, status=400)
-
-        # Save the user message to this chat
-        chat_service.create_message(chat, 'user', user_message)
-
-        # Get the AI response using the generate_response method
-        assistant_response = chat_service.generate_response(chat, request.user)
-
-        # Save the assistant's response to this chat
-        chat_service.create_message(chat, 'assistant', assistant_response)
-
-        return JsonResponse({
-            'response': assistant_response,
-            'chat_id': chat.id,
-            'chat_title': chat.title
-        })
-
-    except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
 
 
 @login_required
