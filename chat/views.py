@@ -20,6 +20,7 @@ from .services import ChatService, LangChainRAG
 from .preference_service import PreferenceService
 from django.views.decorators.http import require_POST
 import re
+from django.utils import timezone
 chat_service = ChatService()
 
 logging.basicConfig(level=logging.INFO)
@@ -79,11 +80,21 @@ class ChatView(View):
                 conversation = []
                 for i, msg in enumerate(messages):
                     if msg.content == '' and i > 0 and msg.role == 'assistant':
-                        conversation.append(
-                            {'role': msg.role, 'html': msg.quiz_html})
+                        conversation.append({
+                            'role': msg.role, 
+                            'html': msg.quiz_html, 
+                            'id': msg.id, 
+                            'created_at': msg.created_at.isoformat()
+                        })
                     else:
-                        conversation.append(
-                            {'role': msg.role, 'text': msg.content})
+                        conversation.append({
+                            'role': msg.role, 
+                            'text': msg.content, 
+                            'id': msg.id, 
+                            'is_edited': msg.is_edited,
+                            'edited_at': msg.edited_at.isoformat() if msg.edited_at else None,
+                            'created_at': msg.created_at.isoformat()
+                        })
                 return render(request, self.template_name, {
                     "current_chat": chat,
                     "conversation": conversation,
@@ -171,20 +182,26 @@ class ChatStreamView(View):
                 attached_file_names_for_rag_context = [] # Ensure it's defined for stream_response
             # --- END: Integrate persisted RAG files ---
 
+            is_reprompt_after_edit = request.POST.get("is_reprompt_after_edit") == "true"
+
             # Determine if this is the very first message turn in a new chat.
             # chat.messages.count() would be 1 if create_chat just saved the first message.
             is_handling_continuation_of_new_chat = (chat.messages.count() == 1 and 
                                                   chat.messages.first().content == user_typed_prompt)
 
-            if not is_handling_continuation_of_new_chat:
-                # This is a message in an existing chat, or if create_chat somehow didn't save the message.
+            if not is_handling_continuation_of_new_chat and not is_reprompt_after_edit:
+                # This is a message in an existing chat, or if create_chat somehow didn't save the message,
+                # AND it's not a re-prompt after an edit.
                 # Save the user's current prompt (which includes the [Attached file: ...] if any).
                 chat_service.create_message(chat, 'user', user_typed_prompt)
                 logger.info("User message created for display in an existing chat context.")
-            else:
+            elif is_reprompt_after_edit:
+                logger.info("Skipping user message save in ChatStreamView as this is a re-prompt after an edit.")
+            else: # is_handling_continuation_of_new_chat is true
                 logger.info("Skipping user message save in ChatStreamView as create_chat already handled it.")
 
-            if chat.title == "New Chat" and user_typed_prompt: # Use original typed prompt for title
+            if chat.title == "New Chat" and user_typed_prompt and not is_reprompt_after_edit:
+                # Update title only for genuinely new interactions, not for re-prompts after edit
                 chat_service.update_chat_title(chat, user_typed_prompt)
                 logger.info("Chat title updated.")
 
@@ -235,9 +252,9 @@ class ChatStreamView(View):
                     logger.info(f"Sending truncation warning to client: {warning_msg}")
                     yield f"data: {json.dumps({'type': 'file_info', 'status': 'truncated', 'message': warning_msg})}\n\n"
 
-                message_count = len(messages_for_llm)
-                # max_tokens might need dynamic adjustment based on actual content length
-                max_tokens_for_llm = 3500 if message_count < 10 else 4500 
+                message_count = len(messages_for_llm) # This is messages BEFORE enforce_token_limit
+                max_tokens_for_llm = 7000 # INCREASED for more history (was 3500/4500 based on message_count)
+                logger.info(f"[ChatStreamView.stream_response] Attempting to use max_tokens_for_llm: {max_tokens_for_llm} for ChatService's enforce_token_limit. Original message count for LLM (before limit): {message_count}")
 
                 stream = chat_service.stream_completion(
                     messages=messages_for_llm, # This now contains the augmented prompt
@@ -415,10 +432,14 @@ def chat_quiz(request, chat_id):
     chat = get_object_or_404(Chat, id=chat_id, user=request.user)
     messages = chat.messages.filter(
         role__in=['user', 'assistant']).order_by('created_at')
-    print(messages)
-    content_text = "\n".join(m.content for m in messages)
-    if messages.count() < 5 or len(content_text) < 500:
-        return JsonResponse({'error': 'Not enough content in this chat to generate a quiz. Please continue the conversation first.'}, status=400)
+    content_text = "\n".join(m.content for m in messages if m.content)
+    
+    user_messages_count = messages.filter(role='user').count()
+    assistant_messages_count = messages.filter(role='assistant').count()
+
+    # Previous threshold, adjust if needed, e.g. messages.count() < 5 or len(content_text) < 500
+    if user_messages_count < 2 or assistant_messages_count < 1 or len(content_text) < 200: 
+        return JsonResponse({'error': 'Not enough diverse conversation content in this chat to generate a meaningful quiz. Please continue the conversation further.'}, status=400)
 
     prompt = f"""
 Create at least 2 multiple-choice quizzes (4 options per question) based on the following conversation's relevant scientific information only, related to the learning.
@@ -435,38 +456,94 @@ For each question, use this HTML structure:
   <div class="quiz-feedback mt-1.5"></div>
 </div>
 Replace the question, answers, and correct value as appropriate.
-**Output ONLY the HTML for the quiz. Do NOT include any explanations, answers, or text outside the HTML.**
+**Output ONLY the HTML for the quiz. DON'T MENTION "QUIZ NUMBER" in the HTML. Do NOT include any explanations, answers, or text outside the HTML.**
 Conversation:
 
 {content_text}
+** DON'T TELL THE USER ANYTHING AFTER THE QUIZ IS GENERATED.**
+** DON'T SAY WHAT THE CORRECT ANSWER IS**
+
 """
 
     try:
-        quiz_html = chat_service.get_completion(
+        quiz_html_response = chat_service.get_completion(
             messages=[{"role": "user", "content": prompt}],
-            query=prompt,
-            max_tokens=1024,
+            query=prompt, 
+            max_tokens=1500, # Was 1024, can be 1500 for potentially larger HTML
             chat_id=chat.id,
             is_new_chat=False
         )
+        
+        # Extract only the HTML part, assuming LLM might still add extra text
+        # This regex looks for the starting div of a quiz question.
+        match = re.search(r'(<div class="quiz-question".*)', quiz_html_response, re.DOTALL)
+        if match:
+            processed_quiz_html = match.group(1)
+        else:
+            # If no specific quiz structure found, take the whole response, but log a warning.
+            logger.warning(f"Could not find specific quiz HTML structure in LLM response. Using raw response: {quiz_html_response}")
+            processed_quiz_html = quiz_html_response 
+
     except Exception as e:
+        logger.error(f"Quiz generation call failed: {str(e)}", exc_info=True)
         return JsonResponse({'error': f'Quiz generation failed: {str(e)}'}, status=500)
 
-    # Extract only the HTML part
-    match = re.search(r'(<div class="quiz-question".*)', quiz_html, re.DOTALL)
-    if match:
-        quiz_html = match.group(1)
-
-    # Save as a quiz message
+    # Save as a quiz message, storing the HTML string in quiz_html
     quiz_msg = Message.objects.create(
         chat=chat,
         role='assistant',
         type='quiz',
-        quiz_html=quiz_html,
-        content=''
+        quiz_html=processed_quiz_html, # Storing HTML string here
+        content='' 
     )
 
-    return JsonResponse({'quiz_html': quiz_html, 'message_id': quiz_msg.id})
+    # Return the HTML string to the client
+    return JsonResponse({'quiz_html': processed_quiz_html, 'message_id': quiz_msg.id})
+
+
+@login_required
+@require_POST
+def edit_message(request, chat_id, message_id):
+    try:
+        chat = get_object_or_404(Chat, id=chat_id, user=request.user)
+        message_to_edit = get_object_or_404(Message, id=message_id, chat=chat)
+
+        if message_to_edit.role != 'user':
+            return JsonResponse({'error': 'Only user messages can be edited.'}, status=403)
+        
+        if message_to_edit.chat.user != request.user:
+            return JsonResponse({'error': 'User not authorized to edit this message.'}, status=403)
+
+        data = json.loads(request.body)
+        new_content = data.get('new_content', '').strip()
+
+        if not new_content:
+            return JsonResponse({'error': 'New content cannot be empty.'}, status=400)
+
+        # Update the message
+        message_to_edit.content = new_content
+        message_to_edit.is_edited = True
+        message_to_edit.edited_at = timezone.now()
+        message_to_edit.save()
+
+        # Delete all messages that came after the edited message in this chat
+        Message.objects.filter(chat=chat, created_at__gt=message_to_edit.created_at).delete()
+        
+        logger.info(f"Message {message_id} in chat {chat_id} edited. Subsequent messages deleted.")
+
+        return JsonResponse({
+            'success': True,
+            'edited_message_id': message_to_edit.id,
+            'new_content': message_to_edit.content,
+            'is_edited': message_to_edit.is_edited,
+            'edited_at': message_to_edit.edited_at.isoformat() if message_to_edit.edited_at else None
+        })
+
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        logger.error(f"Error editing message {message_id} in chat {chat_id}: {e}", exc_info=True)
+        return JsonResponse({'error': f'Could not edit message: {str(e)}'}, status=500)
 
 
 @method_decorator(login_required, name='dispatch')
@@ -518,8 +595,42 @@ class ChatRAGFilesView(View):
                 'file': {'id': str(rag_file.id), 'name': rag_file.original_filename}
             }, status=201)
 
-        except Chat.DoesNotExist:
+        except Chat.DoesNotExist: # Should be caught by get_object_or_404 if that's what it raises as Http404
             return JsonResponse({'error': 'Chat not found'}, status=404)
         except Exception as e:
             logger.error(f"Error uploading RAG file for chat {chat_id}: {e}", exc_info=True)
             return JsonResponse({'error': 'Could not upload RAG file.'}, status=500)
+
+    def delete(self, request, chat_id, file_id):
+        try:
+            try:
+                chat = Chat.objects.get(id=chat_id, user=request.user)
+            except Chat.DoesNotExist:
+                logger.warning(f"Chat not found during RAG file deletion: chat_id={chat_id}, user={request.user.id}")
+                return JsonResponse({'error': 'Chat not found'}, status=404)
+
+            try:
+                rag_file = ChatRAGFile.objects.get(id=file_id, chat=chat, user=request.user)
+            except ChatRAGFile.DoesNotExist:
+                logger.warning(f"RAG file not found during deletion: file_id={file_id}, chat_id={chat_id}")
+                return JsonResponse({'error': 'RAG file not found in this chat'}, status=404)
+
+            # Delete the actual file from storage
+            if rag_file.file:
+                # Ensure the file exists before trying to delete
+                if default_storage.exists(rag_file.file.name):
+                    default_storage.delete(rag_file.file.name)
+                    logger.info(f"Successfully deleted file from storage: {rag_file.file.name}")
+                else:
+                    logger.warning(f"File not found in storage for {rag_file.file.name}, attempting to delete DB record anyway.")
+            
+            # Delete the ChatRAGFile model instance
+            rag_file_name_for_log = rag_file.original_filename
+            rag_file.delete()
+            logger.info(f"Successfully deleted ChatRAGFile record for '{rag_file_name_for_log}' (ID: {file_id}) from chat {chat_id}")
+
+            return JsonResponse({'success': True, 'message': 'File removed from RAG context successfully.'}, status=200)
+
+        except Exception as e: # Catch any other unexpected errors
+            logger.error(f"Unexpected error deleting RAG file {file_id} for chat {chat_id}: {e}", exc_info=True)
+            return JsonResponse({'error': 'Could not delete RAG file due to an unexpected server error.'}, status=500)

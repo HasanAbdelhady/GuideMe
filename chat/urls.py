@@ -19,4 +19,6 @@ urlpatterns = [
     path('<uuid:chat_id>/clear/', views.clear_chat, name='clear_chat'),
     path('<uuid:chat_id>/quiz/', chat_quiz, name='chat_quiz'),
     path('<uuid:chat_id>/rag-files/', views.ChatRAGFilesView.as_view(), name='list_rag_files'),
+    path('<uuid:chat_id>/rag-files/<int:file_id>/delete/', views.ChatRAGFilesView.as_view(), name='delete_rag_file'),
+    path('<uuid:chat_id>/message/<int:message_id>/edit/', views.edit_message, name='edit_message'),
 ]

@@ -268,9 +268,13 @@ class ChatService:
             example_prompt=example_prompt,
             max_length=max_tokens - fixed_messages_tokens
         )
+        self.logger.info(f"[enforce_token_limit] Max length for selector: {max_tokens - fixed_messages_tokens}")
+        self.logger.info(f"[enforce_token_limit] Original history length (examples): {len(examples)}")
         selected_examples = selector.select_examples({})
+        self.logger.info(f"[enforce_token_limit] Selected history length (selected_examples): {len(selected_examples)}")
 
         trimmed_messages = [system_msg] + selected_examples + [current_user_msg]
+        self.logger.info(f"[enforce_token_limit] Total messages sent to LLM: {len(trimmed_messages)}")
         return trimmed_messages
 
     def _count_tokens(self, messages, prompt_template):
@@ -301,8 +305,12 @@ class ChatService:
         # No automatic loading of files_rag based on chat_id here.
 
         context_str = ""
+        rag_output = ""
         if files_rag and query: # files_rag is only used if explicitly passed and query is present
             retrieved_context_val = files_rag.retrieve(query) 
+            rag_output = retrieved_context_val
+            self.logger.info(f"RAG output HERE!!!!!!!!!!! {str(rag_output)[:500]}...")
+            print("=======================================================")
             self.logger.info(f"RAG retrieved_context for query '{query[:100]}...': '{str(retrieved_context_val)[:500]}...'")
             if retrieved_context_val:
                  context_str += str(retrieved_context_val)
@@ -336,7 +344,12 @@ class ChatService:
             max_completion_tokens=1024, # Consider making this configurable
             stream=False,
         )
-        return completion.choices[0].message.content
+        if rag_output:
+            self.logger.info(f"In rag_output")
+            return rag_output
+        else:
+            print("In completion")
+            return completion.choices[0].message.content
 
     def stream_completion(self, messages, query=None, files_rag=None, max_tokens=6000, chat_id=None, is_new_chat=False, attached_file_name=None):
         if is_new_chat:
@@ -380,6 +393,7 @@ class ChatService:
                 self.logger.warning("Could not find user message to prepend RAG context to in stream_completion. Context will not be used directly in user query.")
 
         trimmed_messages = self.enforce_token_limit(current_messages, max_tokens=max_tokens)
+        print()
         groq_client = Groq()
         return groq_client.chat.completions.create(
             model="llama3-8b-8192",

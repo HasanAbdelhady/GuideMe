@@ -28,6 +28,8 @@ class Message(models.Model):
         max_length=20, default='text')  # 'normal' or 'quiz' or 'text'
     quiz_html = models.TextField(blank=True, null=True)  # For quiz HTML
     created_at = models.DateTimeField(auto_now_add=True)
+    is_edited = models.BooleanField(default=False)
+    edited_at = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
         return f"{self.role}: {self.content[:50]}... in Chat {self.chat.title}"
