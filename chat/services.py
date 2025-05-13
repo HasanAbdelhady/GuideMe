@@ -241,59 +241,122 @@ class ChatService:
 
         if not messages:
             return messages
-        
-        # Assuming the first message is system, last is current user query.
-        # This logic might need adjustment based on exact message structure.
-        # For now, keep as is, LengthBasedExampleSelector handles examples.
+
+        HARD_MAX_TOKENS_API = 5800  # Slightly less than the observed 6000 limit
+        SAFETY_BUFFER = 250       # Additional buffer for safety
+
         system_msg_list = [msg for msg in messages if msg["role"] == "system"]
         user_msg_list = [msg for msg in messages if msg["role"] == "user"]
-        examples = [msg for msg in messages if msg["role"] not in ("system", "user") or (msg["role"] == "user" and msg != user_msg_list[-1])]
+        
+        # Examples are historical messages (assistant, and user messages except the last one)
+        examples = [
+            msg for msg in messages 
+            if msg["role"] not in ("system", "user") or (user_msg_list and msg != user_msg_list[-1])
+        ]
 
-
-        if not system_msg_list or not user_msg_list: # Should not happen in normal flow
-            # Fallback: just take the last N tokens if structure is unexpected
-            # This is a simplification; proper token counting per message is better.
-            all_content = " ".join([msg["content"] for msg in messages])
-            # A very rough approximation of token count
-            if len(all_content.split()) > max_tokens * 0.7: # Target less than max_tokens
-                 # This is not ideal, a more sophisticated truncation is needed here
-                 # For now, this path is unlikely with current message structure
-                 pass # Let LengthBasedExampleSelector handle it if examples are present
-            return messages # Or apply a simpler truncation if no examples
-
+        if not system_msg_list or not user_msg_list:
+            self.logger.warning("[enforce_token_limit] Missing system or current user message. Returning messages as is, but this might lead to errors.")
+            # Fallback: just return messages, hoping for the best, or implement simple truncation if absolutely needed.
+            # For now, this state should ideally not be reached in normal operation.
+            return messages
 
         system_msg = system_msg_list[0]
-        current_user_msg = user_msg_list[-1] # The latest user message
+        current_user_msg = user_msg_list[-1].copy() # Work with a copy to allow modification
 
         example_prompt = PromptTemplate(
             input_variables=["role", "content"],
-            template="{role}: {content}"
+            template="{role}: {content}"  # Simplified, role is handled by LLM API
         )
         
         # Calculate tokens for system and current user message
-        fixed_messages_tokens = self._count_tokens([system_msg, current_user_msg], example_prompt)
+        system_tokens = self._count_tokens([system_msg], example_prompt)
+        current_user_tokens_original = self._count_tokens([current_user_msg], example_prompt)
         
+        self.logger.info(f"[enforce_token_limit] Initial token counts: System={system_tokens}, CurrentUser(Original)={current_user_tokens_original}")
+
+        # Check if current_user_msg content needs truncation
+        # Available tokens for current_user_msg = HARD_MAX_TOKENS_API - system_tokens - SAFETY_BUFFER
+        available_for_current_user = HARD_MAX_TOKENS_API - system_tokens - SAFETY_BUFFER
+        if current_user_tokens_original > available_for_current_user:
+            self.logger.warning(
+                f"[enforce_token_limit] Current user message content is too large "
+                f"({current_user_tokens_original} tokens) for available space ({available_for_current_user} tokens). "
+                f"It will be truncated."
+            )
+            # Estimate character limit based on token ratio (very approximate)
+            # Assuming 1 token ~ 4 chars on average, and our _count_tokens uses 1.4x words.
+            # So, num_words = tokens / 1.4. Chars ~ (tokens / 1.4) * avg_word_len (e.g., 5)
+            # Target chars = (available_for_current_user / 1.4) * 5 (avg word length)
+            # This is still very rough. A simpler approach: reduce by proportion.
+            if current_user_tokens_original > 0: # Avoid division by zero
+                proportion_to_keep = available_for_current_user / current_user_tokens_original
+                new_char_length = int(len(current_user_msg["content"]) * proportion_to_keep * 0.9) # 0.9 for extra safety
+                current_user_msg["content"] = current_user_msg["content"][:new_char_length]
+                current_user_tokens = self._count_tokens([current_user_msg], example_prompt)
+                self.logger.info(f"[enforce_token_limit] CurrentUser(Truncated) to {current_user_tokens} tokens, new char length {new_char_length}.")
+            else:
+                current_user_tokens = 0 # Should not happen if content was large
+        else:
+            current_user_tokens = current_user_tokens_original
+            
+        fixed_messages_tokens = system_tokens + current_user_tokens
+        
+        max_len_for_examples = HARD_MAX_TOKENS_API - fixed_messages_tokens - SAFETY_BUFFER
+        
+        if max_len_for_examples < 0:
+            max_len_for_examples = 0 # No space for examples
+            self.logger.warning(
+                f"[enforce_token_limit] No space available for historical examples after accounting for "
+                f"system ({system_tokens}), current user ({current_user_tokens}), and safety buffer ({SAFETY_BUFFER}). "
+                f"Total allocated: {fixed_messages_tokens + SAFETY_BUFFER}."
+            )
+
         selector = LengthBasedExampleSelector(
-            examples=examples, # Historical messages (assistant, and user messages except the last one)
+            examples=examples,
             example_prompt=example_prompt,
-            max_length=max_tokens - fixed_messages_tokens
+            max_length=max_len_for_examples  # This is in estimated tokens
         )
-        self.logger.info(f"[enforce_token_limit] Max length for selector: {max_tokens - fixed_messages_tokens}")
+        
+        self.logger.info(f"[enforce_token_limit] System tokens: {system_tokens}")
+        self.logger.info(f"[enforce_token_limit] Current user tokens (after potential truncation): {current_user_tokens}")
+        self.logger.info(f"[enforce_token_limit] Max length for selector (history examples): {max_len_for_examples}")
         self.logger.info(f"[enforce_token_limit] Original history length (examples): {len(examples)}")
-        selected_examples = selector.select_examples({})
+        
+        selected_examples = selector.select_examples({}) # Pass empty dict as input_variables
         self.logger.info(f"[enforce_token_limit] Selected history length (selected_examples): {len(selected_examples)}")
 
         trimmed_messages = [system_msg] + selected_examples + [current_user_msg]
-        self.logger.info(f"[enforce_token_limit] Total messages sent to LLM: {len(trimmed_messages)}")
+        
+        final_estimated_tokens = self._count_tokens(trimmed_messages, example_prompt)
+        self.logger.info(f"[enforce_token_limit] Total messages sent to LLM: {len(trimmed_messages)}, Final estimated tokens: {final_estimated_tokens} (Targeting < {HARD_MAX_TOKENS_API})")
+        
+        if final_estimated_tokens >= HARD_MAX_TOKENS_API:
+            self.logger.error(
+                f"[enforce_token_limit] CRITICAL: Final estimated tokens ({final_estimated_tokens}) "
+                f"still exceed or meet the hard API limit ({HARD_MAX_TOKENS_API}) despite truncation efforts. "
+                f"This indicates a flaw in token estimation or buffer settings."
+            )
+            # Potentially raise an error here or try more aggressive truncation if this happens often.
+
         return trimmed_messages
 
     def _count_tokens(self, messages, prompt_template):
         total = 0
+        # Using 1.4 as a heuristic multiplier for word count to token count.
+        # Average token length is often less than a full word.
+        TOKEN_ESTIMATION_MULTIPLIER = 1.4 
         for msg in messages:
             try:
-                total += len(prompt_template.format(**msg).split())
-            except KeyError: # Handle cases where a message might not have role/content
+                # Format the message using the template (which only uses 'content' and 'role')
+                # then split by space to get word count, then multiply.
+                formatted_msg_content = prompt_template.format(**msg) # Make sure msg has role and content
+                word_count = len(formatted_msg_content.split())
+                estimated_tokens = int(word_count * TOKEN_ESTIMATION_MULTIPLIER)
+                total += estimated_tokens
+            except KeyError: 
                 self.logger.warning(f"Message missing role/content for token counting: {msg}")
+            except Exception as e:
+                self.logger.error(f"Error counting tokens for message {msg}: {e}", exc_info=True)
         return total
 
     async def get_completion(self, messages, query=None, files_rag=None, max_tokens=6000, chat_id=None, is_new_chat=False, attached_file_name=None):
