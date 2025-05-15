@@ -39,10 +39,10 @@ def sanitize_filename(filename):
     return re.sub(r'[<>:"/\\|?*]', '_', filename)
 
 class GroqLangChainLLM(LLM):
-    model: str = "meta-llama/llama-4-maverick-17b-128e-instruct"
+    model: str = "llama3-8b-8192"
     _client: Any = PrivateAttr()
 
-    def __init__(self, model="meta-llama/llama-4-maverick-17b-128e-instruct", **kwargs):
+    def __init__(self, model="llama3-8b-8192", **kwargs):
         super().__init__(model=model, **kwargs)
         self._client = Groq()
 
@@ -163,7 +163,7 @@ class ChatService:
 
     def build_rag(self, file_path, file_ext, chat_id=None):
         """Builds a RAG index from a file_path. (Used by Part 2: Manage RAG Context)"""
-        rag = LangChainRAG(model="meta-llama/llama-4-maverick-17b-128e-instruct") # Consider making model configurable
+        rag = LangChainRAG(model="llama3-8b-8192") # Consider making model configurable
         rag.build_index(file_path, file_type=file_ext)
         if chat_id:
             self.rag_cache[chat_id] = rag
@@ -368,7 +368,7 @@ class ChatService:
             # For now, assuming it's called in a context that can handle this if it blocks briefly,
             # or that this path is less critical for full async behavior if it's just for the first message.
             completion = (groq_client_local.chat.completions.create)(
-                model="meta-llama/llama-4-maverick-17b-128e-instruct",
+                model="llama3-8b-8192",
                 messages=llm_messages,
                 temperature=0.7,
                 max_completion_tokens=1024,
@@ -403,7 +403,7 @@ class ChatService:
         
         # Wrap the synchronous SDK call
         completion = await sync_to_async(groq_client_local.chat.completions.create)(
-            model="meta-llama/llama-4-maverick-17b-128e-instruct",
+            model="llama3-8b-8192",
             messages=trimmed_messages,
             temperature=0.7,
             max_completion_tokens=1024,
@@ -425,21 +425,9 @@ class ChatService:
 
         if is_new_chat:
             llm_messages = [{'role': msg['role'], 'content': msg['content']} for msg in messages]
-            # Wrap the synchronous SDK call for streaming
-            # sync_to_async might not work as expected with generators/iterators returned by stream=True.
-            # The Groq SDK would ideally offer an async client for streaming.
-            # If not, this is a more complex case. A common pattern is to run the sync streaming call in a separate thread.
-            # For now, let's assume this was intended to be a blocking call in the view if is_new_chat was handled differently, 
-            # or the view needs to adapt how it consumes this if it's a sync generator.
-            # Given the current view structure expects an async generator, this is problematic.
-            #
-            # **Simplification for now: If is_new_chat, use get_completion and simulate stream in view, or make get_completion stream-like.**
-            # **For the purpose of this fix, let's assume stream=True with sync_to_async is problematic and needs a different approach for true async streaming.**
-            # **However, the view calls this and then iterates. The issue in the view was sync DB calls, not necessarily this call if the view handles its sync nature.**
-            # **Let's revert to calling it as it was, assuming the caller (sync_wrapper_for_event_stream) handles its sync generator nature.**
-            # The original error was SynchronousOnlyOperation from ORM calls, not directly from here.
+            
             return groq_client_local.chat.completions.create( # Keeping this sync as it returns a generator
-                model="meta-llama/llama-4-maverick-17b-128e-instruct",
+                model="llama3-8b-8192",
                 messages=llm_messages,
                 temperature=0.7,
                 max_completion_tokens=1024,
@@ -475,7 +463,7 @@ class ChatService:
         else:
             # This returns a synchronous generator from the Groq SDK
             return groq_client_local.chat.completions.create(
-                model="meta-llama/llama-4-maverick-17b-128e-instruct",
+                model="llama3-8b-8192",
                 messages=trimmed_messages,
                 temperature=0.7,
                 max_completion_tokens=1024,
