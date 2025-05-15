@@ -14,7 +14,6 @@ window.currentChatId = currentChatId;
 window.isNewChat = isNewChat;
 let abortController = null;
 let isRAGActive = false; // Default if nothing in localStorage
-let isMindMapActive = false; // Default for Mind Map mode
 let isDiagramModeActive = false; // Default for Diagram mode
 
 // Standard getCookie function (now global)
@@ -113,14 +112,6 @@ document.addEventListener("DOMContentLoaded", function () {
 		);
 	}
 
-	const savedMindMapState = localStorage.getItem("mindMapActive");
-	if (savedMindMapState !== null) {
-		isMindMapActive = JSON.parse(savedMindMapState);
-		console.log("Loaded mind map state:", isMindMapActive);
-	} else {
-		localStorage.setItem("mindMapActive", JSON.stringify(isMindMapActive));
-	}
-
 	// DOM elements
 	const form = document.getElementById("chat-form");
 	const textarea = document.getElementById("prompt");
@@ -135,7 +126,6 @@ document.addEventListener("DOMContentLoaded", function () {
 	const manageRagContextBtn = document.getElementById("manage-rag-context-btn");
 	const quizButton = document.getElementById("quiz-button");
 	const quizButtonContainer = document.getElementById("quiz-button-container");
-	const mindMapToggleButton = document.getElementById("mindmap-toggle-button");
 	const diagramModeToggleButton = document.getElementById(
 		"diagram-mode-toggle"
 	);
@@ -623,12 +613,10 @@ document.addEventListener("DOMContentLoaded", function () {
 
 			console.log("Submitting form with states:", {
 				isRAGActive,
-				isMindMapActive,
 				isDiagramModeActive
 			});
 
 			formData.append("rag_mode_active", isRAGActive.toString());
-			formData.append("mind_map_mode_active", isMindMapActive.toString());
 			formData.append("diagram_mode_active", isDiagramModeActive.toString());
 
 			if (isNewChat) {
@@ -1188,14 +1176,6 @@ document.addEventListener("DOMContentLoaded", function () {
 			if (isRAGActive) {
 				setActiveStyles();
 				// If RAG becomes active, disable other modes
-				if (isMindMapActive) {
-					isMindMapActive = false;
-					updateMindMapToggleButtonStyle();
-					localStorage.setItem(
-						"mindMapActive",
-						JSON.stringify(isMindMapActive)
-					);
-				}
 				if (isDiagramModeActive) {
 					isDiagramModeActive = false;
 					updateDiagramModeToggleButtonStyle();
@@ -1266,14 +1246,6 @@ document.addEventListener("DOMContentLoaded", function () {
 					setInactiveStyles(); // Use the RAG inactive style function
 					localStorage.setItem("ragModeActive", JSON.stringify(isRAGActive));
 				}
-				if (isMindMapActive) {
-					isMindMapActive = false;
-					updateMindMapToggleButtonStyle();
-					localStorage.setItem(
-						"mindMapActive",
-						JSON.stringify(isMindMapActive)
-					);
-				}
 			}
 			localStorage.setItem(
 				"diagramModeActive",
@@ -1286,69 +1258,6 @@ document.addEventListener("DOMContentLoaded", function () {
 		});
 	} else {
 		console.warn("Diagram mode toggle button not found in the DOM");
-	}
-
-	// Mind Map Toggle Button Logic
-	function updateMindMapToggleButtonStyle() {
-		if (!mindMapToggleButton) return;
-		if (isMindMapActive) {
-			console.log("Setting mind map active styles");
-			if (mindMapToggleButton.querySelector("svg")) {
-				mindMapToggleButton
-					.querySelector("svg")
-					.classList.remove("text-gray-400");
-				mindMapToggleButton
-					.querySelector("svg")
-					.classList.add("text-purple-400");
-				mindMapToggleButton.classList.add("bg-gray-800"); // Add background for better visual feedback
-			}
-		} else {
-			console.log("Setting mind map inactive styles");
-			if (mindMapToggleButton.querySelector("svg")) {
-				mindMapToggleButton
-					.querySelector("svg")
-					.classList.remove("text-purple-400");
-				mindMapToggleButton.querySelector("svg").classList.add("text-gray-400");
-				mindMapToggleButton.classList.remove("bg-gray-800"); // Remove background
-			}
-		}
-	}
-
-	if (mindMapToggleButton) {
-		console.log("Found mind map toggle button", isMindMapActive);
-
-		updateMindMapToggleButtonStyle(); // Set initial style
-
-		mindMapToggleButton.addEventListener("click", () => {
-			console.log("Mind map button clicked, current state:", isMindMapActive);
-			isMindMapActive = !isMindMapActive;
-			console.log("Toggling mind map mode to:", isMindMapActive);
-
-			updateMindMapToggleButtonStyle();
-			if (isMindMapActive) {
-				// If Mind Map becomes active, disable other modes
-				if (isRAGActive) {
-					isRAGActive = false;
-					setInactiveStyles(); // Use the RAG inactive style function
-					localStorage.setItem("ragModeActive", JSON.stringify(isRAGActive));
-				}
-				if (isDiagramModeActive) {
-					isDiagramModeActive = false;
-					updateDiagramModeToggleButtonStyle();
-					localStorage.setItem(
-						"diagramModeActive",
-						JSON.stringify(isDiagramModeActive)
-					);
-				}
-			}
-			localStorage.setItem("mindMapActive", JSON.stringify(isMindMapActive));
-			appendSystemNotification(
-				`Mind Map mode is now ${isMindMapActive ? "ACTIVE" : "INACTIVE"}.`,
-				"info"
-			);
-		});
-	} else {
-		console.warn("Mind Map toggle button not found in the DOM");
 	}
 
 	// Initial calls for existing messages (if any)

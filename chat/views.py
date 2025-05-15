@@ -426,7 +426,7 @@ class ChatStreamView(View):
         response = StreamingHttpResponse(sync_wrapper_for_event_stream(), content_type='text/event-stream')
         response['Cache-Control'] = 'no-cache'
         response['X-Accel-Buffering'] = 'no'
-        logger.info("StreamingHttpResponse returned for mindmap (or other).")
+        logger.info("StreamingHttpResponse returned.")
         return response
 
 
