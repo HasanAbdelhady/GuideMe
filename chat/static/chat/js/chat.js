@@ -518,6 +518,22 @@ document.addEventListener("DOMContentLoaded", function () {
 							}
 						} else if (data.type === "error") {
 							appendSystemNotification(data.content, "error");
+						} else if (data.type === "diagram_image") {
+							// Handle diagram image message
+							console.log("Received diagram image:", data);
+							if (data.image_url) {
+								appendDiagramMessage(
+									data.image_url,
+									data.text_content || "Generated Diagram",
+									data.message_id
+								);
+								isFirstChunk = false; // Ensure we don't create another message
+							} else {
+								appendSystemNotification(
+									"Error: Received diagram response without image URL",
+									"error"
+								);
+							}
 						} else if (data.type === "done") {
 							removeTypingIndicator();
 						}
