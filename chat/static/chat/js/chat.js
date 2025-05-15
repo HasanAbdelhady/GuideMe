@@ -264,80 +264,121 @@ document.addEventListener("DOMContentLoaded", function () {
 	}
 
 	// Append message
-	function appendMessage(role, content) {
-		const messagesDiv = document.getElementById("chat-messages");
-
-		// Remove empty placeholder if present
-		const placeholder = messagesDiv.querySelector(
-			".flex.flex-col.items-center.justify-center"
-		);
-		if (placeholder) placeholder.remove();
-
+	function appendMessage(
+		role,
+		content,
+		messageId = null,
+		type = "text",
+		quizHtml = null
+	) {
+		const messagesContainer = document.getElementById("chat-messages");
 		const messageDiv = document.createElement("div");
-		messageDiv.className = `message-enter px-4 md:px-6 py-6`;
-
-		let iconHtml = "";
-		let contentWrapperClass = "";
-		let actualContentHtml = "";
-		let mainContainerClass = "chat-container flex gap-4 md:gap-6";
+		messageDiv.className = "message-enter px-4 md:px-6 py-6";
 
 		if (role === "user") {
-			mainContainerClass =
-				"chat-container flex flex-row-reverse gap-4 md:gap-6 justify-start";
-			iconHtml = `<div class="w-7 h-7 rounded-sm bg-[#5436DA] flex items-center justify-center text-white text-xs font-semibold">U</div>`;
-			contentWrapperClass = "overflow-x-auto max-w-[75%]";
-			actualContentHtml = `<div class="user-message text-gray-100 bg-[#444654] p-3 rounded-lg"><p class="whitespace-pre-wrap">${content}</p></div>`;
+			// User message - right aligned
+			messageDiv.innerHTML = `
+				<div class="chat-container flex flex-row-reverse gap-4 md:gap-6 justify-start">
+					<!-- User icon - right side -->
+					<div class="flex-shrink-0 w-7 h-7">
+						<div class="w-7 h-7 rounded-sm bg-[#5436DA] flex items-center justify-center text-white text-xs font-semibold">U</div>
+					</div>
+					<!-- Message content -->
+					<div class="overflow-x-auto max-w-[75%]">
+						<div class="user-message text-gray-100 bg-[#444654] p-3 rounded-lg message-text-container" data-message-id="${
+							messageId || ""
+						}" data-created-at="${new Date().toISOString()}">
+							<p class="whitespace-pre-wrap message-content-text">${content}</p>
+							<div class="edit-controls hidden mt-2">
+								<textarea class="edit-message-textarea w-full p-2 rounded bg-gray-700 border border-gray-600 text-gray-100 resize-none" rows="3"></textarea>
+								<div class="flex justify-end gap-2 mt-2">
+									<button class="cancel-edit-btn px-3 py-1 text-xs bg-gray-600 hover:bg-gray-500 rounded text-white">Cancel</button>
+									<button class="save-edit-btn px-3 py-1 text-xs bg-blue-600 hover:bg-blue-500 rounded text-white">Save</button>
+								</div>
+							</div>
+						</div>
+						<!-- Edit button moved here, under the message box -->
+						<div class="flex justify-end mt-1 pr-1">
+							<button class="edit-message-btn p-1 text-gray-400 hover:text-gray-200 transition-opacity" data-message-id="${
+								messageId || ""
+							}" title="Edit message">
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+									<path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+								</svg>
+							</button>
+						</div>
+					</div>
+				</div>
+			`;
 		} else {
-			// Assistant
-			iconHtml = `<div class="cls w-10 h-7 p-1 rounded-sm bg-slate-100 flex items-center justify-center text-white">
-								<img src="/static/images/logo.png" alt="Assistant icon" class="h-5 w-7">
-							</div>`;
-			contentWrapperClass = "flex-1 overflow-x-auto min-w-0 max-w-[85%]";
-			if (
-				content.includes('<div class="quiz-question"') ||
-				content.includes('<div class="quiz-message"')
-			) {
-				actualContentHtml = `<div class="quiz-message max-w-none text-gray-100 bg-gray-700/70 p-2 rounded-xl">${content}</div>`;
-			} else {
-				// For normal assistant messages, create an empty div, content will be set later by textContent
-				actualContentHtml = `<div class="max-w-none markdown-content text-gray-100"></div>`;
+			// Assistant message - left aligned
+			messageDiv.innerHTML = `
+				<div class="chat-container flex gap-4 md:gap-6">
+					<!-- Assistant icon - left side -->
+					<div class="flex-shrink-0 w-7 h-7">
+						<div class="cls w-10 h-7 p-1 rounded-sm bg-slate-100 flex items-center justify-center text-white">
+							<img src="/static/images/logo.png" alt="Assistant icon" class="h-5 w-7">
+						</div>
+					</div>
+					<!-- Message content -->
+					<div class="flex-1 overflow-x-auto min-w-0 max-w-[85%]">
+						${
+							type === "quiz"
+								? `<div class="quiz-message max-w-none text-gray-100 bg-gray-700/70 p-2 rounded-xl">${quizHtml}</div>`
+								: type === "diagram"
+								? `<div class="diagram-message-container bg-gray-800/50 p-2 my-2 rounded-lg shadow-md flex flex-col justify-center items-center">
+								<img src="${content}" alt="Generated Diagram" class="max-w-full h-auto rounded-md mb-1 cursor-pointer hover:opacity-90 transition-opacity" onclick="openImageModal('${content}')">
+								${
+									messageId
+										? `<p class="text-xs text-gray-400 italic mt-1 text-center">${messageId}</p>`
+										: ""
+								}
+							</div>`
+								: `<div class="max-w-none markdown-content text-gray-100">${content}</div>`
+						}
+					</div>
+				</div>
+			`;
+
+			// If this is a quiz message, initialize it immediately
+			if (type === "quiz") {
+				// Wait for the DOM to update
+				setTimeout(() => {
+					const quizMessage = messageDiv.querySelector(".quiz-message");
+					if (quizMessage) {
+						// Apply quiz-specific fixes
+						unwrapQuizMessageCodeBlocks();
+						fixEscapedQuizMessages();
+						fixFirstLineQuizPreCode();
+
+						// Initialize any quiz-specific event listeners
+						const quizForms = quizMessage.querySelectorAll("form");
+						quizForms.forEach((form) => {
+							form.addEventListener("submit", function (e) {
+								e.preventDefault();
+								const questionDiv = this.closest(".quiz-question");
+								const correctAnswer = questionDiv.dataset.correct;
+								const selectedAnswer = this.querySelector(
+									'input[type="radio"]:checked'
+								)?.value;
+
+								const feedbackDiv = questionDiv.querySelector(".quiz-feedback");
+								if (selectedAnswer === correctAnswer) {
+									feedbackDiv.textContent = "Correct!";
+									feedbackDiv.className = "quiz-feedback mt-1.5 text-green-400";
+								} else {
+									feedbackDiv.textContent = "Incorrect. Try again!";
+									feedbackDiv.className = "quiz-feedback mt-1.5 text-red-400";
+								}
+							});
+						});
+					}
+				}, 0);
 			}
 		}
 
-		messageDiv.innerHTML = `
-			<div class="${mainContainerClass}">
-				<div class="flex-shrink-0 w-7 h-7">
-					${iconHtml}
-				</div>
-				<div class="${contentWrapperClass}">
-					${actualContentHtml}
-				</div>
-			</div>
-		`;
-
-		messagesDiv.appendChild(messageDiv);
-
-		// If assistant and content is NOT quiz, set textContent for later parsing by marked.js
-		if (role === "assistant") {
-			if (
-				!(
-					content.includes('<div class="quiz-question"') ||
-					content.includes('<div class="quiz-message"')
-				)
-			) {
-				const markdownContainer = messageDiv.querySelector(".markdown-content");
-				if (markdownContainer) {
-					markdownContainer.textContent = content;
-				}
-			}
-		}
-
+		messagesContainer.appendChild(messageDiv);
 		smoothScrollToBottom();
-		// Return the div where content (text or HTML) is placed.
-		if (role === "assistant") {
-			return messageDiv.querySelector(".markdown-content, .quiz-message");
-		}
-		return null; // For user messages, not typically needed by caller
 	}
 
 	// New function to append system notifications
@@ -394,170 +435,103 @@ document.addEventListener("DOMContentLoaded", function () {
 	}
 
 	async function handleStreamResponse(response) {
-		if (!response.ok) throw new Error("Failed to get response");
-		removeTypingIndicator();
-
-		const messageDiv = document.createElement("div");
-		messageDiv.className = "message-enter px-4 md:px-6 py-6";
-		messageDiv.innerHTML = `
-			<div class="chat-container flex gap-4 md:gap-6">
-				<div class="flex-shrink-0 w-7 h-7">
-					<div class="cls w-10 h-7 p-1 rounded-sm bg-slate-100 flex items-center justify-center text-white">
-						<img src="/static/images/logo.png" alt="Assistant icon" class="h-5 w-7">
-					</div>
-				</div>
-				<div class="flex-1 overflow-x-auto min-w-0 max-w-[85%]">
-					<div class="max-w-none markdown-content text-gray-100"></div>
-				</div>
-			</div>
-		`;
-
-		document.getElementById("chat-messages").appendChild(messageDiv);
-		const markdownContainer = messageDiv.querySelector(".markdown-content");
-		let assistantMessage = "";
+		const reader = response.body.getReader();
+		const decoder = new TextDecoder();
+		let buffer = "";
+		let currentMessageContainer = null;
+		let isFirstChunk = true;
 
 		try {
-			const reader = response.body.getReader();
-			const decoder = new TextDecoder();
-
 			while (true) {
-				const { done, value } = await reader.read();
+				const { value, done } = await reader.read();
 				if (done) break;
 
-				const chunk = decoder.decode(value);
-				const lines = chunk.split("\n\n");
+				buffer += decoder.decode(value, { stream: true });
+				const lines = buffer.split("\n");
+				buffer = lines.pop() || "";
 
 				for (const line of lines) {
 					if (line.startsWith("data: ")) {
-						try {
-							const data = JSON.parse(line.slice(6));
+						const data = JSON.parse(line.slice(6));
 
-							switch (data.type) {
-								case "content":
-									assistantMessage += data.content;
-									markdownContainer.innerHTML = marked.parse(assistantMessage);
-									markdownContainer
-										.querySelectorAll("pre code")
-										.forEach((block) => {
-											if (!block.classList.contains("hljs")) {
-												hljs.highlightElement(block);
+						if (data.type === "quiz") {
+							// Handle quiz message
+							if (isFirstChunk) {
+								currentMessageContainer = appendMessage(
+									"assistant",
+									"",
+									data.message_id,
+									"quiz",
+									data.quiz_html
+								);
+								isFirstChunk = false;
+							} else {
+								// Update existing quiz message
+								const quizMessage = document.querySelector(
+									".quiz-message:last-child"
+								);
+								if (quizMessage) {
+									quizMessage.innerHTML = data.quiz_html;
+									// Apply quiz-specific fixes
+									unwrapQuizMessageCodeBlocks();
+									fixEscapedQuizMessages();
+									fixFirstLineQuizPreCode();
+
+									// Initialize quiz event listeners
+									const quizForms = quizMessage.querySelectorAll("form");
+									quizForms.forEach((form) => {
+										form.addEventListener("submit", function (e) {
+											e.preventDefault();
+											const questionDiv = this.closest(".quiz-question");
+											const correctAnswer = questionDiv.dataset.correct;
+											const selectedAnswer = this.querySelector(
+												'input[type="radio"]:checked'
+											)?.value;
+
+											const feedbackDiv =
+												questionDiv.querySelector(".quiz-feedback");
+											if (selectedAnswer === correctAnswer) {
+												feedbackDiv.textContent = "Correct!";
+												feedbackDiv.className =
+													"quiz-feedback mt-1.5 text-green-400";
+											} else {
+												feedbackDiv.textContent = "Incorrect. Try again!";
+												feedbackDiv.className =
+													"quiz-feedback mt-1.5 text-red-400";
 											}
 										});
-									if (typeof initializeCodeBlockFeatures === "function") {
-										initializeCodeBlockFeatures(markdownContainer);
-									}
-									smoothScrollToBottom();
-									break;
-
-								case "diagram_image":
-									console.log("Received diagram image data:", data);
-									// Remove the typing container since we're going to add a new diagram container
-									messageDiv.remove();
-
-									// Construct the full image URL
-									let imageUrl = data.image_url;
-									if (imageUrl) {
-										// Make sure we have the proper /media/ prefix
-										if (
-											!imageUrl.startsWith("http") &&
-											!imageUrl.startsWith("/media/")
-										) {
-											imageUrl = `/media/${imageUrl}`;
-										}
-										console.log("Full diagram image URL:", imageUrl);
-									} else {
-										console.error("Missing image URL in diagram data:", data);
-									}
-
-									// Create a diagram message container
-									const diagramMsgDiv = document.createElement("div");
-									diagramMsgDiv.className = "message-enter px-4 md:px-6 py-6";
-									diagramMsgDiv.innerHTML = `
-										<div class="chat-container flex gap-4 md:gap-6">
-											<div class="flex-shrink-0 w-7 h-7">
-												<div class="cls w-10 h-7 p-1 rounded-sm bg-slate-100 flex items-center justify-center text-white">
-													<img src="/static/images/logo.png" alt="Assistant icon" class="h-5 w-7">
-												</div>
-											</div>
-											<div class="flex-1 overflow-x-auto min-w-0 max-w-[85%]">
-												<div class="diagram-message-container bg-gray-800/50 p-2 my-2 rounded-lg shadow-md flex flex-col justify-center items-center">
-													<img src="${imageUrl}" alt="Generated Diagram" class="max-w-full h-auto rounded-md mb-1 cursor-pointer hover:opacity-90 transition-opacity" onclick="openImageModal('${imageUrl}')">
-													<p class="text-xs text-gray-400 italic mt-1 text-center">${
-														data.text_content || ""
-													}</p>
-												</div>
-											</div>
-										</div>
-									`;
-									document
-										.getElementById("chat-messages")
-										.appendChild(diagramMsgDiv);
-									smoothScrollToBottom();
-									break;
-
-								case "mindmap_image": // Handle new SSE event type for mind map static images
-									if (data.image_html) {
-										const mindMapImageMsgDiv = document.createElement("div");
-										mindMapImageMsgDiv.className =
-											"message-enter px-4 md:px-6 py-6";
-										mindMapImageMsgDiv.innerHTML = `
-											<div class="chat-container flex gap-4 md:gap-6">
-												<div class="flex-shrink-0 w-7 h-7">
-													<div class="cls w-10 h-7 p-1 rounded-sm bg-slate-100 flex items-center justify-center text-white">
-														<img src="/static/images/logo.png" alt="Assistant icon" class="h-5 w-7">
-													</div>
-												</div>
-												<div class="flex-1 overflow-x-auto min-w-0 max-w-[85%]">
-													<div class="mindmap-image-message-container bg-gray-800/50 p-1 rounded-lg shadow-md flex justify-center items-center">
-														${data.image_html} 
-													</div>
-												</div>
-											</div>
-										`;
-										document
-											.getElementById("chat-messages")
-											.appendChild(mindMapImageMsgDiv);
-										smoothScrollToBottom();
-									}
-									break;
-
-								case "file_info": // Handle new SSE event type
-									if (data.status === "truncated" && data.message) {
-										appendSystemNotification(data.message, "warning");
-									}
-									break;
-
-								case "error":
-									markdownContainer.innerHTML = `<div class="text-red-400">Error: ${data.content}</div>`;
-									break;
-
-								case "done":
-									// Final formatting pass
-									markdownContainer.innerHTML = marked.parse(assistantMessage);
-									markdownContainer
-										.querySelectorAll("pre code")
-										.forEach((block) => {
-											hljs.highlightElement(block);
-										});
-									if (typeof initializeCodeBlockFeatures === "function") {
-										initializeCodeBlockFeatures(markdownContainer);
-									}
-									break;
+									});
+								}
 							}
-						} catch (e) {
-							console.error("Failed to parse streaming data:", e);
+						} else if (data.type === "content") {
+							// Handle regular content message
+							if (isFirstChunk) {
+								currentMessageContainer = appendMessage(
+									"assistant",
+									data.content,
+									null,
+									"text"
+								);
+								isFirstChunk = false;
+							} else {
+								updateAssistantMessage(currentMessageContainer, data.content);
+							}
+						} else if (data.type === "error") {
+							appendSystemNotification(data.content, "error");
+						} else if (data.type === "done") {
+							removeTypingIndicator();
 						}
 					}
 				}
 			}
 		} catch (error) {
-			if (error.name !== "AbortError") {
-				console.error("Stream error:", error);
-				markdownContainer.innerHTML = `<div class="text-red-400">Error: ${error.message}</div>`;
-			}
+			console.error("Error processing stream:", error);
+			appendSystemNotification(
+				"An error occurred while processing the response.",
+				"error"
+			);
 		} finally {
-			stopButton.classList.add("hidden");
-			smoothScrollToBottom();
+			removeTypingIndicator();
 		}
 	}
 
@@ -1345,9 +1319,128 @@ document.addEventListener("DOMContentLoaded", function () {
 			});
 		}
 	});
+
+	// Initialize chat configuration
+	const chatConfigElement = document.getElementById("chat-config");
+	if (chatConfigElement) {
+		try {
+			const config = JSON.parse(chatConfigElement.textContent);
+			window.currentChatId = config.currentChatId;
+			window.isNewChat = config.isNewChat;
+		} catch (e) {
+			console.error("Failed to parse chat config:", e);
+			window.currentChatId = window.location.pathname.includes("/new/")
+				? "new"
+				: window.location.pathname.split("/").filter(Boolean).pop();
+			window.isNewChat = window.currentChatId === "new";
+		}
+	} else {
+		console.warn("Chat config script block not found. Inferring from URL.");
+		window.currentChatId = window.location.pathname.includes("/new/")
+			? "new"
+			: window.location.pathname.split("/").filter(Boolean).pop();
+		window.isNewChat = window.currentChatId === "new";
+	}
+	updateNewChatUI(window.isNewChat);
+
+	// Initialize existing quizzes
+	const existingQuizAreas = document.querySelectorAll(
+		".quiz-render-area[data-quiz-json]"
+	);
+	existingQuizAreas.forEach((area) => {
+		if (
+			window.QuizRenderer &&
+			typeof window.QuizRenderer.renderQuiz === "function"
+		) {
+			try {
+				window.QuizRenderer.renderQuiz(area);
+			} catch (e) {
+				console.error("Error rendering existing quiz:", e, area);
+				area.innerHTML =
+					"<p class='text-red-400 p-2'>Error rendering quiz.</p>";
+			}
+		} else {
+			console.error("QuizRenderer not available for existing quizzes.");
+			area.innerHTML =
+				"<p class='text-red-400 p-2'>Quiz display component failed to load.</p>";
+		}
+	});
+
+	// Initialize quiz button if it exists
+	if (quizButton) {
+		quizButton.addEventListener("click", handleQuizButtonClick);
+	}
 });
 
-// Utility: Fix quiz-message blocks that are wrapped in <pre><code>
+function updateNewChatUI(isNew) {
+	const quizButtonContainer = document.getElementById("quiz-button-container");
+	const manageRagButton = document.getElementById("manage-rag-context-btn");
+
+	if (isNew) {
+		if (quizButtonContainer) quizButtonContainer.classList.add("hidden");
+		if (manageRagButton) manageRagButton.classList.add("hidden");
+	} else {
+		if (quizButtonContainer) quizButtonContainer.classList.remove("hidden");
+		if (manageRagButton) manageRagButton.classList.remove("hidden");
+	}
+}
+
+async function handleQuizButtonClick() {
+	if (
+		!window.currentChatId ||
+		window.currentChatId === "new" ||
+		window.isNewChat
+	) {
+		alert("Please start the chat with a message before generating a quiz.");
+		return;
+	}
+
+	const quizButton = document.getElementById("quiz-button");
+	quizButton.disabled = true;
+	quizButton.innerHTML =
+		'<span class="animate-pulse">Generating Quiz...</span>';
+
+	try {
+		const response = await fetch(`/chat/${window.currentChatId}/quiz/`, {
+			method: "POST",
+			headers: {
+				"X-CSRFToken": getCookie("csrftoken"),
+				"Content-Type": "application/json",
+				"X-Requested-With": "XMLHttpRequest"
+			}
+		});
+
+		if (!response.ok) {
+			const errorData = await response.json().catch(() => ({
+				error: "Failed to generate quiz. Server returned an unreadable error."
+			}));
+			console.error("Error generating quiz:", errorData);
+			appendMessage(
+				"assistant",
+				`Error: ${errorData.error || "Could not generate quiz."}`,
+				null,
+				"error"
+			);
+			return;
+		}
+
+		// Process the response as a stream
+		await handleStreamResponse(response);
+	} catch (error) {
+		console.error("Network or other error during quiz generation:", error);
+		appendMessage(
+			"assistant",
+			"Error: A network error occurred. Please check your connection and try again.",
+			null,
+			"error"
+		);
+	} finally {
+		quizButton.disabled = false;
+		quizButton.textContent = "Quiz";
+	}
+}
+
+// Update the quiz-specific fix functions to be more robust
 function unwrapQuizMessageCodeBlocks() {
 	document.querySelectorAll(".quiz-message").forEach((quizMsg) => {
 		const pre = quizMsg.querySelector("pre");
@@ -1358,30 +1451,22 @@ function unwrapQuizMessageCodeBlocks() {
 			temp.innerHTML = code.innerHTML;
 			const divs = temp.querySelectorAll("div.quiz-question, div.quiz-message");
 			if (divs.length > 0) {
+				// Clear the quiz message and append the unwrapped content
+				quizMsg.innerHTML = "";
 				divs.forEach((div) => quizMsg.appendChild(div));
-				pre.remove();
 			}
 		}
 	});
 }
 
 function fixEscapedQuizMessages() {
-	document.querySelectorAll(".quiz-message pre code").forEach((code) => {
-		const html = code.innerHTML.trim();
-		// Detect if it looks like escaped quiz HTML
-		if (
-			html.startsWith('&lt;div class="quiz-question"') ||
-			html.startsWith('&lt;div class="quiz-message"')
-		) {
-			// Unescape HTML entities
+	document.querySelectorAll(".quiz-message").forEach((quizMsg) => {
+		// Check if the content is escaped HTML
+		if (quizMsg.innerHTML.includes('&lt;div class="quiz-question"')) {
 			const temp = document.createElement("textarea");
-			temp.innerHTML = html;
+			temp.innerHTML = quizMsg.innerHTML;
 			const unescaped = temp.value;
-			// Replace the parent .quiz-message content with real HTML
-			const quizMsg = code.closest(".quiz-message");
-			if (quizMsg) {
-				quizMsg.innerHTML = unescaped;
-			}
+			quizMsg.innerHTML = unescaped;
 		}
 	});
 }
@@ -1398,10 +1483,8 @@ function fixFirstLineQuizPreCode() {
 				const temp = document.createElement("textarea");
 				temp.innerHTML = code.textContent.trim();
 				const unescaped = temp.value;
-				// Remove the <pre> block
-				pre.remove();
-				// Prepend the unescaped line to the quiz-message's innerHTML
-				quizMsg.innerHTML = unescaped + quizMsg.innerHTML;
+				// Remove the <pre> block and set the unescaped content
+				quizMsg.innerHTML = unescaped;
 			}
 		}
 	});
