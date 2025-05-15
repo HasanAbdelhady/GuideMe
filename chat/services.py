@@ -39,10 +39,10 @@ def sanitize_filename(filename):
     return re.sub(r'[<>:"/\\|?*]', '_', filename)
 
 class GroqLangChainLLM(LLM):
-    model: str = "llama3-8b-8192"
+    model: str = "meta-llama/llama-4-maverick-17b-128e-instruct"
     _client: Any = PrivateAttr()
 
-    def __init__(self, model="llama3-8b-8192", **kwargs):
+    def __init__(self, model="meta-llama/llama-4-maverick-17b-128e-instruct", **kwargs):
         super().__init__(model=model, **kwargs)
         self._client = Groq()
 
@@ -163,7 +163,7 @@ class ChatService:
 
     def build_rag(self, file_path, file_ext, chat_id=None):
         """Builds a RAG index from a file_path. (Used by Part 2: Manage RAG Context)"""
-        rag = LangChainRAG(model="llama3-8b-8192") # Consider making model configurable
+        rag = LangChainRAG(model="meta-llama/llama-4-maverick-17b-128e-instruct") # Consider making model configurable
         rag.build_index(file_path, file_type=file_ext)
         if chat_id:
             self.rag_cache[chat_id] = rag
@@ -368,7 +368,7 @@ class ChatService:
             # For now, assuming it's called in a context that can handle this if it blocks briefly,
             # or that this path is less critical for full async behavior if it's just for the first message.
             completion = (groq_client_local.chat.completions.create)(
-                model="llama3-8b-8192",
+                model="meta-llama/llama-4-maverick-17b-128e-instruct",
                 messages=llm_messages,
                 temperature=0.7,
                 max_completion_tokens=1024,
@@ -403,7 +403,7 @@ class ChatService:
         
         # Wrap the synchronous SDK call
         completion = await sync_to_async(groq_client_local.chat.completions.create)(
-            model="llama3-8b-8192",
+            model="meta-llama/llama-4-maverick-17b-128e-instruct",
             messages=trimmed_messages,
             temperature=0.7,
             max_completion_tokens=1024,
@@ -439,7 +439,7 @@ class ChatService:
             # **Let's revert to calling it as it was, assuming the caller (sync_wrapper_for_event_stream) handles its sync generator nature.**
             # The original error was SynchronousOnlyOperation from ORM calls, not directly from here.
             return groq_client_local.chat.completions.create( # Keeping this sync as it returns a generator
-                model="llama3-8b-8192",
+                model="meta-llama/llama-4-maverick-17b-128e-instruct",
                 messages=llm_messages,
                 temperature=0.7,
                 max_completion_tokens=1024,
@@ -475,7 +475,7 @@ class ChatService:
         else:
             # This returns a synchronous generator from the Groq SDK
             return groq_client_local.chat.completions.create(
-                model="llama3-8b-8192",
+                model="meta-llama/llama-4-maverick-17b-128e-instruct",
                 messages=trimmed_messages,
                 temperature=0.7,
                 max_completion_tokens=1024,
