@@ -84,6 +84,10 @@ DATABASES = {
         'PASSWORD': tmpPostgres.password,
         'HOST': tmpPostgres.hostname,
         'PORT': 5432,
+        'CONN_MAX_AGE': 60,  # Keep connections open for 60 seconds
+        'OPTIONS': {
+            'connect_timeout': 10,
+        }
     }
 }
 
