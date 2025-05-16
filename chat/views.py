@@ -374,24 +374,41 @@ class ChatStreamView(View):
                     return 
                 else:
                     logger.info("Got stream from chat_service.stream_completion.")
-                    first_chunk_processed = False
+                    accumulated_response_for_db = "" # For DB saving
+                    frontend_buffer = ""             # Buffer for sending to frontend
+                    BUFFER_LENGTH_THRESHOLD_CHARS = 50
+
                     for chunk in stream:
                         content = getattr(chunk.choices[0].delta, "content", None)
                         if content:
-                            accumulated_response += content
-                            yield f"data: {json.dumps({'type': 'content', 'content': content})}\n\n"
-                            if not first_chunk_processed:
-                                first_chunk_processed = True
+                            accumulated_response_for_db += content
+                            frontend_buffer += content
 
-                if accumulated_response: 
-                    await sync_to_async(Message.objects.create)(chat=chat, role='assistant', content=accumulated_response)
-                    logger.info("Assistant message created from accumulated stream.")
-                    yield f"data: {json.dumps({'type': 'done'})}\n\n"
+                            if ("\n" in frontend_buffer) or (len(frontend_buffer) >= BUFFER_LENGTH_THRESHOLD_CHARS):
+                                yield f"data: {json.dumps({'type': 'content', 'content': frontend_buffer})}\n\n"
+                                frontend_buffer = "" # Reset buffer
+                    
+                    # After the loop, send any remaining content in the buffer
+                    if frontend_buffer:
+                        yield f"data: {json.dumps({'type': 'content', 'content': frontend_buffer})}\n\n"
+                        frontend_buffer = "" # Clear buffer
+
+                    # The full response is in accumulated_response_for_db for saving
+                    if accumulated_response_for_db:
+                        # DB saving uses this var.
+                        # Note: The 'accumulated_response' variable mentioned in comments below was specific
+                        # to a previous structure. Here, accumulated_response_for_db holds the full text.
+                        await sync_to_async(Message.objects.create)(chat=chat, role='assistant', content=accumulated_response_for_db)
+                        logger.info("Assistant message created from accumulated stream (buffered).")
+                    
+                    yield f"data: {json.dumps({'type': 'done'})}\\n\\n" # Signal completion
+                    
                     if files_rag_instance:
                         rag_stats = {
                             'file_chunks_used': len(files_rag_instance.chunks) if files_rag_instance and hasattr(files_rag_instance, 'chunks') else 0,
                         }
-                        yield f"data: {json.dumps({'type': 'metadata', 'content': rag_stats})}\n\n"
+                        yield f"data: {json.dumps({'type': 'metadata', 'content': rag_stats})}\\n\\n"
+                    return # Explicitly return to end the generator
 
             except APIStatusError as e:
                 logger.error(f"Groq APIStatusError in stream_response.event_stream_async: Status {e.status_code}, Response: {e.response.text if e.response else 'No response body'}", exc_info=True)
@@ -590,7 +607,7 @@ Conversation:
         role='assistant',
         type='quiz',
         quiz_html=processed_quiz_html, # Storing HTML string here
-        content='' 
+        content=''
     )
 
     # Return the HTML string to the client
