@@ -13,8 +13,8 @@ let isNewChat = chatConfig.isNewChat;
 window.currentChatId = currentChatId;
 window.isNewChat = isNewChat;
 let abortController = null;
-let isRAGActive = false; // Default if nothing in localStorage
-let isDiagramModeActive = false; // Default for Diagram mode
+let isRAGActive = true; // Default if nothing in localStorage
+let isMindMapActive = false; // Default for Mind Map mode
 
 // Standard getCookie function (now global)
 window.getCookie = function (name) {
@@ -32,116 +32,8 @@ window.getCookie = function (name) {
 	return cookieValue;
 };
 
-// Image modal functions - global scope for inline event handlers
-function openImageModal(imgSrc) {
-	// Create modal overlay if it doesn't exist
-	let modalOverlay = document.getElementById("image-modal-overlay");
-	if (!modalOverlay) {
-		modalOverlay = document.createElement("div");
-		modalOverlay.id = "image-modal-overlay";
-		modalOverlay.className =
-			"fixed inset-0 bg-black bg-opacity-80 z-50 flex items-center justify-center opacity-0 pointer-events-none transition-opacity duration-300";
-		modalOverlay.innerHTML = `
-			<div class="relative max-w-full max-h-full p-4">
-				<img id="modal-image" src="" alt="Enlarged diagram" class="max-w-full max-h-[90vh] rounded-lg shadow-xl transform scale-95 transition-transform duration-300">
-				<button id="close-image-modal" class="absolute top-0 right-0 -mt-4 -mr-4 bg-red-600 text-white rounded-full p-2 hover:bg-red-700 focus:outline-none">
-					<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-					</svg>
-				</button>
-			</div>
-		`;
-		document.body.appendChild(modalOverlay);
-
-		// Add event listener to close when clicked outside or on close button
-		modalOverlay.addEventListener("click", (e) => {
-			if (e.target === modalOverlay) {
-				closeImageModal();
-			}
-		});
-		document
-			.getElementById("close-image-modal")
-			.addEventListener("click", closeImageModal);
-	}
-
-	// Set the image source and show the modal
-	const modalImage = document.getElementById("modal-image");
-	modalImage.src = imgSrc;
-
-	// Show the modal with animation
-	modalOverlay.classList.remove("opacity-0", "pointer-events-none");
-	setTimeout(() => {
-		document.getElementById("modal-image").classList.remove("scale-95");
-		document.getElementById("modal-image").classList.add("scale-100");
-	}, 10);
-}
-
-function closeImageModal() {
-	const modalOverlay = document.getElementById("image-modal-overlay");
-	if (modalOverlay) {
-		document.getElementById("modal-image").classList.remove("scale-100");
-		document.getElementById("modal-image").classList.add("scale-95");
-		modalOverlay.classList.add("opacity-0");
-		setTimeout(() => {
-			modalOverlay.classList.add("pointer-events-none");
-		}, 300);
-	}
-}
-
-// Centralized function to initialize quiz forms
-function initializeQuizForms(parentElement) {
-	const quizForms = parentElement.querySelectorAll(".quiz-question form");
-	quizForms.forEach((form) => {
-		// Prevent multiple listeners if function is called multiple times on same element
-		if (form.dataset.quizInitialized) return;
-		form.dataset.quizInitialized = "true";
-
-		form.addEventListener("submit", function (e) {
-			e.preventDefault();
-			const questionDiv = this.closest(".quiz-question");
-			const correctAnswer = questionDiv.dataset.correct;
-			const selectedAnswer = this.querySelector(
-				'input[type="radio"]:checked'
-			)?.value;
-
-			const feedbackDiv = questionDiv.querySelector(".quiz-feedback");
-			if (feedbackDiv) {
-				if (selectedAnswer === correctAnswer) {
-					feedbackDiv.textContent = "Correct!";
-					feedbackDiv.className = "quiz-feedback mt-1.5 text-green-400";
-				} else {
-					feedbackDiv.textContent = "Incorrect. Try again!";
-					feedbackDiv.className = "quiz-feedback mt-1.5 text-red-400";
-				}
-			}
-		});
-	});
-}
-
 // Wrap all logic in DOMContentLoaded
 document.addEventListener("DOMContentLoaded", function () {
-	console.log("Initializing chat.js");
-
-	// Load saved states at the beginning, before initializing UI
-	const savedRAGState = localStorage.getItem("ragModeActive");
-	if (savedRAGState !== null) {
-		isRAGActive = JSON.parse(savedRAGState);
-		console.log("Loaded RAG state:", isRAGActive);
-	} else {
-		localStorage.setItem("ragModeActive", JSON.stringify(isRAGActive));
-	}
-
-	const savedDiagramModeState = localStorage.getItem("diagramModeActive");
-	if (savedDiagramModeState !== null) {
-		isDiagramModeActive = JSON.parse(savedDiagramModeState);
-		console.log("Loaded diagram mode state:", isDiagramModeActive);
-	} else {
-		localStorage.setItem(
-			"diagramModeActive",
-			JSON.stringify(isDiagramModeActive)
-		);
-	}
-
 	// DOM elements
 	const form = document.getElementById("chat-form");
 	const textarea = document.getElementById("prompt");
@@ -152,14 +44,10 @@ document.addEventListener("DOMContentLoaded", function () {
 	const sidebarToggle = document.getElementById("sidebar-toggle");
 	const sidebar = document.getElementById("sidebar");
 	const mainContent = document.getElementById("main-content");
-	const ragToggleButton = document.getElementById("rag-mode-toggle");
-	const manageRagContextBtn = document.getElementById("manage-rag-context-btn");
+	const ragToggleButton = document.getElementById("rag-toggle-button");
 	const quizButton = document.getElementById("quiz-button");
 	const quizButtonContainer = document.getElementById("quiz-button-container");
-	const diagramModeToggleButton = document.getElementById(
-		"diagram-mode-toggle"
-	);
-	const ragModalOverlay = document.getElementById("rag-modal-overlay");
+	const mindMapToggleButton = document.getElementById("mindmap-toggle-button"); // Get the new button
 
 	// Sidebar toggle
 	let sidebarOpen = false;
@@ -294,128 +182,80 @@ document.addEventListener("DOMContentLoaded", function () {
 	}
 
 	// Append message
-	function appendMessage(
-		role,
-		content,
-		messageId = null,
-		type = "text",
-		quizHtml = null
-	) {
-		const messagesContainer = document.getElementById("chat-messages");
+	function appendMessage(role, content) {
+		const messagesDiv = document.getElementById("chat-messages");
+
+		// Remove empty placeholder if present
+		const placeholder = messagesDiv.querySelector(
+			".flex.flex-col.items-center.justify-center"
+		);
+		if (placeholder) placeholder.remove();
+
 		const messageDiv = document.createElement("div");
-		messageDiv.className = "message-enter px-4 md:px-6 py-6";
-		let contentElementToReturn = messageDiv; // Default to outer div
+		messageDiv.className = `message-enter px-4 md:px-6 py-6`;
+
+		let iconHtml = "";
+		let contentWrapperClass = "";
+		let actualContentHtml = "";
+		let mainContainerClass = "chat-container flex gap-4 md:gap-6";
 
 		if (role === "user") {
-			// User message - right aligned
-			messageDiv.innerHTML = `
-				<div class="chat-container flex flex-row-reverse gap-4 md:gap-6 justify-start">
-					<!-- User icon - right side -->
-					<div class="flex-shrink-0 w-7 h-7">
-						<div class="w-7 h-7 rounded-sm bg-[#5436DA] flex items-center justify-center text-white text-xs font-semibold">U</div>
-					</div>
-					<!-- Message content -->
-					<div class="overflow-x-auto max-w-[75%]">
-						<div class="user-message text-gray-100 bg-[#444654] p-3 rounded-lg message-text-container" data-message-id="${
-							messageId || ""
-						}" data-created-at="${new Date().toISOString()}">
-							<p class="whitespace-pre-wrap message-content-text">${content}</p>
-							<div class="edit-controls hidden mt-2">
-								<textarea class="edit-message-textarea w-full p-2 rounded bg-gray-700 border border-gray-600 text-gray-100 resize-none" rows="3"></textarea>
-								<div class="flex justify-end gap-2 mt-2">
-									<button class="cancel-edit-btn px-3 py-1 text-xs bg-gray-600 hover:bg-gray-500 rounded text-white">Cancel</button>
-									<button class="save-edit-btn px-3 py-1 text-xs bg-blue-600 hover:bg-blue-500 rounded text-white">Save</button>
-								</div>
-							</div>
-						</div>
-						<!-- Edit button moved here, under the message box -->
-						<div class="flex justify-end mt-1 pr-1">
-							<button class="edit-message-btn p-1 text-gray-400 hover:text-gray-200 transition-opacity" data-message-id="${
-								messageId || ""
-							}" title="Edit message">
-								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-									<path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-								</svg>
-							</button>
-						</div>
-					</div>
-				</div>
-			`;
+			mainContainerClass =
+				"chat-container flex flex-row-reverse gap-4 md:gap-6 justify-start";
+			iconHtml = `<div class="w-7 h-7 rounded-sm bg-[#5436DA] flex items-center justify-center text-white text-xs font-semibold">U</div>`;
+			contentWrapperClass = "overflow-x-auto max-w-[75%]";
+			actualContentHtml = `<div class="user-message text-gray-100 bg-[#444654] p-3 rounded-lg"><p class="whitespace-pre-wrap">${content}</p></div>`;
 		} else {
-			// Assistant message - left aligned
+			// Assistant
+			iconHtml = `<div class="cls w-10 h-7 p-1 rounded-sm bg-slate-100 flex items-center justify-center text-white">
+								<img src="/static/images/logo.png" alt="Assistant icon" class="h-5 w-7">
+							</div>`;
+			contentWrapperClass = "flex-1 overflow-x-auto min-w-0 max-w-[85%]";
+			if (
+				content.includes('<div class="quiz-question"') ||
+				content.includes('<div class="quiz-message"')
+			) {
+				actualContentHtml = `<div class="quiz-message max-w-none text-gray-100 bg-gray-700/70 p-2 rounded-xl">${content}</div>`;
+			} else {
+				// For normal assistant messages, create an empty div, content will be set later by textContent
+				actualContentHtml = `<div class="max-w-none markdown-content text-gray-100"></div>`;
+			}
+		}
+
 		messageDiv.innerHTML = `
-				<div class="chat-container flex gap-4 md:gap-6">
-					<!-- Assistant icon - left side -->
+			<div class="${mainContainerClass}">
 				<div class="flex-shrink-0 w-7 h-7">
-						<div class="cls w-10 h-7 p-1 rounded-sm bg-slate-100 flex items-center justify-center text-white">
-							<img src="/static/images/logo.png" alt="Assistant icon" class="h-5 w-7">
+					${iconHtml}
 				</div>
-					</div>
-					<!-- Message content -->
-					<div class="flex-1 overflow-x-auto min-w-0 max-w-[85%]" data-role="assistant-content-wrapper">
-						${
-							type === "quiz"
-								? `<div class="quiz-message max-w-none text-gray-100 bg-gray-700/70 p-2 rounded-xl">${quizHtml}</div>`
-								: type === "diagram"
-								? `<div class="diagram-message-container bg-gray-800/50 p-2 my-2 rounded-lg shadow-md flex flex-col justify-center items-center">
-								<img src="${content}" alt="Generated Diagram" class="max-w-full h-auto rounded-md mb-1 cursor-pointer hover:opacity-90 transition-opacity" onclick="openImageModal('${content}')">
-								${
-									messageId
-										? `<p class="text-xs text-gray-400 italic mt-1 text-center">${messageId}</p>`
-										: ""
-								}
-							</div>`
-								: `<div class="max-w-none markdown-content text-gray-100">${content}</div>`
-						}
+				<div class="${contentWrapperClass}">
+					${actualContentHtml}
 				</div>
 			</div>
 		`;
 
-			if (type === "text") {
-				// For assistant text messages, we want to return the actual content div for streaming updates
-				const markdownContentDiv = messageDiv.querySelector(".markdown-content");
-				if (markdownContentDiv) {
-					contentElementToReturn = markdownContentDiv;
-					// Initialize raw text buffer for streaming, NO LONGER sanitize initial content
-					// const sanitizedInitialContent = content.replace(/\n/g, ' '); // REMOVED
-					markdownContentDiv.dataset.rawTextBuffer = content; // Use content directly
-					// Initial parse
-					if (typeof marked !== 'undefined') {
-						marked.setOptions({ breaks: false, gfm: true });
-						markdownContentDiv.innerHTML = marked.parse(content); // Use content directly
-						if (typeof hljs !== 'undefined') {
-							markdownContentDiv.querySelectorAll("pre code").forEach((block) => {
-								hljs.highlightElement(block);
-							});
-						}
-						initializeCodeBlockFeatures(markdownContentDiv);
-					} else {
-						markdownContentDiv.textContent = content; // Fallback if no marked
-					}
-				}
-			} else if (type === "quiz") {
-				// If this is a quiz message, initialize it immediately
-				setTimeout(() => {
-					const quizMessageElement = messageDiv.querySelector(".quiz-message");
-					if (quizMessageElement) {
-						// Apply quiz-specific fixes
-						unwrapQuizMessageCodeBlocks(quizMessageElement);
-						fixEscapedQuizMessages(quizMessageElement);
-						fixFirstLineQuizPreCode(quizMessageElement);
+		messagesDiv.appendChild(messageDiv);
 
-						// Initialize any quiz-specific event listeners using the new function
-						initializeQuizForms(quizMessageElement);
-					}
-				}, 0);
-				contentElementToReturn = messageDiv.querySelector(".quiz-message") || messageDiv;
-			} else if (type === "diagram") {
-				contentElementToReturn = messageDiv.querySelector(".diagram-message-container") || messageDiv;
+		// If assistant and content is NOT quiz, set textContent for later parsing by marked.js
+		if (role === "assistant") {
+			if (
+				!(
+					content.includes('<div class="quiz-question"') ||
+					content.includes('<div class="quiz-message"')
+				)
+			) {
+				const markdownContainer = messageDiv.querySelector(".markdown-content");
+				if (markdownContainer) {
+					markdownContainer.textContent = content;
+				}
 			}
 		}
 
-		messagesContainer.appendChild(messageDiv);
 		smoothScrollToBottom();
-		return contentElementToReturn; // Return the appropriate element
+		// Return the div where content (text or HTML) is placed.
+		if (role === "assistant") {
+			return messageDiv.querySelector(".markdown-content, .quiz-message");
+		}
+		return null; // For user messages, not typically needed by caller
 	}
 
 	// New function to append system notifications
@@ -457,157 +297,139 @@ document.addEventListener("DOMContentLoaded", function () {
 		smoothScrollToBottom();
 	}
 
-	function updateAssistantMessage(container, contentChunk) {
-		// container is now expected to be the specific div holding the content
-		// e.g., the .markdown-content div for text, or .quiz-message for quizzes
+	function updateAssistantMessage(container, content) {
 		if (container) {
-			const isQuizContent = container.classList.contains("quiz-message");
-
-			if (isQuizContent) {
-				// For quiz, contentChunk is expected to be the full HTML. Replace.
-				container.innerHTML = contentChunk;
-				// Re-apply quiz fixes and listeners if necessary, though usually quiz content is sent whole
-				unwrapQuizMessageCodeBlocks(container);
-				fixEscapedQuizMessages(container);
-				fixFirstLineQuizPreCode(container);
-				// Initialize quiz forms within this specific container
-				initializeQuizForms(container);
-			} else if (container.classList.contains("markdown-content")) {
-				// For markdown text, append and re-parse
-				// NO LONGER Sanitize the incoming chunk FIRST
-				// const sanitizedContentChunk = contentChunk.replace(/\n/g, ' '); // REMOVED
-				console.log("Received contentChunk for update:", JSON.stringify(contentChunk));
-
-				// Use a data attribute to buffer raw text
-				if (typeof container.dataset.rawTextBuffer === 'undefined') {
-					// This case should ideally be covered by appendMessage initializing the buffer
-					container.dataset.rawTextBuffer = ""; 
-				}
-				container.dataset.rawTextBuffer += contentChunk; // Use contentChunk directly
-
-				// Re-parse the entire accumulated content with marked
-				// Ensure global 'marked' and 'hljs' are available or pass them/access them correctly
-				if (typeof marked !== 'undefined' && typeof hljs !== 'undefined') {
-					// Explicitly set marked.js options to ensure standard GFM behavior for newlines
-					marked.setOptions({
-						breaks: false, // GFM line breaks: single newlines are treated as spaces
-						gfm: true       // Use GitHub Flavored Markdown
-					});
-					const parsedHtml = marked.parse(container.dataset.rawTextBuffer); // Parse the full buffer
-					console.log("marked.parse() output (first 100 chars):", JSON.stringify(parsedHtml.substring(0,100)));
-					container.innerHTML = parsedHtml;
-					// REMOVE/COMMENT OUT: container.textContent = container.dataset.rawTextBuffer;
-
-					// Re-apply syntax highlighting to any new or existing code blocks
-					container.querySelectorAll("pre code").forEach((block) => {
-						hljs.highlightElement(block);
-					});
-					// Re-initialize code block features (copy, expand, etc.)
-					initializeCodeBlockFeatures(container);
-				} else {
-					console.warn("marked.js or highlight.js not available for markdown processing.");
-					// Fallback to just showing text if markdown/highlighting isn't set up
-					container.textContent = container.dataset.rawTextBuffer; // Ensure raw buffer is shown
-				}
+			if (
+				content.includes('<div class="quiz-question"') ||
+				content.includes('<div class="quiz-message"')
+			) {
+				container.innerHTML = content;
 			} else {
-				// Fallback for other types or if container is not what's expected
-				// This case should ideally not be hit if appendMessage returns the correct element.
-				// For safety, we can append if it seems like a text container.
-				container.textContent += contentChunk;
+				container.textContent = content;
 			}
 			smoothScrollToBottom();
 		}
 	}
 
 	async function handleStreamResponse(response) {
-		const reader = response.body.getReader();
-		const decoder = new TextDecoder();
-		let buffer = "";
-		let currentMessageContainer = null; // This will hold the .markdown-content div for the current assistant message
-		let isFirstTextChunk = true;
+		if (!response.ok) throw new Error("Failed to get response");
+		removeTypingIndicator();
+
+		const messageDiv = document.createElement("div");
+		messageDiv.className = "message-enter px-4 md:px-6 py-6";
+		messageDiv.innerHTML = `
+			<div class="chat-container flex gap-4 md:gap-6">
+				<div class="flex-shrink-0 w-7 h-7">
+					<div class="cls w-10 h-7 p-1 rounded-sm bg-slate-100 flex items-center justify-center text-white">
+						<img src="/static/images/logo.png" alt="Assistant icon" class="h-5 w-7">
+					</div>
+				</div>
+				<div class="flex-1 overflow-x-auto min-w-0 max-w-[85%]">
+					<div class="max-w-none markdown-content text-gray-100"></div>
+				</div>
+			</div>
+		`;
+
+		document.getElementById("chat-messages").appendChild(messageDiv);
+		const markdownContainer = messageDiv.querySelector(".markdown-content");
+		let assistantMessage = "";
 
 		try {
+			const reader = response.body.getReader();
+			const decoder = new TextDecoder();
+
 			while (true) {
-				const { value, done } = await reader.read();
+				const { done, value } = await reader.read();
 				if (done) break;
 
-				buffer += decoder.decode(value, { stream: true });
-				const lines = buffer.split("\n");
-				buffer = lines.pop() || "";
+				const chunk = decoder.decode(value);
+				const lines = chunk.split("\n\n");
 
 				for (const line of lines) {
 					if (line.startsWith("data: ")) {
-						const data = JSON.parse(line.slice(6));
+						try {
+							const data = JSON.parse(line.slice(6));
 
-						if (data.type === "quiz") {
-							// For now, let's assume quizzes are sent whole and handled by appendMessage
-							if (isFirstTextChunk) { // Use isFirstTextChunk to ensure only one main message container is made
-								appendMessage(
-									"assistant",
-									"", // Content is in quizHtml
-									data.message_id,
-									"quiz",
-									data.quiz_html
-								);
-								isFirstTextChunk = false;
+							switch (data.type) {
+								case "content":
+									assistantMessage += data.content;
+									markdownContainer.innerHTML = marked.parse(assistantMessage);
+									markdownContainer
+										.querySelectorAll("pre code")
+										.forEach((block) => {
+											if (!block.classList.contains("hljs")) {
+												hljs.highlightElement(block);
+											}
+										});
+									if (typeof initializeCodeBlockFeatures === "function") {
+										initializeCodeBlockFeatures(markdownContainer);
+									}
+									smoothScrollToBottom();
+									break;
+
+								case "mindmap_image": // Handle new SSE event type for mind map static images
+									if (data.image_html) {
+										const mindMapImageMsgDiv = document.createElement("div");
+										mindMapImageMsgDiv.className =
+											"message-enter px-4 md:px-6 py-6";
+										mindMapImageMsgDiv.innerHTML = `
+											<div class="chat-container flex gap-4 md:gap-6">
+												<div class="flex-shrink-0 w-7 h-7">
+													<div class="cls w-10 h-7 p-1 rounded-sm bg-slate-100 flex items-center justify-center text-white">
+														<img src="/static/images/logo.png" alt="Assistant icon" class="h-5 w-7">
+													</div>
+												</div>
+												<div class="flex-1 overflow-x-auto min-w-0 max-w-[85%]">
+													<div class="mindmap-image-message-container bg-gray-800/50 p-1 rounded-lg shadow-md flex justify-center items-center">
+														${data.image_html} 
+													</div>
+												</div>
+											</div>
+										`;
+										document
+											.getElementById("chat-messages")
+											.appendChild(mindMapImageMsgDiv);
+										smoothScrollToBottom();
+									}
+									break;
+
+								case "file_info": // Handle new SSE event type
+									if (data.status === "truncated" && data.message) {
+										appendSystemNotification(data.message, "warning");
+									}
+									break;
+
+								case "error":
+									markdownContainer.innerHTML = `<div class="text-red-400">Error: ${data.content}</div>`;
+									break;
+
+								case "done":
+									// Final formatting pass
+									markdownContainer.innerHTML = marked.parse(assistantMessage);
+									markdownContainer
+										.querySelectorAll("pre code")
+										.forEach((block) => {
+											hljs.highlightElement(block);
+										});
+									if (typeof initializeCodeBlockFeatures === "function") {
+										initializeCodeBlockFeatures(markdownContainer);
+									}
+									break;
 							}
-						} else if (data.type === "content") {
-							const messagesDiv = document.getElementById("chat-messages");
-							if (isFirstTextChunk) {
-								// Create the initial message container and get the .markdown-content div
-								currentMessageContainer = appendMessage(
-									"assistant",
-									data.content, // First chunk goes here
-									null,
-									"text"
-								);
-								isFirstTextChunk = false;
-								// The appendMessage function (as modified previously) already handles
-								// sanitizing, setting rawTextBuffer, and initial parsing for this first chunk.
-								// For this test, we let that happen for the first chunk.
-							} else {
-								// **RESTORED: Call updateAssistantMessage for subsequent chunks**
-								// if (messagesDiv && data.content) { // Old diagnostic code
-								// 	const newChunkParagraph = document.createElement('p');
-								// 	newChunkParagraph.textContent = "CHUNK: " + data.content; // Prefix to make it obvious
-								// 	newChunkParagraph.style.color = "cyan"; // Make it stand out
-								// 	messagesDiv.appendChild(newChunkParagraph);
-								// 	smoothScrollToBottom(); 
-								// }
-								updateAssistantMessage(currentMessageContainer, data.content);
-							}
-						} else if (data.type === "error") {
-							appendSystemNotification(data.content, "error");
-						} else if (data.type === "diagram_image") {
-							// Handle diagram image message
-							console.log("Received diagram image:", data);
-							if (data.image_url) {
-								appendDiagramMessage(
-									data.image_url,
-									data.text_content || "Generated Diagram",
-									data.message_id
-								);
-								isFirstTextChunk = false; // Ensure we don't create another message
-							} else {
-								appendSystemNotification(
-									"Error: Received diagram response without image URL",
-									"error"
-								);
-							}
-						} else if (data.type === "done") {
-							removeTypingIndicator();
+						} catch (e) {
+							console.error("Failed to parse streaming data:", e);
 						}
 					}
 				}
 			}
 		} catch (error) {
-			console.error("Error processing stream:", error);
-			appendSystemNotification(
-				"An error occurred while processing the response.",
-				"error"
-			);
+			if (error.name !== "AbortError") {
+				console.error("Stream error:", error);
+				markdownContainer.innerHTML = `<div class="text-red-400">Error: ${error.message}</div>`;
+			}
 		} finally {
-			removeTypingIndicator();
+			stopButton.classList.add("hidden");
+			smoothScrollToBottom();
 		}
 	}
 
@@ -660,14 +482,8 @@ document.addEventListener("DOMContentLoaded", function () {
 				document.querySelector("[name=csrfmiddlewaretoken]").value
 			);
 			if (fileData) formData.append("file", fileData);
-
-			console.log("Submitting form with states:", {
-				isRAGActive,
-				isDiagramModeActive
-			});
-
-			formData.append("rag_mode_active", isRAGActive.toString());
-			formData.append("diagram_mode_active", isDiagramModeActive.toString());
+			formData.append("rag_mode_active", isRAGActive); // Add RAG mode state
+			formData.append("mind_map_mode_active", isMindMapActive); // Add Mind Map mode state
 
 			if (isNewChat) {
 				const createResponse = await fetch("/chat/create/", {
@@ -947,6 +763,8 @@ document.addEventListener("DOMContentLoaded", function () {
 	}
 
 	// --- RAG Context Management UI --- //
+	const manageRagContextBtn = document.getElementById("manage-rag-context-btn");
+	const ragModalOverlay = document.getElementById("rag-modal-overlay");
 	const ragModalContent = document.getElementById("rag-modal-content");
 	const closeRagModalBtn = document.getElementById("close-rag-modal-btn");
 	const ragFilesListDiv = document.getElementById("rag-files-list");
@@ -1189,27 +1007,25 @@ document.addEventListener("DOMContentLoaded", function () {
 
 	// RAG Toggle Button Logic
 	if (ragToggleButton) {
-		console.log("Found RAG toggle button", isRAGActive);
-
 		const setActiveStyles = () => {
-			console.log("Setting RAG active styles");
-			// For icons, we change the SVG color
-			if (ragToggleButton.querySelector("svg")) {
-				ragToggleButton.querySelector("svg").classList.remove("text-gray-400");
-				ragToggleButton.querySelector("svg").classList.add("text-green-400");
-				ragToggleButton.classList.add("bg-gray-800"); // Add background for better visual feedback
-			}
+			ragToggleButton.textContent = "RAG Mode: Active";
+			ragToggleButton.classList.remove("border-gray-600", "text-gray-400");
+			ragToggleButton.classList.add("border-green-500", "text-green-400");
 		};
 
 		const setInactiveStyles = () => {
-			console.log("Setting RAG inactive styles");
-			// For icons, we reset the SVG color
-			if (ragToggleButton.querySelector("svg")) {
-				ragToggleButton.querySelector("svg").classList.remove("text-green-400");
-				ragToggleButton.querySelector("svg").classList.add("text-gray-400");
-				ragToggleButton.classList.remove("bg-gray-800"); // Remove background
-			}
+			ragToggleButton.textContent = "RAG Mode: Inactive";
+			ragToggleButton.classList.remove("border-green-500", "text-green-400");
+			ragToggleButton.classList.add("border-gray-600", "text-gray-400");
 		};
+
+		// Load RAG state from localStorage
+		const savedRAGState = localStorage.getItem("ragModeActive");
+		if (savedRAGState !== null) {
+			isRAGActive = JSON.parse(savedRAGState);
+		} else {
+			localStorage.setItem("ragModeActive", JSON.stringify(isRAGActive)); // Save default if not present
+		}
 
 		// Initial styling based on loaded/default state
 		if (isRAGActive) {
@@ -1219,19 +1035,16 @@ document.addEventListener("DOMContentLoaded", function () {
 		}
 
 		ragToggleButton.addEventListener("click", () => {
-			console.log("RAG button clicked, current state:", isRAGActive);
 			isRAGActive = !isRAGActive;
-			console.log("Toggling RAG mode to:", isRAGActive);
-
 			if (isRAGActive) {
 				setActiveStyles();
-				// If RAG becomes active, disable other modes
-				if (isDiagramModeActive) {
-					isDiagramModeActive = false;
-					updateDiagramModeToggleButtonStyle();
+				// If RAG becomes active, Mind Map must become inactive
+				if (isMindMapActive) {
+					isMindMapActive = false;
+					updateMindMapToggleButtonStyle(); // Update Mind Map button style
 					localStorage.setItem(
-						"diagramModeActive",
-						JSON.stringify(isDiagramModeActive)
+						"mindMapActive",
+						JSON.stringify(isMindMapActive)
 					);
 				}
 			} else {
@@ -1243,225 +1056,98 @@ document.addEventListener("DOMContentLoaded", function () {
 				"info"
 			);
 		});
-	} else {
-		console.warn("RAG toggle button not found in the DOM");
 	}
 
-	// Diagram Mode Toggle Button Logic
-	function updateDiagramModeToggleButtonStyle() {
-		if (!diagramModeToggleButton) return;
-		if (isDiagramModeActive) {
-			console.log("Setting diagram mode active styles");
-			if (diagramModeToggleButton.querySelector("svg")) {
-				diagramModeToggleButton
-					.querySelector("svg")
-					.classList.remove("text-gray-400");
-				diagramModeToggleButton
-					.querySelector("svg")
-					.classList.add("text-blue-400");
-				diagramModeToggleButton.classList.add("bg-gray-800"); // Add background for better visual feedback
-			}
+	// Mind Map Toggle Button Logic
+	function updateMindMapToggleButtonStyle() {
+		if (!mindMapToggleButton) return;
+		if (isMindMapActive) {
+			mindMapToggleButton.textContent = "Mind Map: Active";
+			mindMapToggleButton.classList.remove("border-gray-600", "text-gray-400");
+			mindMapToggleButton.classList.add("border-purple-500", "text-purple-400"); // Example: Purple for active
 		} else {
-			console.log("Setting diagram mode inactive styles");
-			if (diagramModeToggleButton.querySelector("svg")) {
-				diagramModeToggleButton
-					.querySelector("svg")
-					.classList.remove("text-blue-400");
-				diagramModeToggleButton
-					.querySelector("svg")
-					.classList.add("text-gray-400");
-				diagramModeToggleButton.classList.remove("bg-gray-800"); // Remove background
-			}
+			mindMapToggleButton.textContent = "Mind Map: Inactive";
+			mindMapToggleButton.classList.remove(
+				"border-purple-500",
+				"text-purple-400"
+			);
+			mindMapToggleButton.classList.add("border-gray-600", "text-gray-400");
 		}
 	}
 
-	if (diagramModeToggleButton) {
-		console.log("Found diagram mode toggle button", isDiagramModeActive);
+	if (mindMapToggleButton) {
+		const savedMindMapState = localStorage.getItem("mindMapActive");
+		if (savedMindMapState !== null) {
+			isMindMapActive = JSON.parse(savedMindMapState);
+		} else {
+			localStorage.setItem("mindMapActive", JSON.stringify(isMindMapActive)); // Save default
+		}
 
-		updateDiagramModeToggleButtonStyle(); // Set initial style
+		updateMindMapToggleButtonStyle(); // Set initial style
 
-		diagramModeToggleButton.addEventListener("click", () => {
-			console.log(
-				"Diagram mode button clicked, current state:",
-				isDiagramModeActive
-			);
-			isDiagramModeActive = !isDiagramModeActive;
-			console.log("Toggling diagram mode to:", isDiagramModeActive);
-
-			updateDiagramModeToggleButtonStyle();
-			if (isDiagramModeActive) {
-				// If Diagram Mode becomes active, disable other modes
+		mindMapToggleButton.addEventListener("click", () => {
+			isMindMapActive = !isMindMapActive;
+			updateMindMapToggleButtonStyle();
+			if (isMindMapActive) {
+				// If Mind Map becomes active, RAG must become inactive
 				if (isRAGActive) {
 					isRAGActive = false;
-					setInactiveStyles(); // Use the RAG inactive style function
-					localStorage.setItem("ragModeActive", JSON.stringify(isRAGActive));
+					// Manually call RAG button's inactive styling logic if available, or replicate here
+					if (ragToggleButton) {
+						// Check if RAG button exists
+						ragToggleButton.textContent = "RAG Mode: Inactive";
+						ragToggleButton.classList.remove(
+							"border-green-500",
+							"text-green-400"
+						);
+						ragToggleButton.classList.add("border-gray-600", "text-gray-400");
+						localStorage.setItem("ragModeActive", JSON.stringify(isRAGActive));
+					}
 				}
 			}
-			localStorage.setItem(
-				"diagramModeActive",
-				JSON.stringify(isDiagramModeActive)
-			);
+			localStorage.setItem("mindMapActive", JSON.stringify(isMindMapActive));
 			appendSystemNotification(
-				`Diagram mode is now ${isDiagramModeActive ? "ACTIVE" : "INACTIVE"}.`,
+				`Mind Map mode is now ${isMindMapActive ? "ACTIVE" : "INACTIVE"}.`,
 				"info"
 			);
 		});
-	} else {
-		console.warn("Diagram mode toggle button not found in the DOM");
 	}
 
-	// Initial calls for existing messages (if any)
-	document.querySelectorAll(".markdown-content").forEach((messageElement) => {
-		if (!messageElement.closest(".quiz-message")) {
-			// Don't run on quiz HTML containers
-			initializeCodeBlockFeatures(messageElement);
-		}
-	});
-	// Initialize all quiz forms present on initial page load
-	initializeQuizForms(document.getElementById('chat-messages'));
-	hljs.highlightAll();
-	if (document.getElementById("chat-messages").children.length > 1) {
-		// more than just placeholder
-		smoothScrollToBottom();
-	}
-
-	// --- RAG Context Modal ---
-	// const manageRagContextBtn = document.getElementById("manage-rag-context-btn"); // REMOVE this redeclaration
-	// const ragModalOverlay = document.getElementById("rag-modal-overlay"); // REMOVE this redeclaration
-	if (manageRagContextBtn) {
-		manageRagContextBtn.addEventListener("click", openRAGModal);
-	}
-
-	// Make sure this new function is defined in your JS
-	function appendDiagramMessage(imageUrl, textContent, messageId) {
-		const messagesDiv = document.getElementById("chat-messages");
-
-		// Remove empty placeholder if present
-		const placeholder = messagesDiv.querySelector(
-			".flex.flex-col.items-center.justify-center"
-		);
-		if (placeholder) placeholder.remove();
-
-		console.log("Appending diagram message with image URL:", imageUrl);
-
-		// Ensure imageUrl has the proper media URL prefix
-		if (
-			imageUrl &&
-			!imageUrl.startsWith("http") &&
-			!imageUrl.startsWith("/media/")
-		) {
-			imageUrl = `/media/${imageUrl}`;
-			console.log("Updated image URL with media prefix:", imageUrl);
-		}
-
-		const messageDiv = document.createElement("div");
-		messageDiv.className = "message-enter px-4 md:px-6 py-6";
-		messageDiv.setAttribute("data-message-id", messageId); // For potential future use
-
-		messageDiv.innerHTML = `
-			<div class="chat-container flex gap-4 md:gap-6">
-				<div class="flex-shrink-0 w-7 h-7">
-					<div class="cls w-10 h-7 p-1 rounded-sm bg-slate-100 flex items-center justify-center text-white">
-						<img src="/static/images/logo.png" alt="Assistant icon" class="h-5 w-7">
-					</div>
-				</div>
-				<div class="flex-1 overflow-x-auto min-w-0 max-w-[85%]">
-					<div class="diagram-message-container bg-gray-800/50 p-2 my-2 rounded-lg shadow-md flex flex-col justify-center items-center">
-						<img src="${imageUrl}" alt="${textContent || "Generated Diagram"}" 
-							class="max-w-full h-auto rounded-md mb-1 cursor-pointer hover:opacity-90 transition-opacity" 
-							onclick="openImageModal('${imageUrl}')">
-						${
-							textContent
-								? `<p class="text-xs text-gray-400 italic mt-1 text-center">${textContent}</p>`
-								: ""
-						}
-					</div>
-				</div>
-			</div>
-		`;
-
-		messagesDiv.appendChild(messageDiv);
-		smoothScrollToBottom();
-	}
-
-	// Make existing diagram images clickable
-	document.querySelectorAll(".diagram-message-container img").forEach((img) => {
-		if (!img.hasAttribute("onclick")) {
-			img.classList.add(
-				"cursor-pointer",
-				"hover:opacity-90",
-				"transition-opacity"
-			);
-			img.addEventListener("click", function () {
-				openImageModal(this.src);
-			});
-		}
-	});
-
-	// Initialize chat configuration
-	const chatConfigElement = document.getElementById("chat-config");
-	if (chatConfigElement) {
-		try {
-			const config = JSON.parse(chatConfigElement.textContent);
-			window.currentChatId = config.currentChatId;
-			window.isNewChat = config.isNewChat;
-		} catch (e) {
-			console.error("Failed to parse chat config:", e);
-			window.currentChatId = window.location.pathname.includes("/new/")
-				? "new"
-				: window.location.pathname.split("/").filter(Boolean).pop();
-			window.isNewChat = window.currentChatId === "new";
-		}
-	} else {
-		console.warn("Chat config script block not found. Inferring from URL.");
-		window.currentChatId = window.location.pathname.includes("/new/")
-			? "new"
-			: window.location.pathname.split("/").filter(Boolean).pop();
-		window.isNewChat = window.currentChatId === "new";
-	}
-	updateNewChatUI(window.isNewChat);
-
-	// Initialize existing quizzes
-	const existingQuizAreas = document.querySelectorAll(
-		".quiz-render-area[data-quiz-json]"
-	);
-	existingQuizAreas.forEach((area) => {
-		if (
-			window.QuizRenderer &&
-			typeof window.QuizRenderer.renderQuiz === "function"
-		) {
-			try {
-				window.QuizRenderer.renderQuiz(area);
-			} catch (e) {
-				console.error("Error rendering existing quiz:", e, area);
-				area.innerHTML =
-					"<p class='text-red-400 p-2'>Error rendering quiz.</p>";
+	// Initialize code block features for messages already on the page
+	document
+		.querySelectorAll("#chat-messages .message-enter")
+		.forEach((messageElement) => {
+			if (typeof initializeCodeBlockFeatures === "function") {
+				// We need to target the actual content div within the message element
+				const contentDiv = messageElement.querySelector(
+					".markdown-content, .quiz-message"
+				);
+				if (contentDiv) {
+					initializeCodeBlockFeatures(contentDiv);
+				}
 			}
-		} else {
-			console.error("QuizRenderer not available for existing quizzes.");
-			area.innerHTML =
-				"<p class='text-red-400 p-2'>Quiz display component failed to load.</p>";
-		}
-	});
+		});
 
-	// Initialize quiz button if it exists
-	if (quizButton) {
-		console.log("Quiz button found, attaching click handler");
-		quizButton.addEventListener("click", async function () {
-			console.log("Quiz button clicked");
-			if (
-				window.currentChatId &&
-				window.currentChatId !== "new" &&
-				!window.isNewChat
-			) {
+	// Make necessary functions global for message_edit.js
+	window.createTypingIndicator = createTypingIndicator;
+	window.removeTypingIndicator = removeTypingIndicator;
+	window.smoothScrollToBottom = smoothScrollToBottom;
+	window.appendMessage = appendMessage; // Note: This is the patched version if _appendMessagePatched is true
+	window.handleStreamResponse = handleStreamResponse;
+	// getCookie and adjustMainTextareaHeight are already global
+
+	// --- BEGIN QUIZ BUTTON LOGIC ---
+	if (quizButton && quizButtonContainer) {
+		quizButton.addEventListener("click", async () => {
+			if (window.currentChatId && window.currentChatId !== "new") {
 				createTypingIndicator();
 				try {
 					const response = await fetch(`/chat/${window.currentChatId}/quiz/`, {
 						method: "POST",
 						headers: {
-							"X-CSRFToken": getCookie("csrftoken")
+							"X-CSRFToken": window.getCookie("csrftoken")
 						}
-						// No body or Content-Type application/json per previous fixes
+						// No body or Content-Type application/json as per previous fixes
 					});
 					removeTypingIndicator();
 
@@ -1481,20 +1167,12 @@ document.addEventListener("DOMContentLoaded", function () {
 									<div class="flex-1 overflow-x-auto min-w-0 max-w-[85%]">${actualContentHtml}</div>
 								</div>`;
 							messagesDiv.appendChild(messageDiv);
-
-							// Process the quiz content that was just added
-							const quizMessageElement =
-								messageDiv.querySelector(".quiz-message");
-							if (quizMessageElement) {
-								unwrapQuizMessageCodeBlocks(quizMessageElement);
-								fixEscapedQuizMessages(quizMessageElement);
-								fixFirstLineQuizPreCode(quizMessageElement);
-
-								// Set up form handlers for the quiz using the new function
-								initializeQuizForms(quizMessageElement);
-							}
-
 							smoothScrollToBottom();
+							if (window.initializeCodeBlockFeatures) {
+								window.initializeCodeBlockFeatures(messageDiv);
+							}
+							// Ensure any existing quiz specific JS initializers for HTML quizzes are called if quiz.js is ever repopulated.
+							// e.g. if (window.initializeHtmlQuiz) { window.initializeHtmlQuiz(messageDiv); }
 						} else if (data.error) {
 							appendSystemNotification(
 								`Error generating quiz: ${data.error}`,
@@ -1538,10 +1216,11 @@ document.addEventListener("DOMContentLoaded", function () {
 			}
 		});
 	} else {
-		console.warn("Quiz button not found in DOM");
+		console.warn(
+			"Quiz button or its container not found. Quiz functionality may be limited."
+		);
 	}
 
-	// Make quiz buttons visible/invisible based on chat state
 	window.updateQuizButtonVisibility = function () {
 		if (quizButtonContainer) {
 			if (
@@ -1557,29 +1236,12 @@ document.addEventListener("DOMContentLoaded", function () {
 	};
 	// Initial call to set visibility
 	window.updateQuizButtonVisibility();
+	// --- END QUIZ BUTTON LOGIC ---
 });
 
-function updateNewChatUI(isNew) {
-	const quizButtonContainer = document.getElementById("quiz-button-container");
-	const manageRagButton = document.getElementById("manage-rag-context-btn");
-
-	if (isNew) {
-		if (quizButtonContainer) quizButtonContainer.classList.add("hidden");
-		if (manageRagButton) manageRagButton.classList.add("hidden");
-	} else {
-		if (quizButtonContainer) quizButtonContainer.classList.remove("hidden");
-		if (manageRagButton) manageRagButton.classList.remove("hidden");
-	}
-}
-
 // Utility: Fix quiz-message blocks that are wrapped in <pre><code>
-function unwrapQuizMessageCodeBlocks(quizMsgElement) {
-	// If no specific element provided, use all quiz messages
-	const elements = quizMsgElement
-		? [quizMsgElement]
-		: document.querySelectorAll(".quiz-message");
-
-	elements.forEach((quizMsg) => {
+function unwrapQuizMessageCodeBlocks() {
+	document.querySelectorAll(".quiz-message").forEach((quizMsg) => {
 		const pre = quizMsg.querySelector("pre");
 		const code = pre ? pre.querySelector("code") : null;
 		if (pre && code) {
@@ -1595,13 +1257,8 @@ function unwrapQuizMessageCodeBlocks(quizMsgElement) {
 	});
 }
 
-function fixEscapedQuizMessages(quizMsgElement) {
-	// If no specific element provided, use all quiz messages
-	const elements = quizMsgElement
-		? quizMsgElement.querySelectorAll("pre code")
-		: document.querySelectorAll(".quiz-message pre code");
-
-	elements.forEach((code) => {
+function fixEscapedQuizMessages() {
+	document.querySelectorAll(".quiz-message pre code").forEach((code) => {
 		const html = code.innerHTML.trim();
 		// Detect if it looks like escaped quiz HTML
 		if (
@@ -1621,13 +1278,8 @@ function fixEscapedQuizMessages(quizMsgElement) {
 	});
 }
 
-function fixFirstLineQuizPreCode(quizMsgElement) {
-	// If no specific element provided, use all quiz messages
-	const elements = quizMsgElement
-		? [quizMsgElement]
-		: document.querySelectorAll(".quiz-message");
-
-	elements.forEach((quizMsg) => {
+function fixFirstLineQuizPreCode() {
+	document.querySelectorAll(".quiz-message").forEach((quizMsg) => {
 		const pre = quizMsg.querySelector("pre");
 		const code = pre ? pre.querySelector("code") : null;
 		if (pre && code) {
