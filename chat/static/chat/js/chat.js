@@ -88,6 +88,36 @@ function closeImageModal() {
 	}
 }
 
+// Centralized function to initialize quiz forms
+function initializeQuizForms(parentElement) {
+	const quizForms = parentElement.querySelectorAll(".quiz-question form");
+	quizForms.forEach((form) => {
+		// Prevent multiple listeners if function is called multiple times on same element
+		if (form.dataset.quizInitialized) return;
+		form.dataset.quizInitialized = "true";
+
+		form.addEventListener("submit", function (e) {
+			e.preventDefault();
+			const questionDiv = this.closest(".quiz-question");
+			const correctAnswer = questionDiv.dataset.correct;
+			const selectedAnswer = this.querySelector(
+				'input[type="radio"]:checked'
+			)?.value;
+
+			const feedbackDiv = questionDiv.querySelector(".quiz-feedback");
+			if (feedbackDiv) {
+				if (selectedAnswer === correctAnswer) {
+					feedbackDiv.textContent = "Correct!";
+					feedbackDiv.className = "quiz-feedback mt-1.5 text-green-400";
+				} else {
+					feedbackDiv.textContent = "Incorrect. Try again!";
+					feedbackDiv.className = "quiz-feedback mt-1.5 text-red-400";
+				}
+			}
+		});
+	});
+}
+
 // Wrap all logic in DOMContentLoaded
 document.addEventListener("DOMContentLoaded", function () {
 	console.log("Initializing chat.js");
@@ -274,6 +304,7 @@ document.addEventListener("DOMContentLoaded", function () {
 		const messagesContainer = document.getElementById("chat-messages");
 		const messageDiv = document.createElement("div");
 		messageDiv.className = "message-enter px-4 md:px-6 py-6";
+		let contentElementToReturn = messageDiv; // Default to outer div
 
 		if (role === "user") {
 			// User message - right aligned
@@ -312,16 +343,16 @@ document.addEventListener("DOMContentLoaded", function () {
 			`;
 		} else {
 			// Assistant message - left aligned
-			messageDiv.innerHTML = `
+		messageDiv.innerHTML = `
 				<div class="chat-container flex gap-4 md:gap-6">
 					<!-- Assistant icon - left side -->
-					<div class="flex-shrink-0 w-7 h-7">
+				<div class="flex-shrink-0 w-7 h-7">
 						<div class="cls w-10 h-7 p-1 rounded-sm bg-slate-100 flex items-center justify-center text-white">
 							<img src="/static/images/logo.png" alt="Assistant icon" class="h-5 w-7">
-						</div>
+				</div>
 					</div>
 					<!-- Message content -->
-					<div class="flex-1 overflow-x-auto min-w-0 max-w-[85%]">
+					<div class="flex-1 overflow-x-auto min-w-0 max-w-[85%]" data-role="assistant-content-wrapper">
 						${
 							type === "quiz"
 								? `<div class="quiz-message max-w-none text-gray-100 bg-gray-700/70 p-2 rounded-xl">${quizHtml}</div>`
@@ -336,49 +367,55 @@ document.addEventListener("DOMContentLoaded", function () {
 							</div>`
 								: `<div class="max-w-none markdown-content text-gray-100">${content}</div>`
 						}
-					</div>
 				</div>
-			`;
+			</div>
+		`;
 
-			// If this is a quiz message, initialize it immediately
-			if (type === "quiz") {
-				// Wait for the DOM to update
-				setTimeout(() => {
-					const quizMessage = messageDiv.querySelector(".quiz-message");
-					if (quizMessage) {
-						// Apply quiz-specific fixes
-						unwrapQuizMessageCodeBlocks(quizMessage);
-						fixEscapedQuizMessages(quizMessage);
-						fixFirstLineQuizPreCode(quizMessage);
-
-						// Initialize any quiz-specific event listeners
-						const quizForms = quizMessage.querySelectorAll("form");
-						quizForms.forEach((form) => {
-							form.addEventListener("submit", function (e) {
-								e.preventDefault();
-								const questionDiv = this.closest(".quiz-question");
-								const correctAnswer = questionDiv.dataset.correct;
-								const selectedAnswer = this.querySelector(
-									'input[type="radio"]:checked'
-								)?.value;
-
-								const feedbackDiv = questionDiv.querySelector(".quiz-feedback");
-								if (selectedAnswer === correctAnswer) {
-									feedbackDiv.textContent = "Correct!";
-									feedbackDiv.className = "quiz-feedback mt-1.5 text-green-400";
-								} else {
-									feedbackDiv.textContent = "Incorrect. Try again!";
-									feedbackDiv.className = "quiz-feedback mt-1.5 text-red-400";
-								}
+			if (type === "text") {
+				// For assistant text messages, we want to return the actual content div for streaming updates
+				const markdownContentDiv = messageDiv.querySelector(".markdown-content");
+				if (markdownContentDiv) {
+					contentElementToReturn = markdownContentDiv;
+					// Initialize raw text buffer for streaming, NO LONGER sanitize initial content
+					// const sanitizedInitialContent = content.replace(/\n/g, ' '); // REMOVED
+					markdownContentDiv.dataset.rawTextBuffer = content; // Use content directly
+					// Initial parse
+					if (typeof marked !== 'undefined') {
+						marked.setOptions({ breaks: false, gfm: true });
+						markdownContentDiv.innerHTML = marked.parse(content); // Use content directly
+						if (typeof hljs !== 'undefined') {
+							markdownContentDiv.querySelectorAll("pre code").forEach((block) => {
+								hljs.highlightElement(block);
 							});
-						});
+						}
+						initializeCodeBlockFeatures(markdownContentDiv);
+					} else {
+						markdownContentDiv.textContent = content; // Fallback if no marked
+					}
+				}
+			} else if (type === "quiz") {
+				// If this is a quiz message, initialize it immediately
+				setTimeout(() => {
+					const quizMessageElement = messageDiv.querySelector(".quiz-message");
+					if (quizMessageElement) {
+						// Apply quiz-specific fixes
+						unwrapQuizMessageCodeBlocks(quizMessageElement);
+						fixEscapedQuizMessages(quizMessageElement);
+						fixFirstLineQuizPreCode(quizMessageElement);
+
+						// Initialize any quiz-specific event listeners using the new function
+						initializeQuizForms(quizMessageElement);
 					}
 				}, 0);
+				contentElementToReturn = messageDiv.querySelector(".quiz-message") || messageDiv;
+			} else if (type === "diagram") {
+				contentElementToReturn = messageDiv.querySelector(".diagram-message-container") || messageDiv;
 			}
 		}
 
 		messagesContainer.appendChild(messageDiv);
 		smoothScrollToBottom();
+		return contentElementToReturn; // Return the appropriate element
 	}
 
 	// New function to append system notifications
@@ -420,15 +457,63 @@ document.addEventListener("DOMContentLoaded", function () {
 		smoothScrollToBottom();
 	}
 
-	function updateAssistantMessage(container, content) {
+	function updateAssistantMessage(container, contentChunk) {
+		// container is now expected to be the specific div holding the content
+		// e.g., the .markdown-content div for text, or .quiz-message for quizzes
 		if (container) {
-			if (
-				content.includes('<div class="quiz-question"') ||
-				content.includes('<div class="quiz-message"')
-			) {
-				container.innerHTML = content;
+			const isQuizContent = container.classList.contains("quiz-message");
+
+			if (isQuizContent) {
+				// For quiz, contentChunk is expected to be the full HTML. Replace.
+				container.innerHTML = contentChunk;
+				// Re-apply quiz fixes and listeners if necessary, though usually quiz content is sent whole
+				unwrapQuizMessageCodeBlocks(container);
+				fixEscapedQuizMessages(container);
+				fixFirstLineQuizPreCode(container);
+				// Initialize quiz forms within this specific container
+				initializeQuizForms(container);
+			} else if (container.classList.contains("markdown-content")) {
+				// For markdown text, append and re-parse
+				// NO LONGER Sanitize the incoming chunk FIRST
+				// const sanitizedContentChunk = contentChunk.replace(/\n/g, ' '); // REMOVED
+				console.log("Received contentChunk for update:", JSON.stringify(contentChunk));
+
+				// Use a data attribute to buffer raw text
+				if (typeof container.dataset.rawTextBuffer === 'undefined') {
+					// This case should ideally be covered by appendMessage initializing the buffer
+					container.dataset.rawTextBuffer = ""; 
+				}
+				container.dataset.rawTextBuffer += contentChunk; // Use contentChunk directly
+
+				// Re-parse the entire accumulated content with marked
+				// Ensure global 'marked' and 'hljs' are available or pass them/access them correctly
+				if (typeof marked !== 'undefined' && typeof hljs !== 'undefined') {
+					// Explicitly set marked.js options to ensure standard GFM behavior for newlines
+					marked.setOptions({
+						breaks: false, // GFM line breaks: single newlines are treated as spaces
+						gfm: true       // Use GitHub Flavored Markdown
+					});
+					const parsedHtml = marked.parse(container.dataset.rawTextBuffer); // Parse the full buffer
+					console.log("marked.parse() output (first 100 chars):", JSON.stringify(parsedHtml.substring(0,100)));
+					container.innerHTML = parsedHtml;
+					// REMOVE/COMMENT OUT: container.textContent = container.dataset.rawTextBuffer;
+
+					// Re-apply syntax highlighting to any new or existing code blocks
+					container.querySelectorAll("pre code").forEach((block) => {
+						hljs.highlightElement(block);
+					});
+					// Re-initialize code block features (copy, expand, etc.)
+					initializeCodeBlockFeatures(container);
+				} else {
+					console.warn("marked.js or highlight.js not available for markdown processing.");
+					// Fallback to just showing text if markdown/highlighting isn't set up
+					container.textContent = container.dataset.rawTextBuffer; // Ensure raw buffer is shown
+				}
 			} else {
-				container.textContent = content;
+				// Fallback for other types or if container is not what's expected
+				// This case should ideally not be hit if appendMessage returns the correct element.
+				// For safety, we can append if it seems like a text container.
+				container.textContent += contentChunk;
 			}
 			smoothScrollToBottom();
 		}
@@ -438,8 +523,8 @@ document.addEventListener("DOMContentLoaded", function () {
 		const reader = response.body.getReader();
 		const decoder = new TextDecoder();
 		let buffer = "";
-		let currentMessageContainer = null;
-		let isFirstChunk = true;
+		let currentMessageContainer = null; // This will hold the .markdown-content div for the current assistant message
+		let isFirstTextChunk = true;
 
 		try {
 			while (true) {
@@ -455,65 +540,40 @@ document.addEventListener("DOMContentLoaded", function () {
 						const data = JSON.parse(line.slice(6));
 
 						if (data.type === "quiz") {
-							// Handle quiz message
-							if (isFirstChunk) {
-								currentMessageContainer = appendMessage(
+							// For now, let's assume quizzes are sent whole and handled by appendMessage
+							if (isFirstTextChunk) { // Use isFirstTextChunk to ensure only one main message container is made
+								appendMessage(
 									"assistant",
-									"",
+									"", // Content is in quizHtml
 									data.message_id,
 									"quiz",
 									data.quiz_html
 								);
-								isFirstChunk = false;
-							} else {
-								// Update existing quiz message
-								const quizMessage = document.querySelector(
-									".quiz-message:last-child"
-								);
-								if (quizMessage) {
-									quizMessage.innerHTML = data.quiz_html;
-									// Apply quiz-specific fixes
-									unwrapQuizMessageCodeBlocks(quizMessage);
-									fixEscapedQuizMessages(quizMessage);
-									fixFirstLineQuizPreCode(quizMessage);
-
-									// Initialize quiz event listeners
-									const quizForms = quizMessage.querySelectorAll("form");
-									quizForms.forEach((form) => {
-										form.addEventListener("submit", function (e) {
-											e.preventDefault();
-											const questionDiv = this.closest(".quiz-question");
-											const correctAnswer = questionDiv.dataset.correct;
-											const selectedAnswer = this.querySelector(
-												'input[type="radio"]:checked'
-											)?.value;
-
-											const feedbackDiv =
-												questionDiv.querySelector(".quiz-feedback");
-											if (selectedAnswer === correctAnswer) {
-												feedbackDiv.textContent = "Correct!";
-												feedbackDiv.className =
-													"quiz-feedback mt-1.5 text-green-400";
-											} else {
-												feedbackDiv.textContent = "Incorrect. Try again!";
-												feedbackDiv.className =
-													"quiz-feedback mt-1.5 text-red-400";
-											}
-										});
-									});
-								}
+								isFirstTextChunk = false;
 							}
 						} else if (data.type === "content") {
-							// Handle regular content message
-							if (isFirstChunk) {
+							const messagesDiv = document.getElementById("chat-messages");
+							if (isFirstTextChunk) {
+								// Create the initial message container and get the .markdown-content div
 								currentMessageContainer = appendMessage(
 									"assistant",
-									data.content,
+									data.content, // First chunk goes here
 									null,
 									"text"
 								);
-								isFirstChunk = false;
+								isFirstTextChunk = false;
+								// The appendMessage function (as modified previously) already handles
+								// sanitizing, setting rawTextBuffer, and initial parsing for this first chunk.
+								// For this test, we let that happen for the first chunk.
 							} else {
+								// **RESTORED: Call updateAssistantMessage for subsequent chunks**
+								// if (messagesDiv && data.content) { // Old diagnostic code
+								// 	const newChunkParagraph = document.createElement('p');
+								// 	newChunkParagraph.textContent = "CHUNK: " + data.content; // Prefix to make it obvious
+								// 	newChunkParagraph.style.color = "cyan"; // Make it stand out
+								// 	messagesDiv.appendChild(newChunkParagraph);
+								// 	smoothScrollToBottom(); 
+								// }
 								updateAssistantMessage(currentMessageContainer, data.content);
 							}
 						} else if (data.type === "error") {
@@ -527,7 +587,7 @@ document.addEventListener("DOMContentLoaded", function () {
 									data.text_content || "Generated Diagram",
 									data.message_id
 								);
-								isFirstChunk = false; // Ensure we don't create another message
+								isFirstTextChunk = false; // Ensure we don't create another message
 							} else {
 								appendSystemNotification(
 									"Error: Received diagram response without image URL",
@@ -1257,6 +1317,8 @@ document.addEventListener("DOMContentLoaded", function () {
 			initializeCodeBlockFeatures(messageElement);
 		}
 	});
+	// Initialize all quiz forms present on initial page load
+	initializeQuizForms(document.getElementById('chat-messages'));
 	hljs.highlightAll();
 	if (document.getElementById("chat-messages").children.length > 1) {
 		// more than just placeholder
@@ -1428,32 +1490,8 @@ document.addEventListener("DOMContentLoaded", function () {
 								fixEscapedQuizMessages(quizMessageElement);
 								fixFirstLineQuizPreCode(quizMessageElement);
 
-								// Set up form handlers for the quiz
-								const forms = quizMessageElement.querySelectorAll("form");
-								forms.forEach((form) => {
-									form.addEventListener("submit", function (e) {
-										e.preventDefault();
-										const questionDiv = this.closest(".quiz-question");
-										const correctAnswer = questionDiv.dataset.correct;
-										const selectedAnswer = this.querySelector(
-											'input[type="radio"]:checked'
-										)?.value;
-
-										const feedbackDiv =
-											questionDiv.querySelector(".quiz-feedback");
-										if (feedbackDiv) {
-											if (selectedAnswer === correctAnswer) {
-												feedbackDiv.textContent = "Correct!";
-												feedbackDiv.className =
-													"quiz-feedback mt-1.5 text-green-400";
-											} else {
-												feedbackDiv.textContent = "Incorrect. Try again!";
-												feedbackDiv.className =
-													"quiz-feedback mt-1.5 text-red-400";
-											}
-										}
-									});
-								});
+								// Set up form handlers for the quiz using the new function
+								initializeQuizForms(quizMessageElement);
 							}
 
 							smoothScrollToBottom();
