@@ -25,7 +25,7 @@ class Message(models.Model):
     role = models.CharField(max_length=10, choices=[('user', 'User'), ('assistant', 'Assistant')])
     content = models.TextField(blank=True)  # For normal text
     type = models.CharField(
-        max_length=20, default='text')  # 'normal' or 'quiz' or 'text' or 'mindmap'
+        max_length=20, default='text', choices=[('text', 'Text'), ('quiz', 'Quiz'), ('diagram', 'Diagram')])  # MODIFIED 'text' or 'quiz' or 'diagram'
     quiz_html = models.TextField(blank=True, null=True)  # For quiz HTML
     diagram_image_url = models.CharField(max_length=500, blank=True, null=True) # For diagram image path
     created_at = models.DateTimeField(auto_now_add=True)

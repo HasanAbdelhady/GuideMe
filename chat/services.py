@@ -425,19 +425,7 @@ class ChatService:
 
         if is_new_chat:
             llm_messages = [{'role': msg['role'], 'content': msg['content']} for msg in messages]
-            # Wrap the synchronous SDK call for streaming
-            # sync_to_async might not work as expected with generators/iterators returned by stream=True.
-            # The Groq SDK would ideally offer an async client for streaming.
-            # If not, this is a more complex case. A common pattern is to run the sync streaming call in a separate thread.
-            # For now, let's assume this was intended to be a blocking call in the view if is_new_chat was handled differently, 
-            # or the view needs to adapt how it consumes this if it's a sync generator.
-            # Given the current view structure expects an async generator, this is problematic.
-            #
-            # **Simplification for now: If is_new_chat, use get_completion and simulate stream in view, or make get_completion stream-like.**
-            # **For the purpose of this fix, let's assume stream=True with sync_to_async is problematic and needs a different approach for true async streaming.**
-            # **However, the view calls this and then iterates. The issue in the view was sync DB calls, not necessarily this call if the view handles its sync nature.**
-            # **Let's revert to calling it as it was, assuming the caller (sync_wrapper_for_event_stream) handles its sync generator nature.**
-            # The original error was SynchronousOnlyOperation from ORM calls, not directly from here.
+            
             return groq_client_local.chat.completions.create( # Keeping this sync as it returns a generator
                 model="llama3-8b-8192",
                 messages=llm_messages,
