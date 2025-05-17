@@ -117,8 +117,53 @@
   </div>
 </div>
 
+<button id="summarize-video-btn">Summarize YouTube Video</button>
+<button id="diagram-generation-btn">Generate Diagram</button>
+
+<input type="text" id="youtube-url" placeholder="Paste YouTube URL here">
+<input type="text" id="diagram-text" placeholder="Enter text for diagram">
+
 <script id="chat-config" type="application/json">
 	{"currentChatId": "{{ current_chat.id|default:'new' }}", "isNewChat": {{ is_new_chat|yesno:'true,false' }}}
+</script>
+
+<script>
+document.getElementById('summarize-video-btn').onclick = function() {
+    const url = document.getElementById('youtube-url').value;
+    appendToChat('user', 'Summarize this video: ' + url);
+    fetch('/chat/summarize-video/', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({url: url})
+    })
+    .then(response => response.json())
+    .then(data => {
+        appendToChat('assistant', data.summary || data.error);
+    });
+};
+
+document.getElementById('diagram-generation-btn').onclick = function() {
+    const text = document.getElementById('diagram-text').value;
+    appendToChat('user', 'Generate diagram for: ' + text);
+    fetch('/chat/diagram-generation/', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({text: text})
+    })
+    .then(response => response.json())
+    .then(data => {
+        appendToChat('assistant', data.result || data.error);
+    });
+};
+
+function appendToChat(role, content) {
+    const chatBox = document.getElementById('chat-messages');
+    const div = document.createElement('div');
+    div.className = role === 'user' ? 'user-message' : 'assistant-message';
+    div.textContent = content;
+    chatBox.appendChild(div);
+    chatBox.scrollTop = chatBox.scrollHeight;
+}
 </script>
 {% endblock %}
 
