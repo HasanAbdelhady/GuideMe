@@ -20,6 +20,11 @@ from .services import ChatService, LangChainRAG
 from .preference_service import PreferenceService
 from django.views.decorators.http import require_POST
 import re
+from dotenv import load_dotenv
+from .All_Tools_used import summarize_video, diagram_generation
+from django.views.decorators.csrf import csrf_exempt
+
+load_dotenv("API.env")
 chat_service = ChatService()
 
 logging.basicConfig(level=logging.INFO)
@@ -523,3 +528,30 @@ class ChatRAGFilesView(View):
         except Exception as e:
             logger.error(f"Error uploading RAG file for chat {chat_id}: {e}", exc_info=True)
             return JsonResponse({'error': 'Could not upload RAG file.'}, status=500)
+
+
+@csrf_exempt
+@require_POST
+def summarize_video_view(request):
+    data = json.loads(request.body)
+    url = data.get("url")
+    if not url:
+        return JsonResponse({"error": "No URL provided"}, status=400)
+    try:
+        summary = summarize_video(url)
+        return JsonResponse({"summary": summary})
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+@csrf_exempt
+@require_POST
+def diagram_generation_view(request):
+    data = json.loads(request.body)
+    text = data.get("text")
+    if not text:
+        return JsonResponse({"error": "No text provided"}, status=400)
+    try:
+        result = diagram_generation(text)
+        return JsonResponse({"result": result})
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
