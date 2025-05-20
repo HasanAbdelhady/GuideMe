@@ -4,8 +4,7 @@ from .views import (
     ChatView,
     ChatStreamView,
     chat_quiz,
-    summarize_video_view,
-    diagram_generation_view,
+    generate_flashcards_view,
 )
 from . import views
 
@@ -21,6 +20,7 @@ urlpatterns = [
     path('<uuid:chat_id>/clear/', views.clear_chat, name='clear_chat'),
     path('<uuid:chat_id>/quiz/', chat_quiz, name='chat_quiz'),
     path('<uuid:chat_id>/rag-files/', views.ChatRAGFilesView.as_view(), name='list_rag_files'),
-    path('summarize-video/', summarize_video_view, name='summarize_video'),
-    path('diagram-generation/', diagram_generation_view, name='diagram_generation'),
+    path('<uuid:chat_id>/rag-files/<int:file_id>/delete/', views.ChatRAGFilesView.as_view(), name='delete_rag_file'),
+    path('<uuid:chat_id>/message/<int:message_id>/edit/', views.edit_message, name='edit_message'),
+    path('flashcards/', generate_flashcards_view, name='flashcards_generator'),
 ]

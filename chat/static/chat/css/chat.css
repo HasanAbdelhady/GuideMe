@@ -98,10 +98,10 @@
 /* Code blocks */
 .cyberpunk-gradient {
 	background: linear-gradient(
-		125deg,
-		#00072d 0%,
-		#001440 28.65%,
-		#001233 75.52%
+		110deg,
+		#35363f 0%,
+		#363a42 28.65%,
+		#181d26 75.52%
 	);
 }
 
@@ -171,4 +171,120 @@
 }
 .group:hover .rename-chat-btn {
 	opacity: 1;
+}
+
+/* Code Block Features Styling */
+pre.code-block-collapsible {
+	max-height: 300px;
+	overflow-y: hidden;
+	transition: max-height 0.3s ease-in-out, width 0.3s ease-in-out;
+	/* Base styles like background, border-radius should come from .markdown-content pre */
+}
+
+/* NEW: Canvas Mode for the wrapper div */
+.code-block-wrapper-canvas-mode {
+	position: fixed !important; /* Force it above other elements */
+	top: 5vh !important;
+	left: 5vw !important;
+	width: 90vw !important;
+	height: 90vh !important;
+	background-color: #2d2d2d !important; /* Use a solid background */
+	z-index: 2000 !important; /* High z-index */
+	padding: 2px !important;
+	border-radius: 8px !important;
+	box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4) !important;
+	display: flex !important; /* To make pre take full height */
+	flex-direction: column !important;
+	transition: background-color 0.5s ease;
+}
+
+/* Adjust <pre> tag when its wrapper is in canvas mode */
+.code-block-wrapper-canvas-mode > pre.code-block-collapsible {
+	width: 100% !important;
+	max-height: none !important; /* Remove max-height limit */
+	height: 100% !important; /* Take full height of canvas wrapper */
+	overflow: auto !important; /* Allow scroll within the expanded pre */
+	margin: 0 !important; /* Reset margin */
+	padding-top: 2.8em !important; /* Keep space for buttons */
+	transition: background-color 0.5s ease;
+}
+
+.code-block-buttons {
+	/* Styles are mostly inline in JS; classes are for potential overrides or future refactoring */
+	/* position: absolute; top: 0.5em; right: 0.5em; z-index: 1; */ /* Handled by inline styles in JS */
+	/* display: flex; gap: 0.5em; */ /* Handled by inline styles in JS */
+}
+
+.code-block-copy-btn,
+.code-block-expand-btn {
+	padding: 0.25em 0.6em;
+	border: 1px solid #555;
+	border-radius: 4px;
+	background-color: #333;
+	color: #f1f1f1;
+	font-size: 0.75em;
+	cursor: pointer;
+	transition: background-color 0.5s ease;
+}
+
+.code-block-copy-btn:hover,
+.code-block-expand-btn:hover {
+	background-color: #4a4a4a;
+}
+
+/* This rule is for the wrapper div the JS creates */
+.markdown-content > div[style*="position: relative;"] {
+	margin: 1em 0; /* Mimic margin of pre */
+}
+
+/* This rule ADDS to the existing padding of .markdown-content pre */
+/* It targets the <pre> tag when it's inside our JS-added wrapper */
+.markdown-content
+	> div[style*="position: relative;"]
+	> pre.code-block-collapsible {
+	padding-top: 2.8em !important; /* Ensure space for buttons, overriding other top paddings. */
+	/* Use !important cautiously, only if necessary to override a more specific rule on .markdown-content pre */
+}
+
+/* Optional: Add a backdrop when canvas mode is active */
+body.code-canvas-backdrop-active::before {
+	content: "";
+	position: fixed;
+	top: 0;
+	left: 0;
+	width: 100vw;
+	height: 100vh;
+	background-color: rgba(0, 0, 0, 0.5); /* Semi-transparent backdrop */
+	z-index: 1999; /* Below canvas, above other content */
+}
+
+/* Message Editing Styles */
+.edit-message-textarea {
+	/* Using Tailwind classes in messages.html for most styling */
+	/* This is a fallback or for specific overrides */
+	min-height: 60px; /* Ensure a minimum height */
+}
+
+.user-message .message-content-text.editing {
+	display: none; /* Hide original text when editing */
+}
+
+.user-message .edit-controls.active {
+	display: block; /* Show textarea and buttons when editing */
+}
+
+.user-message .edit-message-btn {
+	/* Styles mostly handled by Tailwind classes in messages.html */
+	/* opacity: 0; transition: opacity 0.2s; */ /* Now handled by group-hover */
+}
+
+/* .user-message:hover .edit-message-btn { */ /* Now handled by group-hover */
+/* opacity: 1; */
+/* } */
+
+.user-message .edited-indicator {
+	font-size: 0.7rem;
+	color: #9ca3af; /* Tailwind gray-400 */
+	margin-left: 0.25rem;
+	font-style: italic;
 }
