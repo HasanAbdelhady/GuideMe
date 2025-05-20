@@ -1,0 +1,19 @@
+digraph {
+	dpi=300 nodesep=0.7 rankdir=TB ranksep=1.1
+	node [fontname=Helvetica shape=box style="filled,rounded"]
+	node [color="#2F3E46" fontcolor="#2F3E46"]
+	Input [label="📝 Input Layer: Data Input" fillcolor="#A0C4FF"]
+	InputNote [label="Data is fed into the model, such as images for a CNN." fillcolor="#B9FBC0" shape=note]
+	Input -> InputNote [style=dashed]
+	subgraph cluster_Hidden {
+		fillcolor="#FFD6A5" label="🌟 Hidden Layers: Feature Extraction and Processing" labelloc=t style=filled
+		Hidden [label="Convolutional, Pooling, and Fully Connected Layers" fillcolor="#A0C4FF"]
+		HiddenNote [label="These layers process the input data to extract relevant features." fillcolor="#B9FBC0" shape=note]
+		Hidden -> HiddenNote [style=dashed]
+	}
+	Output [label="🎯 Output Layer: Prediction/Classification" fillcolor="#A0C4FF"]
+	OutputNote [label="The final layer generates the output based on the processed features." fillcolor="#B9FBC0" shape=note]
+	Output -> OutputNote [style=dashed]
+	Input -> Hidden
+	Hidden -> Output
+}
