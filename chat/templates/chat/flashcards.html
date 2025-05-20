@@ -1,58 +1,164 @@
 {% load static %}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class=""> {# Start with no specific mode, JS will set it #}
 <head>
     <meta charset="UTF-8" />
-    <title>Flashcard Maker</title>
+    <title>Cybernetic Flashcards</title>
     <meta name="description" content="Instantly create interactive flashcards for any topic with the power of Gemini! Learn smarter, not harder.">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="{% static 'chat/css/flashcards_page.css' %}" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class", // Enable class-based dark mode
+            theme: {
+                extend: {
+                    colors: {
+                        // New Dark Blue/Cyan Palette
+                        'ocean-blue': '#0077be', // Main blue
+                        'aqua-cyan': '#00ffff', // Vibrant cyan
+                        'midnight-blue': '#003366', // Darker blue for accents
+                        'silver-accent': '#c0c0c0', // Light accent
+                        
+                        'dark-bg': '#0a192f', // Dark navy blue
+                        'light-bg': '#e0f2f7', // Very light cyan/blue tint
+                        'card-dark': '#172a45', // Darker navy for cards
+                        'card-light': '#ffffff',
+                        
+                        'text-dark-primary': '#e0f2f7', // Light cyan for dark mode text
+                        'text-dark-secondary': '#a0d2eb', // Lighter blue for secondary dark mode text
+                        'text-light-primary': '#0a192f', // Dark navy for light mode text
+                        'text-light-secondary': '#005683',
+                    },
+                    keyframes: {
+                        flip: {
+                            '0%': { transform: 'rotateY(0deg)' },
+                            '100%': { transform: 'rotateY(180deg)' },
+                        },
+                        unflip: {
+                            '0%': { transform: 'rotateY(180deg)' },
+                            '100%': { transform: 'rotateY(0deg)' },
+                        }
+                    },
+                    animation: {
+                        flip: 'flip 0.6s ease-in-out forwards',
+                        unflip: 'unflip 0.6s ease-in-out forwards',
+                    },
+                    boxShadow: {
+                        'cyber-glow-light': '0 0 12px 3px rgba(0, 255, 255, 0.6), 0 0 18px 4px rgba(0, 119, 190, 0.4)',
+                        'cyber-glow-dark': '0 0 12px 3px rgba(0, 255, 255, 0.5), 0 0 18px 4px rgba(0, 119, 190, 0.3)',
+                    }
+                }
+            }
+        };
+
+        // Function to toggle dark/light mode
+        function toggleTheme() {
+            const htmlEl = document.documentElement;
+            if (htmlEl.classList.contains('dark')) {
+                htmlEl.classList.remove('dark');
+                localStorage.setItem('theme', 'light');
+            } else {
+                htmlEl.classList.add('dark');
+                localStorage.setItem('theme', 'dark');
+            }
+        }
+
+        // Apply saved theme on load
+        if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
+    </script>
+    <style>
+        /* Basic styles for 3D flip - Tailwind's 'transform-style' and 'backface-visibility' are helpful */
+        .flashcard {
+            perspective: 1000px; /* For 3D effect */
+        }
+        .flashcard-inner {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            transition: transform 0.6s;
+            transform-style: preserve-3d;
+        }
+        .flashcard.flipped .flashcard-inner {
+            transform: rotateY(180deg);
+        }
+        .flashcard-front, .flashcard-back {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            -webkit-backface-visibility: hidden; /* Safari */
+            backface-visibility: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 1.5rem; /* Tailwind p-6 */
+            border-radius: 0.75rem; /* Tailwind rounded-xl */
+        }
+        .flashcard-back {
+            transform: rotateY(180deg);
+        }
+    </style>
 </head>
-<body>
-    <div style="position: absolute; top: 10px; left: 10px; padding: 10px;">
+<body class="bg-light-bg dark:bg-dark-bg text-text-light-primary dark:text-text-dark-primary min-h-screen flex flex-col items-center justify-center p-4 transition-colors duration-300 font-sans">
+
+    <div class="fixed top-4 right-4 z-50">
+        <button onclick="toggleTheme()" class="px-4 py-2 bg-midnight-blue text-white rounded-lg shadow-md hover:bg-ocean-blue transition-all duration-300 transform hover:scale-105">
+            Toggle Theme
+        </button>
+    </div>
+
+    <div class="fixed top-4 left-4 z-50">
          <a href="{% url 'chat' %}" 
-            style="text-decoration: none; background-color: var(--dark-primary); color: var(--dark-button-text); padding: 10px 15px; border-radius: 8px; font-family: 'Google Sans', Roboto, Arial, sans-serif; font-size: 14px; box-shadow: 0 1px 2px var(--dark-shadow-color-2);">
+            class="px-4 py-2 bg-aqua-cyan text-dark-bg rounded-lg shadow-md hover:bg-ocean-blue hover:text-white transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-silver-accent">
             &larr; Back to Chat
          </a>
     </div>
 
-    <div class="container">
-        <h1>Flashcard Maker</h1>
-        <p>Instantly create interactive flashcards for any topic with the power of Gemini! Learn smarter, not harder.</p>
+    <div class="w-full max-w-3xl mx-auto p-6 md:p-8 bg-card-light dark:bg-card-dark rounded-xl shadow-xl dark:shadow-cyber-glow-dark transition-colors duration-300">
+        <header class="mb-8 text-center">
+            <h1 class="text-4xl md:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-ocean-blue via-aqua-cyan to-silver-accent mb-2 p-2">Learn With Flashcards</h1>
+            <p class="text-sm md:text-base text-text-light-secondary dark:text-text-dark-secondary">Digitize your knowledge. Interface with information.</p>
+        </header>
         
-        <textarea id="topicInput" placeholder="Enter a topic (e.g., Photosynthesis, Spanish Vocabulary, etc.)..."></textarea>
-        <button id="generateButton">Generate Flashcards</button>
+        <textarea id="topicInput" placeholder="Enter topic (e.g., Astrophysics, Algorithms, Art History)..." class="w-full p-4 mb-4 bg-gray-200 dark:bg-gray-700 border-2 border-midnight-blue dark:border-aqua-cyan rounded-lg text-text-light-primary dark:text-text-dark-primary focus:ring-2 focus:ring-ocean-blue focus:border-transparent outline-none transition-all duration-300 min-h-[80px] resize-none placeholder-gray-500 dark:placeholder-gray-400"></textarea>
+        <button id="generateButton" class="w-full py-3 mb-6 bg-gradient-to-r from-ocean-blue via-aqua-cyan to-midnight-blue text-white font-bold rounded-lg shadow-lg hover:shadow-cyber-glow-light dark:hover:shadow-cyber-glow-dark transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-silver-accent disabled:opacity-50 disabled:cursor-not-allowed">
+            Generate Flashcards
+        </button>
         
-        <div id="errorMessage" class="error-message"></div>
-        <div id="flashcardsContainer" class="flashcards-container">
+        <div id="errorMessage" class="text-center text-red-500 dark:text-red-400 mb-4 min-h-[1.5em]"></div>
+        
+        <div id="flashcardsContainer" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
             <!-- Flashcards will be dynamically inserted here -->
         </div>
 
-        <footer>
-            Powered by Gemini API &bull; MentorAI Project
+        <footer class="mt-12 text-center text-xs text-text-light-secondary dark:text-text-dark-secondary">
+            Powered by Gemini API &bull; MentorAI Project &bull; Cybernetic Theme
         </footer>
     </div>
-
-    <!-- Removed the duplicate form and container that were previously here -->
 
     <script>
         const topicInput = document.getElementById('topicInput');
         const generateButton = document.getElementById('generateButton');
         const flashcardsContainer = document.getElementById('flashcardsContainer');
         const errorMessage = document.getElementById('errorMessage');
-        const csrfToken = '{{ csrf_token }}'; // Django CSRF token
+        const csrfToken = '{{ csrf_token }}';
 
         generateButton.addEventListener('click', async () => {
             const topic = topicInput.value.trim();
             if (!topic) {
-                errorMessage.textContent = 'Please enter a topic.';
-                flashcardsContainer.innerHTML = ''; // Clear any previous cards
+                errorMessage.textContent = 'Please provide a topic to generate flashcards.';
+                flashcardsContainer.innerHTML = '';
                 return;
             }
 
-            errorMessage.textContent = 'Generating flashcards...';
-            flashcardsContainer.innerHTML = ''; // Clear previous results
+            errorMessage.textContent = 'Generating flashcards... please wait.';
+            flashcardsContainer.innerHTML = '';
             generateButton.disabled = true;
+            generateButton.textContent = 'Processing...';
 
             try {
                 const response = await fetch("{% url 'flashcards_generator' %}", {
@@ -67,31 +173,33 @@
                 const data = await response.json();
 
                 if (!response.ok) {
-                    throw new Error(data.error || data.detail || `Server responded with ${response.status}`);
+                    throw new Error(data.error || data.detail || `Server error: ${response.status}`);
                 }
                 
                 errorMessage.textContent = ''; 
                 if (data.flashcards && data.flashcards.length > 0) {
-                    flashcardsContainer.style.display = 'flex'; // Explicitly ensure container is visible
+                    flashcardsContainer.style.display = 'grid';
                     data.flashcards.forEach(({ term, definition }, index) => {
                         const cardDiv = document.createElement('div');
-                        cardDiv.classList.add('flashcard');
+                        cardDiv.className = 'flashcard h-64 rounded-xl group';
                         cardDiv.dataset['index'] = index.toString();
 
                         const cardInner = document.createElement('div');
-                        cardInner.classList.add('flashcard-inner');
+                        cardInner.className = 'flashcard-inner w-full h-full shadow-lg';
 
                         const cardFront = document.createElement('div');
-                        cardFront.classList.add('flashcard-front');
+                        // Updated card front with new blue/cyan palette
+                        cardFront.className = 'flashcard-front bg-card-light dark:bg-card-dark text-text-light-primary dark:text-text-dark-primary border-2 border-aqua-cyan dark:border-midnight-blue';
                         const termDiv = document.createElement('div');
-                        termDiv.classList.add('term');
+                        termDiv.className = 'term text-xl font-semibold text-center';
                         termDiv.textContent = term;
                         cardFront.appendChild(termDiv);
 
                         const cardBack = document.createElement('div');
-                        cardBack.classList.add('flashcard-back');
+                        // Updated card back with new blue/cyan palette
+                        cardBack.className = 'flashcard-back bg-card-light dark:bg-card-dark text-text-light-secondary dark:text-text-dark-secondary border-2 border-midnight-blue dark:border-ocean-blue';
                         const definitionDiv = document.createElement('div');
-                        definitionDiv.classList.add('definition');
+                        definitionDiv.className = 'definition text-center';
                         definitionDiv.textContent = definition;
                         cardBack.appendChild(definitionDiv);
 
@@ -105,30 +213,28 @@
                         });
                     });
                 } else if (data.error) { 
-                    errorMessage.textContent = data.error + (data.details ? ` Details: ${data.details}` : '');
-                    flashcardsContainer.style.display = 'none'; // Hide if error
+                    errorMessage.textContent = 'Error: ' + data.error + (data.details ? ` Details: ${data.details}` : '');
+                    flashcardsContainer.style.display = 'none';
                 }
                 else { 
-                    errorMessage.textContent = 'No flashcards were generated. Try a different topic or check the console for errors.';
-                    flashcardsContainer.style.display = 'none'; // Hide if no cards
+                    errorMessage.textContent = 'No flashcards generated for this topic. Please try another.';
+                    flashcardsContainer.style.display = 'none';
                 }
 
             } catch (err) {
                 console.error('Error generating flashcards:', err);
-                errorMessage.textContent = `Error: ${err.message}. Check console for more details.`;
-                flashcardsContainer.style.display = 'none'; // Hide on error
+                errorMessage.textContent = `Failed to generate flashcards: ${err.message}.`;
+                flashcardsContainer.style.display = 'none';
             } finally {
                 generateButton.disabled = false;
+                generateButton.textContent = 'Generate Flashcards';
             }
         });
-
-        // Ensure flashcards container is hidden initially if it's empty or meant to be shown only on demand
-        // However, your CSS already defines its display as flex, so it should be visible if it has content.
-        // If it's empty, the 'gap' and 'margin-top' might take up space, but the container itself won't be 'hidden'.
-        // The JS now explicitly sets display:flex when cards are added, and display:none on error/no cards.
-        if (!flashcardsContainer.hasChildNodes()) {
-             // flashcardsContainer.style.display = 'none'; // Optionally hide if you want it initially invisible
-        }
+        
+        topicInput.addEventListener('input', () => {
+            topicInput.style.height = 'auto';
+            topicInput.style.height = (topicInput.scrollHeight) + 'px';
+        });
 
     </script>
 </body>

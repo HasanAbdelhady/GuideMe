@@ -1,11 +1,11 @@
 # chat/views.py
 import logging
-from django.http import JsonResponse
+from django.http import JsonResponse, Http404
 import time
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import StreamingHttpResponse, HttpResponse, JsonResponse
 from django.contrib.auth.decorators import login_required
-from .models import Chat, Message, ChatRAGFile
+from .models import Chat, Message, ChatRAGFile, DiagramImage
 from groq import Groq, APIStatusError
 from django.utils.safestring import mark_safe
 import html
@@ -38,7 +38,7 @@ groq_client = Groq()
 
 # It's good practice to move API keys to settings or environment variables
 # get your api key from https://aistudio.google.com/apikey
-FLASHCARD_API_KEY = "Your API key here" # Replace with your actual API key or load from settings
+FLASHCARD_API_KEY = os.environ.get("FLASHCARD")
 
 # Configure the generative AI model for flashcards
 try:
@@ -114,11 +114,12 @@ class ChatView(View):
                     }
 
                     # Handle different message types properly
-                    if msg_obj.type == 'diagram' and msg_obj.diagram_image_url:
+                    if msg_obj.type == 'diagram' and msg_obj.diagram_image_id:
                         # This is a diagram message
-                        msg_dict['diagram_image_url'] = msg_obj.diagram_image_url
+                        # Construct URL to the new serving view
+                        msg_dict['diagram_image_url'] = f"/chat/diagram_image/{msg_obj.diagram_image_id}/"
                         msg_dict['text'] = msg_obj.content  # Use the content as description text
-                        logger.info(f"Loaded diagram message with URL: {msg_obj.diagram_image_url}")
+                        logger.info(f"Loaded diagram message. Will be served from URL: {msg_dict['diagram_image_url']}")
                     elif msg_obj.role == 'assistant' and msg_obj.type == 'quiz':
                         # This is a quiz message
                         if msg_obj.quiz_html:
@@ -325,44 +326,38 @@ class ChatStreamView(View):
                     
                     diagram_topic_query = current_user_prompt_for_saving if current_user_prompt_for_saving else messages_for_llm[-1]['content']
 
-                    image_file_path = await chat_service.generate_diagram_image(
-                        chat_history_messages=messages_for_llm[:-1], # Pass history without current user message yet
+                    # generate_diagram_image now returns the ID of the DiagramImage record
+                    diagram_image_record_id = await chat_service.generate_diagram_image(
+                        chat_history_messages=messages_for_llm[:-1], 
                         user_query=diagram_topic_query, 
                         chat_id=chat.id,
                         user_id=user_id_for_diagram
                     )
 
-                    if image_file_path:
-                        # Simplify path handling - convert all paths to strings
-                        image_file_path_str = str(image_file_path)
+                    if diagram_image_record_id:
+                        # Create a more concise diagram message text (prevent nesting)
+                        diagram_message_content = f"Diagram for: {diagram_topic_query[:100]}"
                         
-                        # Much simpler URL handling - just use the filename directly with diagrams/ prefix
-                        try:
-                            # Get just the filename from the path
-                            image_filename = os.path.basename(image_file_path_str)
-                            # Store as diagrams/filename.png
-                            image_url_for_template = f"diagrams/{image_filename}"
-                            logger.info(f"Simplified image URL: {image_url_for_template}")
-                            
-                            # Create a more concise diagram message text (prevent nesting)
-                            diagram_message_content = f"Diagram for: {diagram_topic_query[:100]}"
-                            
-                            # Make sure to store both the text and the image URL
-                            new_diagram_message = await sync_to_async(Message.objects.create)(
-                                chat=chat, 
-                                role='assistant', 
-                                content=diagram_message_content,  # Simple text description 
-                                type='diagram',                   # Set type to diagram
-                                diagram_image_url=image_url_for_template  # Store the image URL
-                            )
-                            logger.info(f"Diagram message saved with ID {new_diagram_message.id}. Image URL: {image_url_for_template}")
-                            yield f"data: {json.dumps({'type': 'diagram_image', 'image_url': image_url_for_template, 'message_id': new_diagram_message.id, 'text_content': diagram_message_content})}\n\n"
-                        except Exception as e:
-                            logger.error(f"Error processing image path: {e}", exc_info=True)
-                            image_url_for_template = None
-                            yield f"data: {json.dumps({'type': 'error', 'content': 'Error processing image path.'})}\n\n"
+                        # Save the Message linking to the DiagramImage
+                        new_diagram_message = await sync_to_async(Message.objects.create)(
+                            chat=chat, 
+                            role='assistant', 
+                            content=diagram_message_content,  # Simple text description 
+                            type='diagram',
+                            diagram_image_id=diagram_image_record_id # Link to the DiagramImage record
+                        )
+                        logger.info(f"Diagram message saved with ID {new_diagram_message.id}. Linked to DiagramImage ID: {diagram_image_record_id}")
+                        
+                        # Stream the diagram_image_id and message_id to the client
+                        # The client will construct the URL to fetch the image via serve_diagram_image view
+                        yield f"data: {json.dumps({
+                            'type': 'diagram_image', 
+                            'diagram_image_id': str(diagram_image_record_id), # Ensure UUID is string
+                            'message_id': new_diagram_message.id, 
+                            'text_content': diagram_message_content
+                        })}\n\n"
                     else:
-                        logger.error("Diagram generation failed (image_file_path is None).")
+                        logger.error("Diagram generation failed (diagram_image_record_id is None).")
                         yield f"data: {json.dumps({'type': 'error', 'content': 'Failed to generate the diagram for your request.'})}\n\n"
                     
                     # Always end the stream properly for diagrams
@@ -499,7 +494,8 @@ def create_chat(request):
             return JsonResponse({
                 'success': True,
                 'chat_id': chat.id,
-                'redirect_url': f'/chat/{chat.id}/'
+                'redirect_url': f'/chat/{chat.id}/',
+                'title': chat.title
             })
 
         except Exception as e:
@@ -826,3 +822,18 @@ Goodbye: Adiós"""
 
     # For GET request, render the page with the form
     return render(request, 'chat/flashcards.html')
+
+@login_required
+def serve_diagram_image(request, diagram_id):
+    try:
+        diagram_image_instance = get_object_or_404(DiagramImage, id=diagram_id, user=request.user)
+        # Ensure the requesting user is the owner of the diagram or has rights to view it
+        # (Additional checks can be added if chats can be shared etc.)
+        
+        return HttpResponse(diagram_image_instance.image_data, content_type=diagram_image_instance.content_type)
+    except Http404:
+        logger.warning(f"DiagramImage with id {diagram_id} not found or user {request.user.id} not authorized.")
+        return HttpResponse("Diagram not found or access denied.", status=404)
+    except Exception as e:
+        logger.error(f"Error serving diagram image {diagram_id}: {e}", exc_info=True)
+        return HttpResponse("Error serving diagram.", status=500)
