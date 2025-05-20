@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 from urllib.parse import urlparse
 import os
 BASE_DIR = Path(__file__).resolve().parent.parent
-load_dotenv(BASE_DIR / ".env")
+load_dotenv(BASE_DIR / "API.env")
 
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -53,7 +53,8 @@ TEMPLATES = [
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
         'DIRS': [
             BASE_DIR / "templates",  # Add this line
-            BASE_DIR / "chat"
+            BASE_DIR / "chat",
+            BASE_DIR / "flashcard_app" / "templates",
         ],
         'APP_DIRS': True,
         'OPTIONS': {
@@ -76,28 +77,28 @@ WSGI_APPLICATION = 'chatgpt.wsgi.application'
 
 tmpPostgres = urlparse(os.getenv("DATABASE_URL"))
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': tmpPostgres.path.replace('/', ''),
-        'USER': tmpPostgres.username,
-        'PASSWORD': tmpPostgres.password,
-        'HOST': tmpPostgres.hostname,
-        'PORT': 5432,
-        'CONN_MAX_AGE': 60,  # Keep connections open for 60 seconds
-        'OPTIONS': {
-            'connect_timeout': 10,
-        }
-    }
-}
+# DATABASES = {
+#    'default': {
+#        'ENGINE': 'django.db.backends.postgresql',
+#        'NAME': tmpPostgres.path.replace('/', ''),
+#        'USER': tmpPostgres.username,
+#        'PASSWORD': tmpPostgres.password,
+#        'HOST': tmpPostgres.hostname,
+#        'PORT': 5432,
+#        'CONN_MAX_AGE': 60,  # Keep connections open for 60 seconds
+#        'OPTIONS': {
+#            'connect_timeout': 10,
+#        }
+#    }
+#}
 
 #If you want to go back to sqlite3
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.sqlite3',
-#         'NAME': BASE_DIR / 'db.sqlite3',
-#     }
-# }
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
+    }
+}
 
 
 # Password validation
