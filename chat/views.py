@@ -27,6 +27,7 @@ from django.conf import settings
 from django.views.decorators.csrf import csrf_exempt
 from pydantic import BaseModel
 import google.generativeai as genai
+from django.db import close_old_connections
 
 chat_service = ChatService()
 
@@ -313,6 +314,7 @@ class ChatStreamView(View):
                 logger.info(f"[ChatStreamView.stream_response] Max tokens for LLM: {max_tokens_for_llm}")
 
                 if not user_message_saved and current_user_prompt_for_saving:
+                    await sync_to_async(close_old_connections)()
                     await sync_to_async(Message.objects.create)(chat=chat, role='user', content=current_user_prompt_for_saving)
                     user_message_saved = True
                     logger.info(f"User message '{current_user_prompt_for_saving[:50]}...' saved (Normal stream mode).")
@@ -342,6 +344,7 @@ class ChatStreamView(View):
                         diagram_message_content = f"Diagram for: {diagram_topic_query[:100]}"
                         
                         # Save the Message linking to the DiagramImage
+                        await sync_to_async(close_old_connections)()
                         new_diagram_message = await sync_to_async(Message.objects.create)(
                             chat=chat, 
                             role='assistant', 
@@ -379,6 +382,7 @@ class ChatStreamView(View):
                 )
                 
                 if type(stream) == str: 
+                    await sync_to_async(close_old_connections)()
                     await sync_to_async(Message.objects.create)(chat=chat, role='assistant', content=stream)
                     logger.info(f"Direct RAG output saved as assistant message: {stream[:100]}...")
                     yield f"data: {json.dumps({'type': 'content', 'content': stream})}\n\n"
@@ -412,9 +416,7 @@ class ChatStreamView(View):
 
                     # The full response is in accumulated_response_for_db for saving
                     if accumulated_response_for_db:
-                        # DB saving uses this var.
-                        # Note: The 'accumulated_response' variable mentioned in comments below was specific
-                        # to a previous structure. Here, accumulated_response_for_db holds the full text.
+                        await sync_to_async(close_old_connections)()
                         await sync_to_async(Message.objects.create)(chat=chat, role='assistant', content=accumulated_response_for_db)
                         logger.info("Assistant message created from accumulated stream (buffered).")
                     

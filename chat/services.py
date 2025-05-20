@@ -620,67 +620,67 @@ class ChatService:
                             graph_object = val
                             self.logger.info(f"Found graph object: {name}")
                             break
-                    
-                    if graph_object:
-                        # --- Debugging: Render to a temp file before pipe() ---
-                        try:
-                            debug_png_filename_base = f"diagram_attempt_{timestamp}_{attempt + 1}_debug_render"
-                            debug_rendered_path = graph_object.render(filename=debug_png_filename_base, directory=debug_dir, view=False, cleanup=False) # cleanup=False to keep the .png
-                            if debug_rendered_path and debug_rendered_path.lower().endswith('.png'):
-                                self.logger.info(f"Debug render successful. PNG saved to: {debug_rendered_path}")
-                            else:
-                                self.logger.warning(f"Debug render did not produce a .png as expected. Path: {debug_rendered_path}")
-                                if debug_rendered_path and not debug_rendered_path.lower().endswith('.png') and os.path.exists(debug_rendered_path):
-                                   self.logger.info(f"Graphviz object also saved its source to: {debug_rendered_path} (likely a .gv file)")
-                        except Exception as e_debug_render:
-                            self.logger.error(f"Error during debug rendering to file: {e_debug_render}", exc_info=True)
-                        # --- End Debugging ---
-
-                        graph_object.format = 'png'
-                        try:
-                            image_bytes = graph_object.pipe()
-                            self.logger.info(f"graph_object.pipe() returned {len(image_bytes) if image_bytes else 0} bytes.")
-                            if not image_bytes:
-                                self.logger.error("graph_object.pipe() returned empty bytes.")
-                                raise ValueError("Image generation failed: no data from pipe.")
-                        except Exception as pipe_exc:
-                            self.logger.error(f"Error during graph_object.pipe(): {pipe_exc}", exc_info=True)
+                        
+                        if graph_object:
+                            # --- Debugging: Render to a temp file before pipe() ---
                             try:
-                                temp_filename_base = f"temp_diagram_fallback_{timestamp}_{attempt + 1}"
-                                fallback_render_dir = os.path.join(settings.MEDIA_ROOT, "temp_diagram_fallback_renders")
-                                os.makedirs(fallback_render_dir, exist_ok=True)
-                                rendered_path = graph_object.render(filename=temp_filename_base, directory=fallback_render_dir, view=False, cleanup=True)
-                                if not rendered_path or not rendered_path.lower().endswith('.png'):
-                                     self.logger.error(f"Fallback render did not produce a .png file as expected. Path: {rendered_path}")
-                                     raise ValueError("Fallback render failed to produce PNG.")
-                                with open(rendered_path, 'rb') as f:
-                                    image_bytes = f.read()
-                                os.remove(rendered_path)
-                                self.logger.info(f"Successfully read {len(image_bytes)} image bytes via fallback render to {rendered_path}")
-                            except Exception as fallback_render_exc:
-                                self.logger.error(f"Fallback render and read also failed: {fallback_render_exc}", exc_info=True)
-                                raise 
-                        
-                        if not image_bytes: # Double check after pipe and fallback
-                            self.logger.error("Image bytes are still empty after pipe and fallback. Cannot save to DB.")
-                            raise ValueError("Image data is empty, cannot proceed.")
+                                debug_png_filename_base = f"diagram_attempt_{timestamp}_{attempt + 1}_debug_render"
+                                debug_rendered_path = graph_object.render(filename=debug_png_filename_base, directory=debug_dir, view=False, cleanup=False) # cleanup=False to keep the .png
+                                if debug_rendered_path and debug_rendered_path.lower().endswith('.png'):
+                                    self.logger.info(f"Debug render successful. PNG saved to: {debug_rendered_path}")
+                                else:
+                                    self.logger.warning(f"Debug render did not produce a .png as expected. Path: {debug_rendered_path}")
+                                    if debug_rendered_path and not debug_rendered_path.lower().endswith('.png') and os.path.exists(debug_rendered_path):
+                                        self.logger.info(f"Graphviz object also saved its source to: {debug_rendered_path} (likely a .gv file)")
+                            except Exception as e_debug_render:
+                                self.logger.error(f"Error during debug rendering to file: {e_debug_render}", exc_info=True)
+                            # --- End Debugging ---
 
-                        # Save to DiagramImage model
-                        safe_topic_filename = sanitize_filename(topic_name_from_query).replace(' ', '_') + ".png"
-                        
-                        self.logger.info(f"Final check before DB save: type(image_bytes)={type(image_bytes)}, len(image_bytes)={len(image_bytes)}")
-                        diagram_image_instance = await sync_to_async(DiagramImage.objects.create)(
-                            chat=chat_model_instance,
-                            user=user_model_instance,
-                            image_data=image_bytes,
-                            filename=safe_topic_filename,
-                            content_type='image/png'
-                        )
-                        self.logger.info(f"✅ Diagram saved to DB with ID: {diagram_image_instance.id}")
-                        return diagram_image_instance.id
+                            graph_object.format = 'png'
+                            try:
+                                image_bytes = graph_object.pipe()
+                                self.logger.info(f"graph_object.pipe() returned {len(image_bytes) if image_bytes else 0} bytes.")
+                                if not image_bytes:
+                                    self.logger.error("graph_object.pipe() returned empty bytes.")
+                                    raise ValueError("Image generation failed: no data from pipe.")
+                            except Exception as pipe_exc:
+                                self.logger.error(f"Error during graph_object.pipe(): {pipe_exc}", exc_info=True)
+                                try:
+                                    temp_filename_base = f"temp_diagram_fallback_{timestamp}_{attempt + 1}"
+                                    fallback_render_dir = os.path.join(settings.MEDIA_ROOT, "temp_diagram_fallback_renders")
+                                    os.makedirs(fallback_render_dir, exist_ok=True)
+                                    rendered_path = graph_object.render(filename=temp_filename_base, directory=fallback_render_dir, view=False, cleanup=True)
+                                    if not rendered_path or not rendered_path.lower().endswith('.png'):
+                                        self.logger.error(f"Fallback render did not produce a .png file as expected. Path: {rendered_path}")
+                                        raise ValueError("Fallback render failed to produce PNG.")
+                                    with open(rendered_path, 'rb') as f:
+                                        image_bytes = f.read()
+                                    os.remove(rendered_path)
+                                    self.logger.info(f"Successfully read {len(image_bytes)} image bytes via fallback render to {rendered_path}")
+                                except Exception as fallback_render_exc:
+                                    self.logger.error(f"Fallback render and read also failed: {fallback_render_exc}", exc_info=True)
+                                    raise 
+                            
+                            if not image_bytes: # Double check after pipe and fallback
+                                self.logger.error("Image bytes are still empty after pipe and fallback. Cannot save to DB.")
+                                raise ValueError("Image data is empty, cannot proceed.")
+
+                            # Save to DiagramImage model
+                            safe_topic_filename = sanitize_filename(topic_name_from_query).replace(' ', '_') + ".png"
+                            
+                            self.logger.info(f"Final check before DB save: type(image_bytes)={type(image_bytes)}, len(image_bytes)={len(image_bytes)}")
+                            diagram_image_instance = await sync_to_async(DiagramImage.objects.create)(
+                                chat=chat_model_instance,
+                                user=user_model_instance,
+                                image_data=image_bytes,
+                                filename=safe_topic_filename,
+                                content_type='image/png'
+                            )
+                            self.logger.info(f"✅ Diagram saved to DB with ID: {diagram_image_instance.id}")
+                            return diagram_image_instance.id
                     else:
-                        self.logger.error("Graphviz code did not define a discoverable Digraph object.")
-                        raise ValueError("No Digraph object found after execution.")
+                            self.logger.error("Graphviz code did not define a discoverable Digraph object.")
+                            raise ValueError("No Digraph object found after execution.")
             
                 except Exception as e: # This is the EXCEPT for the try block starting with exec(current_code...)
                     error_message = f"{str(e)}\\n\\n{traceback.format_exc()}"
@@ -691,11 +691,11 @@ class ChatService:
             
                     self.logger.info(f"Attempting to get fixed code from LLM for attempt {attempt + 2}.")
                     fix_prompt_content = prompt_fix_code.format(
-                        topic=topic_name_from_query,
-                        description=structured_description_content_for_fix,
-                        erroneous_code=current_code,
-                        error_message=error_message
-                    )
+                    topic=topic_name_from_query,
+                    description=structured_description_content_for_fix,
+                    erroneous_code=current_code,
+                    error_message=error_message
+                        )
                     messages_for_fix = [{"role": "system", "content": "You are a helpful assistant that fixes Python Graphviz code."},
                                         {"role": "user", "content": fix_prompt_content}]
                     try: # Inner TRY for the LLM call
@@ -707,8 +707,8 @@ class ChatService:
                         )
                         if not fixed_code_response or not fixed_code_response.strip():
                             self.logger.error("LLM failed to provide fixed code (empty response). Aborting retries.")
-                            return None
-                        
+                        return None
+                    
                         cleaned_fixed_code = fixed_code_response.strip()
                         if cleaned_fixed_code.startswith("```python"):
                             cleaned_fixed_code = cleaned_fixed_code[len("```python"):].strip()

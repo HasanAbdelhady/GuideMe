@@ -26,7 +26,7 @@ function openImageModal(imgSrc) {
 		modalOverlay.className =
 			"fixed inset-0 bg-black bg-opacity-80 z-50 flex items-center justify-center opacity-0 pointer-events-none transition-opacity duration-300";
 		modalOverlay.innerHTML = `
-			<div class="relative max-w-full max-h-full p-4">
+			<div class="relative max-w-full max-h-full p-4 m-4">
 				<img id="modal-image" src="" alt="Enlarged diagram" class="max-w-full max-h-[90vh] rounded-lg shadow-xl transform scale-95 transition-transform duration-300">
 				<button id="close-image-modal" class="absolute top-0 right-0 -mt-4 -mr-4 bg-red-600 text-white rounded-full p-2 hover:bg-red-700 focus:outline-none">
 					<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor">
