@@ -1,4 +1,5 @@
 <!-- Messages area -->
+{% load static %}
 <div id="chat-messages" class="space-y-5 mb-4 min-h-[calc(100vh-180px)]">
 	{% for msg in conversation %}
 	<div class="message-enter px-4 md:px-6 py-6">
@@ -13,8 +14,36 @@
 			</div>
 			<!-- Message content -->
 			<div class="overflow-x-auto max-w-[75%]">
-				<div class="user-message text-gray-100 bg-[#444654] p-3 rounded-lg">
-					<p class="whitespace-pre-wrap">{{ msg.text}}</p>
+				<div
+					class="user-message text-gray-100 bg-[#444654] p-3 rounded-lg message-text-container"
+					data-message-id="{{ msg.id }}" data-created-at="{{ msg.created_at }}">
+					<p class="whitespace-pre-wrap message-content-text">{{ msg.text }}</p>
+					<div class="edit-controls hidden mt-2">
+						<textarea
+							class="edit-message-textarea w-full p-2 rounded bg-gray-700 border border-gray-600 text-gray-100 resize-none"
+							rows="3"></textarea>
+						<div class="flex justify-end gap-2 mt-2">
+							<button
+								class="cancel-edit-btn px-3 py-1 text-xs bg-gray-600 hover:bg-gray-500 rounded text-white">Cancel</button>
+							<button
+								class="save-edit-btn px-3 py-1 text-xs bg-blue-600 hover:bg-blue-500 rounded text-white">Save</button>
+						</div>
+					</div>
+					{% if msg.is_edited %}
+					<span class="text-xs text-gray-400 italic ml-1">(edited)</span>
+					{% endif %}
+				</div>
+				<!-- Edit button moved here, under the message box -->
+				<div class="flex justify-end mt-1 pr-1">
+					<button
+						class="edit-message-btn p-1 text-gray-400 hover:text-gray-200 transition-opacity"
+						data-message-id="{{ msg.id }}" title="Edit message">
+						<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none"
+							viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+							<path stroke-linecap="round" stroke-linejoin="round"
+								d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+						</svg>
+					</button>
 				</div>
 			</div>
 		</div>
@@ -24,14 +53,9 @@
 			<!-- Assistant icon - left side -->
 			<div class="flex-shrink-0 w-7 h-7">
 				<div
-					class="cls w-7 h-7 rounded-sm bg-[#11A27F] flex items-center justify-center text-white">
-					<svg width="24" height="24" viewBox="0 0 24 24" fill="none"
-						xmlns="http://www.w3.org/2000/svg" class="h-5 w-5">
-						<path
-							d="M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-10.5V21"
-							stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
-							stroke-linejoin="round"></path>
-					</svg>
+					class="cls w-10 h-7 p-1 rounded-sm bg-slate-100 flex items-center justify-center text-white">
+					<img src="{% static 'images/logo.png' %}" alt="Assistant icon"
+						class="h-5 w-7">
 				</div>
 			</div>
 			<!-- Message content -->
@@ -40,7 +64,18 @@
 				<div class="max-w-none markdown-content text-gray-100">
 					{{ msg.text |safe }}
 				</div>
-				{% else %}
+				{% elif msg.diagram_image_url %}
+				<div
+					class="diagram-message-container bg-gray-800/50 p-2 my-2 rounded-lg shadow-md flex flex-col justify-center items-center">
+					<img src="{{ MEDIA_URL }}{{ msg.diagram_image_url }}"
+						alt="Generated Diagram"
+						class="max-w-full h-auto rounded-md mb-1 cursor-pointer hover:opacity-90 transition-opacity"
+						onclick="openImageModal('{{ MEDIA_URL }}{{ msg.diagram_image_url }}')">
+					{% if msg.text %}
+					<p class="text-xs text-gray-400 italic mt-1 text-center">{{ msg.text }}</p>
+					{% endif %}
+				</div>
+				{% elif msg.html %}
 				<div
 					class="quiz-message max-w-none text-gray-100 bg-gray-700/70 p-2 rounded-xl ">
 					{{ msg.html | safe }}
@@ -51,14 +86,10 @@
 		{% endif %}
 	</div>
 	{% empty %}
-	<div class="flex flex-col items-center justify-center h-[calc(100vh-200px)]">
-		<svg width="48" height="48" viewBox="0 0 24 24" fill="none"
-			xmlns="http://www.w3.org/2000/svg" class="text-gray-400 mb-2">
-			<path
-				d="M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-10.5V21"
-				stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
-				stroke-linejoin="round"></path>
-		</svg>
+	<div class="flex flex-col items-center justify-center h-[calc(100vh-200px)] ">
+		<img src="{% static 'images/logo.png' %}" alt="Assistant icon"
+			class="h-14 w-24">
+
 		<p class="text-gray-400 text-sm">How can I help you today?</p>
 	</div>
 	{% endfor %}
