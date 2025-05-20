@@ -169,33 +169,19 @@ document.addEventListener("DOMContentLoaded", function () {
         container.textContent = title; // Restore text
     }
 
-    // --- UI Updates based on new/existing chat state --- 
-    // This function controls visibility of buttons like Quiz and Manage RAG.
-    window.updateNewChatUI = function(isNew) {
-        const quizButtonContainer = document.getElementById("quiz-button-container");
-        const manageRagButton = document.getElementById("manage-rag-context-btn");
+    // --- UI Updates based on new/existing chat state ---
+    // THIS FUNCTION IS NOW DEFERRED TO chat.js to avoid conflicts.
+    // window.updateNewChatUI = function(isNew) { ... }; 
+    
+    // Initial call logic is also deferred or handled by chat.js directly setting window.isNewChat
+    // and then the event listener below will pick up changes.
 
-        if (isNew) {
-            if (quizButtonContainer) quizButtonContainer.classList.add("hidden");
-            if (manageRagButton) manageRagButton.classList.add("hidden");
-        } else {
-            if (quizButtonContainer) quizButtonContainer.classList.remove("hidden");
-            if (manageRagButton) manageRagButton.classList.remove("hidden");
+    // Listen for the custom event dispatched by chat.js
+    document.addEventListener('chatStateChanged', function(event) {
+        console.log("[chat_actions.js] Caught chatStateChanged event", event.detail);
+        // Call the global updateNewChatUI function (expected to be defined in chat.js)
+        if (typeof window.updateNewChatUI === 'function') {
+            window.updateNewChatUI(event.detail.isNewChat);
         }
-    };
-    // Initial call based on chatConfig from chat.js (or global window.isNewChat)
-    // The global window.isNewChat should be set before this script runs or by chat.js early.
-    if (typeof window.isNewChat !== 'undefined') {
-        window.updateNewChatUI(window.isNewChat);
-    } else {
-        console.warn("window.isNewChat not defined when chat_actions.js loaded. UI button visibility might be incorrect.");
-        // Attempt to infer if chat.js hasn't set it yet
-        const chatConfigElement = document.getElementById("chat-config");
-        if (chatConfigElement) {
-            try {
-                const config = JSON.parse(chatConfigElement.textContent);
-                window.updateNewChatUI(config.isNewChat);
-            } catch (e) { /* ignore */ }
-        }
-    }
+    });
 }); 

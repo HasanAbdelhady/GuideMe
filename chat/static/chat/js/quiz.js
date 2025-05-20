@@ -111,113 +111,66 @@ window.fixFirstLineQuizPreCode = function(quizMsgElement) {
 };
 
 
-document.addEventListener("DOMContentLoaded", function () {
-	const quizButton = document.getElementById("quiz-button");
-	const quizButtonContainer = document.getElementById("quiz-button-container");
+document.addEventListener("DOMContentLoaded", function() {
+	const chatMessages = document.getElementById("chat-messages");
 
-	// Initialize existing quizzes on page load (e.g. from history)
-	// Call the global functions now available on window
-	document.querySelectorAll(".quiz-message").forEach(quizMessageElement => {
-		if(window.unwrapQuizMessageCodeBlocks) window.unwrapQuizMessageCodeBlocks(quizMessageElement);
-		if(window.fixEscapedQuizMessages) window.fixEscapedQuizMessages(quizMessageElement);
-		if(window.fixFirstLineQuizPreCode) window.fixFirstLineQuizPreCode(quizMessageElement);
-		if(window.initializeQuizForms) window.initializeQuizForms(quizMessageElement);
-	});
+	// Function to initialize event listeners for quiz forms within a given parent element
+	function initializeQuizForms(parentElement) {
+		const quizForms = parentElement.querySelectorAll(".quiz-question form");
+		quizForms.forEach(form => {
+			// Prevent multiple listeners if function is called multiple times on same element
+			if (form.dataset.quizInitialized) return;
+			form.dataset.quizInitialized = "true";
 
-	// Quiz Button Event Listener
-	if (quizButton) {
-		quizButton.addEventListener("click", async function () {
-			if (
-				window.currentChatId &&
-				window.currentChatId !== "new" &&
-				!window.isNewChat
-			) {
-				if(typeof window.createTypingIndicator === 'function') window.createTypingIndicator();
-				try {
-					const response = await fetch(`/chat/${window.currentChatId}/quiz/`, {
-						method: "POST",
-						headers: {
-							"X-CSRFToken": window.getCookie("csrftoken")
-						}
-					});
-					if(typeof window.removeTypingIndicator === 'function') window.removeTypingIndicator();
-
-					if (response.ok) {
-						const data = await response.json();
-						if (data.quiz_html) {
-							const messagesDiv = document.getElementById("chat-messages");
-							const messageDiv = document.createElement("div");
-							messageDiv.className = "message-enter px-4 md:px-6 py-6";
-							messageDiv.setAttribute("data-message-id", data.message_id); // Store message ID
-
-							const iconHtml = `<div class="cls w-10 h-7 p-1 rounded-sm bg-slate-100 flex items-center justify-center text-white"><img src="/static/images/logo.png" alt="Assistant icon" class="h-5 w-7"></div>`;
-							const actualContentHtml = `<div class="quiz-message max-w-none text-gray-100 bg-gray-700/70 p-2 rounded-xl" data-message-id="${data.message_id}">${data.quiz_html}</div>`;
-
-							messageDiv.innerHTML = `
-								<div class="chat-container flex gap-4 md:gap-6">
-									<div class="flex-shrink-0 w-7 h-7">${iconHtml}</div>
-									<div class="flex-1 overflow-x-auto min-w-0 max-w-[85%]">${actualContentHtml}</div>
-								</div>`;
-							messagesDiv.appendChild(messageDiv);
-
-							const quizMessageElement = messageDiv.querySelector(".quiz-message");
-							if (quizMessageElement) {
-								if(window.unwrapQuizMessageCodeBlocks) window.unwrapQuizMessageCodeBlocks(quizMessageElement);
-								if(window.fixEscapedQuizMessages) window.fixEscapedQuizMessages(quizMessageElement);
-								if(window.fixFirstLineQuizPreCode) window.fixFirstLineQuizPreCode(quizMessageElement);
-								if(window.initializeQuizForms) window.initializeQuizForms(quizMessageElement);
-							}
-							if(typeof window.smoothScrollToBottom === 'function') window.smoothScrollToBottom();
-						} else if (data.error) {
-							if(typeof window.appendSystemNotification === 'function') window.appendSystemNotification(`Error generating quiz: ${data.error}`, "error");
-						} else {
-							if(typeof window.appendSystemNotification === 'function') window.appendSystemNotification("Received an unexpected response for the quiz.", "error");
-						}
+			form.addEventListener("submit", function(e) {
+				e.preventDefault();
+				const questionDiv = this.closest(".quiz-question");
+				const correctAnswer = questionDiv.dataset.correct;
+				const selectedAnswer = this.querySelector('input[type="radio"]:checked')?.value;
+				
+				const feedbackDiv = questionDiv.querySelector(".quiz-feedback");
+				if (feedbackDiv) {
+					if (selectedAnswer === correctAnswer) {
+						feedbackDiv.textContent = "Correct!";
+						feedbackDiv.className = "quiz-feedback mt-1.5 text-green-400";
 					} else {
-						let errorText = "Failed to generate quiz. Server error.";
-						try {
-							const errorData = await response.json();
-							errorText = errorData.error || response.statusText;
-						} catch (e) { /* Keep default */ }
-						if(typeof window.appendSystemNotification === 'function') window.appendSystemNotification(`Error generating quiz: ${errorText}`, "error");
+						feedbackDiv.textContent = "Incorrect. Try again!";
+						feedbackDiv.className = "quiz-feedback mt-1.5 text-red-400";
 					}
-				} catch (error) {
-					if(typeof window.removeTypingIndicator === 'function') window.removeTypingIndicator();
-					console.error("Error fetching quiz:", error);
-					if(typeof window.appendSystemNotification === 'function') window.appendSystemNotification(`Error fetching quiz: ${error.message}`, "error");
 				}
-			} else {
-				if(typeof window.appendSystemNotification === 'function') window.appendSystemNotification("Please start a chat first to generate a quiz.", "info");
-			}
+			});
 		});
-	} else {
-		console.warn("Quiz button not found in DOM for quiz.js");
+	}
+	
+	// Initial call for quiz forms already on the page
+	if (chatMessages) {
+		initializeQuizForms(chatMessages);
 	}
 
-	// Quiz button visibility based on chat state
-	// window.isNewChat and window.currentChatId are expected to be set by chat.js or chat_config.js
-	// This can also be managed by chat_actions.js now if preferred, for centralization.
-	// For now, keeping it here as it's quiz-specific UI.
-	function updateQuizButtonVisibility() {
-        if (quizButtonContainer) {
-            if (window.isNewChat || !window.currentChatId || window.currentChatId === 'new') {
-                quizButtonContainer.classList.add("hidden");
-            } else {
-                quizButtonContainer.classList.remove("hidden");
-            }
-        }
-    }
-    // Initial call to set visibility
-    updateQuizButtonVisibility();
+	// Use MutationObserver to detect when new quiz messages are added to the DOM
+	if (chatMessages) {
+		const observer = new MutationObserver(mutations => {
+			mutations.forEach(mutation => {
+				if (mutation.type === "childList") {
+					mutation.addedNodes.forEach(node => {
+						if (node.nodeType === 1) { // Check if it's an element node
+							// If the added node itself is a quiz message or contains quiz forms
+							if (node.querySelector(".quiz-question form") || node.classList.contains("quiz-message")) {
+								initializeQuizForms(node);
+							}
+							// Also check if child elements contain quiz forms (e.g., if a wrapper div is added)
+							const nestedQuizForms = node.querySelectorAll(".quiz-question form");
+							if (nestedQuizForms.length > 0) {
+								initializeQuizForms(node);
+							}
+						}
+					});
+				}
+			});
+		});
 
-	// Listen for custom event if chat state changes (e.g., new chat created, chat loaded)
-    // This is an example, the actual event name would depend on how chat.js or other modules signal this.
-    document.addEventListener('chatStateChanged', function(event) {
-        // event.detail might contain { isNewChat: true/false, currentChatId: '...' }
-        if (event.detail) {
-            window.isNewChat = event.detail.isNewChat;
-            window.currentChatId = event.detail.currentChatId;
-        }
-        updateQuizButtonVisibility();
-    });
+		observer.observe(chatMessages, { childList: true, subtree: true });
+	} else {
+		console.warn("Chat messages container not found for MutationObserver in quiz.js.");
+	}
 });

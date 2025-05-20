@@ -19,15 +19,39 @@ class Chat(models.Model):
         ordering = ['updated_at']
 
 
+class DiagramImage(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    chat = models.ForeignKey(Chat, on_delete=models.CASCADE, related_name='diagram_images')
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='diagram_images')
+    image_data = models.BinaryField()
+    filename = models.CharField(max_length=255, default="diagram.png")
+    content_type = models.CharField(max_length=50, default="image/png")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Diagram {self.filename} for Chat {self.chat.id} (User: {self.user.username})"
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = "Diagram Image"
+        verbose_name_plural = "Diagram Images"
+
+
 class Message(models.Model):
     chat = models.ForeignKey(
         Chat, on_delete=models.CASCADE, related_name='messages')
     role = models.CharField(max_length=10, choices=[('user', 'User'), ('assistant', 'Assistant')])
     content = models.TextField(blank=True)  # For normal text
     type = models.CharField(
-        max_length=20, default='text', choices=[('text', 'Text'), ('quiz', 'Quiz'), ('diagram', 'Diagram')])  # MODIFIED 'text' or 'quiz' or 'diagram'
+        max_length=20, default='text', choices=[('text', 'Text'), ('quiz', 'Quiz'), ('diagram', 'Diagram')])
     quiz_html = models.TextField(blank=True, null=True)  # For quiz HTML
-    diagram_image_url = models.CharField(max_length=500, blank=True, null=True) # For diagram image path
+    diagram_image = models.ForeignKey(
+        DiagramImage, 
+        on_delete=models.SET_NULL,  # Or models.CASCADE if image is essential
+        null=True, 
+        blank=True, 
+        related_name='messages'
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     is_edited = models.BooleanField(default=False)
     edited_at = models.DateTimeField(null=True, blank=True)

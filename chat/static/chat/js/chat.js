@@ -580,17 +580,18 @@ document.addEventListener("DOMContentLoaded", function () {
 							appendSystemNotification(data.content, "error");
 						} else if (data.type === "diagram_image") {
 							// Handle diagram image message
-							console.log("Received diagram image:", data);
-							if (data.image_url) {
+							console.log("Received diagram image data:", data);
+							if (data.diagram_image_id) {
+								const imageUrl = `/chat/diagram_image/${data.diagram_image_id}/`; // Construct URL
 								appendDiagramMessage(
-									data.image_url,
+									imageUrl,
 									data.text_content || "Generated Diagram",
 									data.message_id
 								);
 								isFirstTextChunk = false; // Ensure we don't create another message
 							} else {
 								appendSystemNotification(
-									"Error: Received diagram response without image URL",
+									"Error: Received diagram response without diagram_image_id",
 									"error"
 								);
 							}
@@ -689,47 +690,84 @@ document.addEventListener("DOMContentLoaded", function () {
 				history.pushState({}, "", data.redirect_url);
 				currentChatId = data.chat_id;
 				isNewChat = false;
+				// Update global window variables that other modules might use
+				window.currentChatId = currentChatId;
+				window.isNewChat = isNewChat;
+
+				// Update mobile header
 				const mobileHeader = document.querySelector(".md\\:hidden h1");
 				if (mobileHeader && data.title) {
 					mobileHeader.textContent = data.title;
 				}
+
+				// Create and add new chat element to the sidebar
 				const chatsList = document.getElementById("chats-list");
 				const newChatElement = document.createElement("div");
-				newChatElement.className =
-					"flex items-center justify-between p-2 rounded bg-gray-700/40 transition-colors group text-sm";
-				newChatElement.dataset.chatId = data.chat_id;
+				newChatElement.classList.add("group", "relative"); 
+				newChatElement.dataset.chatId = data.chat_id; 
+
+				const currentDate = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
 				newChatElement.innerHTML = `
-					<div class="flex-1 truncate chat-title-container cursor-pointer" ondblclick="startEditing(this)">
-						<div class="text-sm text-gray-200 truncate">${data.title}</div>
-					</div>
-					<div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-						<a href="/chat/${data.chat_id}/" class="p-1 text-gray-400 hover:text-gray-200 transition-all rounded">
-							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
-							</svg>
+					<div class="flex items-center justify-between p-3 rounded-lg hover:bg-gray-800/50 transition-colors">
+						<a href="/chat/${data.chat_id}/" class="flex-1">
+							<div class="text-sm font-medium text-gray-200 truncate chat-title" data-chat-id="${data.chat_id}">
+								${data.title}
+							</div>
+							<div class="text-xs text-gray-400">
+								${currentDate}
+							</div>
 						</a>
-						<button class="delete-chat-btn p-1 text-gray-400 hover:text-gray-200 transition-all rounded" data-chat-id="${data.chat_id}" title="Delete chat">
-							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-							</svg>
-						</button>
+						<div class="flex items-center space-x-2">
+							<button
+								class="edit-title-btn p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+								data-chat-id="${data.chat_id}"
+								title="Rename chat">
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+							</button>
+							<button
+								class="delete-chat-btn p-2 text-red-400 hover:text-red-300 hover:bg-gray-700 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+								data-chat-id="${data.chat_id}"
+								title="Delete chat">
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+							</button>
+						</div>
 					</div>
+					<form method="POST" action="/chat/${data.chat_id}/update-title/" class="hidden edit-title-form absolute inset-0 flex items-center bg-gray-800 rounded-lg z-10">
+						<input type="hidden" name="csrfmiddlewaretoken" value="${window.getCookie('csrftoken')}">
+						<input type="text" name="title" value="${data.title}" class="flex-grow px-4 py-2 bg-transparent text-white focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-lg" />
+						<div class="flex items-center px-2">
+							<button type="submit" class="p-2 text-green-400 hover:text-green-300 hover:bg-gray-700 rounded-lg transition-colors">
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+							</button>
+							<button type="button" class="cancel-edit p-2 text-red-400 hover:text-red-300 hover:bg-gray-700 rounded-lg transition-colors">
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+							</button>
+						</div>
+					</form>
 				`;
-				if (chatsList.firstChild) {
+
+				if (chatsList && chatsList.firstChild) {
 					chatsList.insertBefore(newChatElement, chatsList.firstChild);
-				} else {
+				} else if (chatsList) {
 					chatsList.appendChild(newChatElement);
 				}
-				const deleteButton = newChatElement.querySelector(".delete-chat-btn");
-				deleteButton.addEventListener("click", async (e) => {
-					e.preventDefault();
-					e.stopPropagation();
-					// ... existing delete chat logic ...
+				
+				// Dispatch chatStateChanged event ONCE after all updates
+				console.log("Dispatching chatStateChanged event. isNewChat:", window.isNewChat, "currentChatId:", window.currentChatId);
+				const chatStateChangedEvent = new CustomEvent('chatStateChanged', {
+					detail: {
+						isNewChat: window.isNewChat,
+						currentChatId: window.currentChatId
+					}
 				});
+				document.dispatchEvent(chatStateChangedEvent);
 			}
+
+			// Stream the response
 			const streamResponse = await fetch(`/chat/${currentChatId}/stream/`, {
 				method: "POST",
-				body: formData,
+				body: formData, // formData now includes rag_mode_active and diagram_mode_active
 				headers: {
 					"X-CSRFToken": document.querySelector("[name=csrfmiddlewaretoken]")
 						.value
@@ -797,34 +835,58 @@ document.addEventListener("DOMContentLoaded", function () {
 		}
 	});
 
-	document.querySelectorAll(".delete-chat-btn").forEach((button) => {
-		button.addEventListener("click", async (e) => {
-			e.preventDefault();
-			e.stopPropagation();
-			const chatId = button.dataset.chatId;
-			if (!confirm("Are you sure you want to delete this chat?")) return;
-			try {
-				const response = await fetch(`/chat/${chatId}/delete/`, {
-					method: "POST",
-					headers: {
-						"X-CSRFToken": document.querySelector("[name=csrfmiddlewaretoken]")
-							.value
+	const chatsList = document.getElementById("chats-list");
+	if (chatsList) {
+		chatsList.addEventListener("click", async function(e) {
+			const deleteButton = e.target.closest(".delete-chat-btn");
+			if (deleteButton) {
+				e.preventDefault();
+				e.stopPropagation();
+				const chatId = deleteButton.dataset.chatId;
+				if (!confirm("Are you sure you want to delete this chat?")) return;
+				
+				console.log(`[chat.js - delegated] Attempting to delete chat ${chatId}`);
+				try {
+					const response = await fetch(`/chat/${chatId}/delete/`, {
+						method: "POST",
+						headers: {
+							"X-CSRFToken": window.getCookie("csrftoken"),
+							"Content-Type": "application/json"
+						}
+					});
+					if (!response.ok) {
+						const errorData = await response.json().catch(() => ({ error: "Failed to delete chat" }));
+						throw new Error(errorData.error || "Failed to delete chat");
 					}
-				});
-				if (!response.ok) throw new Error("Failed to delete chat");
-				const chatElement = button.closest("[data-chat-id]");
-				if (chatElement) chatElement.remove();
-				if (chatId === currentChatId) {
-					window.location.href = "/chat/new/";
+					
+					const chatElement = deleteButton.closest("[data-chat-id]");
+					if (chatElement) {
+						console.log(`[chat.js - delegated] Attempting to remove chat element for ${chatId} from sidebar.`);
+						// Using setTimeout as it helped with button visibility, might help here too.
+						setTimeout(() => {
+							chatElement.remove();
+							console.log(`[chat.js - delegated - setTimeout] Chat element ${chatId} removed from sidebar.`);
+						}, 0);
+					} else {
+						console.warn(`[chat.js - delegated] Could not find chat element for ${chatId} in sidebar to remove.`);
+					}
+
+					if (chatId === window.currentChatId) {
+						window.location.href = "/chat/new/";
+					}
+				} catch (error) {
+					console.error("Error deleting chat (delegated):", error);
+					if (typeof appendSystemNotification === 'function') {
+						appendSystemNotification(`Error deleting chat: ${error.message}`, "error");
+					} else {
+						alert(`An error occurred when trying to delete the chat: ${error.message}`);
+					}
 				}
-			} catch (error) {
-				console.error("Error deleting chat:", error);
-				alert(
-					"An error occurred when trying to delete the chat. Please refresh the page."
-				);
 			}
 		});
-	});
+	} else {
+		console.warn("Chat list container (for delete delegation) not found.");
+	}
 
 	window.startEditing = function (container) {
 		const titleDiv = container.querySelector("div");
@@ -1342,17 +1404,10 @@ document.addEventListener("DOMContentLoaded", function () {
 		);
 		if (placeholder) placeholder.remove();
 
-		console.log("Appending diagram message with image URL:", imageUrl);
+		console.log("Appending diagram message with constructed image URL:", imageUrl);
 
-		// Ensure imageUrl has the proper media URL prefix
-		if (
-			imageUrl &&
-			!imageUrl.startsWith("http") &&
-			!imageUrl.startsWith("/media/")
-		) {
-			imageUrl = `/media/${imageUrl}`;
-			console.log("Updated image URL with media prefix:", imageUrl);
-		}
+		// The imageUrl is now constructed with the correct path to the serving endpoint
+		// No need for /media/ prefix check here as it's a direct path to the view
 
 		const messageDiv = document.createElement("div");
 		messageDiv.className = "message-enter px-4 md:px-6 py-6";
@@ -1557,18 +1612,47 @@ document.addEventListener("DOMContentLoaded", function () {
 	};
 	// Initial call to set visibility
 	window.updateQuizButtonVisibility();
+
+    // Add an event listener for chatStateChanged to update UI elements
+    document.addEventListener('chatStateChanged', function(event) {
+        console.log("[chat.js] Caught chatStateChanged event directly.", event.detail);
+        if (typeof updateNewChatUI === 'function') {
+            updateNewChatUI(event.detail.isNewChat);
+        }
+    });
 });
 
 function updateNewChatUI(isNew) {
 	const quizButtonContainer = document.getElementById("quiz-button-container");
 	const manageRagButton = document.getElementById("manage-rag-context-btn");
 
+	console.log("[updateNewChatUI from chat.js] Called with isNew:", isNew);
+
 	if (isNew) {
-		if (quizButtonContainer) quizButtonContainer.classList.add("hidden");
-		if (manageRagButton) manageRagButton.classList.add("hidden");
+		console.log("[updateNewChatUI from chat.js] HIDING buttons.");
+		if (quizButtonContainer) {
+            quizButtonContainer.classList.add("hidden");
+        }
+		if (manageRagButton) {
+            manageRagButton.classList.add("hidden");
+        }
 	} else {
-		if (quizButtonContainer) quizButtonContainer.classList.remove("hidden");
-		if (manageRagButton) manageRagButton.classList.remove("hidden");
+        // Defer the showing logic slightly
+        setTimeout(() => {
+            console.log("[updateNewChatUI from chat.js - setTimeout] SHOWING buttons.");
+            if (quizButtonContainer) {
+                quizButtonContainer.classList.remove("hidden");
+                quizButtonContainer.style.display = ""; 
+                console.log("[updateNewChatUI from chat.js - setTimeout] Quiz button hidden class removed. Hidden status:", quizButtonContainer.classList.contains("hidden"));
+                console.log("[updateNewChatUI from chat.js - setTimeout] Quiz button style.display:", quizButtonContainer.style.display);
+            }
+            if (manageRagButton) {
+                manageRagButton.classList.remove("hidden");
+                manageRagButton.style.display = ""; 
+                console.log("[updateNewChatUI from chat.js - setTimeout] RAG button hidden class removed. Hidden status:", manageRagButton.classList.contains("hidden"));
+                console.log("[updateNewChatUI from chat.js - setTimeout] RAG button style.display:", manageRagButton.style.display);
+            }
+        }, 0); // Zero delay, just defers to next tick
 	}
 }
 

@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 from urllib.parse import urlparse
 import os
 BASE_DIR = Path(__file__).resolve().parent.parent
-load_dotenv(BASE_DIR / "API.env")
+load_dotenv(BASE_DIR / ".env")
 
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -76,28 +76,28 @@ WSGI_APPLICATION = 'chatgpt.wsgi.application'
 
 tmpPostgres = urlparse(os.getenv("DATABASE_URL"))
 
-# DATABASES = {
-#    'default': {
-#        'ENGINE': 'django.db.backends.postgresql',
-#        'NAME': tmpPostgres.path.replace('/', ''),
-#        'USER': tmpPostgres.username,
-#        'PASSWORD': tmpPostgres.password,
-#        'HOST': tmpPostgres.hostname,
-#        'PORT': 5432,
-#        'CONN_MAX_AGE': 60,  # Keep connections open for 60 seconds
-#        'OPTIONS': {
-#            'connect_timeout': 10,
-#        }
-#    }
-#}
+DATABASES = {
+   'default': {
+       'ENGINE': 'django.db.backends.postgresql',
+       'NAME': tmpPostgres.path.replace('/', ''),
+       'USER': tmpPostgres.username,
+       'PASSWORD': tmpPostgres.password,
+       'HOST': tmpPostgres.hostname,
+       'PORT': 5432,
+       'CONN_MAX_AGE': 0,  # Close connection after each request
+       'OPTIONS': {
+           'connect_timeout': 10,
+       }
+   }
+}
 
 #If you want to go back to sqlite3
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
-}
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.sqlite3',
+#         'NAME': BASE_DIR / 'db.sqlite3',
+#     }
+# }
 
 
 # Password validation
