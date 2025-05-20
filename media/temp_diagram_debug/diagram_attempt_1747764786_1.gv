@@ -1,0 +1,41 @@
+from graphviz import Digraph
+
+g = Digraph(format='png')
+g.attr(rankdir='TB', dpi='300', nodesep='0.7', ranksep='1.1')
+g.attr('node', shape='box', style='filled,rounded', fontsize='10', fontname='Helvetica', color='#2F3E46')
+
+# Color Palette
+main_node_color = '#A0C4FF'
+secondary_node_color = '#B9FBC0'
+accent_color = '#FFD6A5'
+
+# Nodes
+g.node('InputLayer', '📝 Input Layer', fillcolor=main_node_color)
+g.node('ModelArchitecture', '🤖 Model Architecture', fillcolor=main_node_color)
+g.node('OutputLayer', '🎯 Output Layer', fillcolor=main_node_color)
+
+# Side Notes
+g.attr('node', shape='note', style='filled', fontsize='8')
+g.node('InputNote', 'The input layer processes the initial text, tokenizing it into subwords or characters.', fillcolor=secondary_node_color)
+g.node('ModelNote', 'The transformer architecture enables LLMs to understand context and generate coherent text by leveraging self-attention mechanisms.', fillcolor=secondary_node_color)
+g.node('OutputNote', 'The output layer produces the final text, which can be a response, translation, or completion of the input prompt.', fillcolor=secondary_node_color)
+
+# Edges
+g.attr('node', shape='box', style='filled,rounded', fontsize='10')
+g.edge('InputLayer', 'ModelArchitecture')
+g.edge('ModelArchitecture', 'OutputLayer')
+
+# Dashed Edges for Notes
+g.attr('edge', style='dashed')
+g.edge('InputLayer', 'InputNote')
+g.edge('ModelArchitecture', 'ModelNote')
+g.edge('OutputLayer', 'OutputNote')
+
+# Grouping
+with g.subgraph(name='LLM') as llm:
+    llm.attr(label='Large Language Model (LLM)', labelloc='t', bgcolor=accent_color)
+    llm.node('InputLayer')
+    llm.node('ModelArchitecture')
+    llm.node('OutputLayer')
+
+g.render('diagram_output', view=False, cleanup=True)

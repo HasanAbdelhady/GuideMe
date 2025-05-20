@@ -110,7 +110,8 @@ class ChatView(View):
                         'edited_at': msg_obj.edited_at.isoformat() if msg_obj.edited_at else None,
                         'text': None,        # Default to None
                         'html': None,        # Default to None (used for quiz HTML by current template)
-                        'diagram_image_url': None # Initialize diagram_image_url
+                        'diagram_image_url': None, # Initialize diagram_image_url
+                        'diagram_image_id_for_template': None # ADD THIS
                     }
 
                     # Handle different message types properly
@@ -119,7 +120,9 @@ class ChatView(View):
                         # Construct URL to the new serving view
                         msg_dict['diagram_image_url'] = f"/chat/diagram_image/{msg_obj.diagram_image_id}/"
                         msg_dict['text'] = msg_obj.content  # Use the content as description text
-                        logger.info(f"Loaded diagram message. Will be served from URL: {msg_dict['diagram_image_url']}")
+                        msg_dict['diagram_image_id_for_template'] = str(msg_obj.diagram_image_id) # ADD THIS
+                        logger.info(f"Loaded diagram message. URL: {msg_dict['diagram_image_url']}, ID for template: {msg_dict['diagram_image_id_for_template']}")
+                        logger.info(f"[ChatView.get] Preparing diagram msg_dict: {msg_dict}")
                     elif msg_obj.role == 'assistant' and msg_obj.type == 'quiz':
                         # This is a quiz message
                         if msg_obj.quiz_html:
@@ -825,11 +828,19 @@ Goodbye: Adiós"""
 
 @login_required
 def serve_diagram_image(request, diagram_id):
+    logger.info(f"[serve_diagram_image] Received request for diagram_id: {diagram_id}")
     try:
         diagram_image_instance = get_object_or_404(DiagramImage, id=diagram_id, user=request.user)
-        # Ensure the requesting user is the owner of the diagram or has rights to view it
-        # (Additional checks can be added if chats can be shared etc.)
+        logger.info(f"[serve_diagram_image] Found DiagramImage record with ID: {diagram_image_instance.id}, Filename: {diagram_image_instance.filename}")
+        logger.info(f"[serve_diagram_image] Content type: {diagram_image_instance.content_type}")
+        image_data_length = len(diagram_image_instance.image_data) if diagram_image_instance.image_data else 0
+        logger.info(f"[serve_diagram_image] Length of image_data from DB: {image_data_length} bytes")
         
+        if image_data_length == 0:
+            logger.error(f"[serve_diagram_image] Image data for ID {diagram_id} is empty in the database!")
+            return HttpResponse("Image data not found or is empty.", status=404) # Return 404 if data is empty
+
+        logger.info(f"[serve_diagram_image] Returning HttpResponse for diagram ID: {diagram_id}")
         return HttpResponse(diagram_image_instance.image_data, content_type=diagram_image_instance.content_type)
     except Http404:
         logger.warning(f"DiagramImage with id {diagram_id} not found or user {request.user.id} not authorized.")

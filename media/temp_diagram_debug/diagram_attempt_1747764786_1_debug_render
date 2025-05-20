@@ -1,0 +1,24 @@
+digraph {
+	dpi=300 nodesep=0.7 rankdir=TB ranksep=1.1
+	node [color="#2F3E46" fontname=Helvetica fontsize=10 shape=box style="filled,rounded"]
+	InputLayer [label="📝 Input Layer" fillcolor="#A0C4FF"]
+	ModelArchitecture [label="🤖 Model Architecture" fillcolor="#A0C4FF"]
+	OutputLayer [label="🎯 Output Layer" fillcolor="#A0C4FF"]
+	node [fontsize=8 shape=note style=filled]
+	InputNote [label="The input layer processes the initial text, tokenizing it into subwords or characters." fillcolor="#B9FBC0"]
+	ModelNote [label="The transformer architecture enables LLMs to understand context and generate coherent text by leveraging self-attention mechanisms." fillcolor="#B9FBC0"]
+	OutputNote [label="The output layer produces the final text, which can be a response, translation, or completion of the input prompt." fillcolor="#B9FBC0"]
+	node [fontsize=10 shape=box style="filled,rounded"]
+	InputLayer -> ModelArchitecture
+	ModelArchitecture -> OutputLayer
+	edge [style=dashed]
+	InputLayer -> InputNote
+	ModelArchitecture -> ModelNote
+	OutputLayer -> OutputNote
+	subgraph LLM {
+		bgcolor="#FFD6A5" label="Large Language Model (LLM)" labelloc=t
+		InputLayer
+		ModelArchitecture
+		OutputLayer
+	}
+}
