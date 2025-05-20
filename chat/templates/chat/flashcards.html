@@ -1,0 +1,135 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>Flashcard Maker</title>
+    <meta name="description" content="Instantly create interactive flashcards for any topic with the power of Gemini! Learn smarter, not harder.">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{% static 'chat/css/flashcards_page.css' %}" />
+</head>
+<body>
+    <div style="position: absolute; top: 10px; left: 10px; padding: 10px;">
+         <a href="{% url 'chat' %}" 
+            style="text-decoration: none; background-color: var(--dark-primary); color: var(--dark-button-text); padding: 10px 15px; border-radius: 8px; font-family: 'Google Sans', Roboto, Arial, sans-serif; font-size: 14px; box-shadow: 0 1px 2px var(--dark-shadow-color-2);">
+            &larr; Back to Chat
+         </a>
+    </div>
+
+    <div class="container">
+        <h1>Flashcard Maker</h1>
+        <p>Instantly create interactive flashcards for any topic with the power of Gemini! Learn smarter, not harder.</p>
+        
+        <textarea id="topicInput" placeholder="Enter a topic (e.g., Photosynthesis, Spanish Vocabulary, etc.)..."></textarea>
+        <button id="generateButton">Generate Flashcards</button>
+        
+        <div id="errorMessage" class="error-message"></div>
+        <div id="flashcardsContainer" class="flashcards-container">
+            <!-- Flashcards will be dynamically inserted here -->
+        </div>
+
+        <footer>
+            Powered by Gemini API &bull; MentorAI Project
+        </footer>
+    </div>
+
+    <!-- Removed the duplicate form and container that were previously here -->
+
+    <script>
+        const topicInput = document.getElementById('topicInput');
+        const generateButton = document.getElementById('generateButton');
+        const flashcardsContainer = document.getElementById('flashcardsContainer');
+        const errorMessage = document.getElementById('errorMessage');
+        const csrfToken = '{{ csrf_token }}'; // Django CSRF token
+
+        generateButton.addEventListener('click', async () => {
+            const topic = topicInput.value.trim();
+            if (!topic) {
+                errorMessage.textContent = 'Please enter a topic.';
+                flashcardsContainer.innerHTML = ''; // Clear any previous cards
+                return;
+            }
+
+            errorMessage.textContent = 'Generating flashcards...';
+            flashcardsContainer.innerHTML = ''; // Clear previous results
+            generateButton.disabled = true;
+
+            try {
+                const response = await fetch("{% url 'flashcards_generator' %}", {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrfToken 
+                    },
+                    body: JSON.stringify({ topic })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || data.detail || `Server responded with ${response.status}`);
+                }
+                
+                errorMessage.textContent = ''; 
+                if (data.flashcards && data.flashcards.length > 0) {
+                    flashcardsContainer.style.display = 'flex'; // Explicitly ensure container is visible
+                    data.flashcards.forEach(({ term, definition }, index) => {
+                        const cardDiv = document.createElement('div');
+                        cardDiv.classList.add('flashcard');
+                        cardDiv.dataset['index'] = index.toString();
+
+                        const cardInner = document.createElement('div');
+                        cardInner.classList.add('flashcard-inner');
+
+                        const cardFront = document.createElement('div');
+                        cardFront.classList.add('flashcard-front');
+                        const termDiv = document.createElement('div');
+                        termDiv.classList.add('term');
+                        termDiv.textContent = term;
+                        cardFront.appendChild(termDiv);
+
+                        const cardBack = document.createElement('div');
+                        cardBack.classList.add('flashcard-back');
+                        const definitionDiv = document.createElement('div');
+                        definitionDiv.classList.add('definition');
+                        definitionDiv.textContent = definition;
+                        cardBack.appendChild(definitionDiv);
+
+                        cardInner.appendChild(cardFront);
+                        cardInner.appendChild(cardBack);
+                        cardDiv.appendChild(cardInner);
+                        flashcardsContainer.appendChild(cardDiv);
+
+                        cardDiv.addEventListener('click', () => {
+                            cardDiv.classList.toggle('flipped');
+                        });
+                    });
+                } else if (data.error) { 
+                    errorMessage.textContent = data.error + (data.details ? ` Details: ${data.details}` : '');
+                    flashcardsContainer.style.display = 'none'; // Hide if error
+                }
+                else { 
+                    errorMessage.textContent = 'No flashcards were generated. Try a different topic or check the console for errors.';
+                    flashcardsContainer.style.display = 'none'; // Hide if no cards
+                }
+
+            } catch (err) {
+                console.error('Error generating flashcards:', err);
+                errorMessage.textContent = `Error: ${err.message}. Check console for more details.`;
+                flashcardsContainer.style.display = 'none'; // Hide on error
+            } finally {
+                generateButton.disabled = false;
+            }
+        });
+
+        // Ensure flashcards container is hidden initially if it's empty or meant to be shown only on demand
+        // However, your CSS already defines its display as flex, so it should be visible if it has content.
+        // If it's empty, the 'gap' and 'margin-top' might take up space, but the container itself won't be 'hidden'.
+        // The JS now explicitly sets display:flex when cards are added, and display:none on error/no cards.
+        if (!flashcardsContainer.hasChildNodes()) {
+             // flashcardsContainer.style.display = 'none'; // Optionally hide if you want it initially invisible
+        }
+
+    </script>
+</body>
+</html>

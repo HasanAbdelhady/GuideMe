@@ -2,7 +2,7 @@ import os
 import datetime
 import json
 from .models import Message
-from .preference_service import PreferenceService
+from .preference_service import PreferenceService , prompt_description , prompt_code_graphviz , prompt_fix_code
 from django.core.files.storage import default_storage
 from io import StringIO
 import logging
@@ -12,6 +12,7 @@ import time
 # import base64 # No longer needed if generate_mindmap_image_data_url is removed
 import asyncio
 from asgiref.sync import sync_to_async
+import traceback # Added for error logging in retry logic
 
 # --- LangChain Imports ---
 from langchain_community.document_loaders import TextLoader
@@ -359,7 +360,7 @@ class ChatService:
                 self.logger.error(f"Error counting tokens for message {msg}: {e}", exc_info=True)
         return total
 
-    async def get_completion(self, messages, query=None, files_rag=None, max_tokens=6000, chat_id=None, is_new_chat=False, attached_file_name=None):
+    async def get_completion(self, messages, query=None, files_rag=None, max_tokens=6500, chat_id=None, is_new_chat=False, attached_file_name=None,temperature=0.7):
         groq_client_local = Groq() # Keep client instantiation local if it has state issues with async
         
         if is_new_chat:
@@ -370,7 +371,7 @@ class ChatService:
             completion = (groq_client_local.chat.completions.create)(
                 model="llama3-8b-8192",
                 messages=llm_messages,
-                temperature=0.7,
+                temperature=temperature,
                 max_completion_tokens=1024,
                 stream=False,
             )
@@ -405,7 +406,7 @@ class ChatService:
         completion = await sync_to_async(groq_client_local.chat.completions.create)(
             model="llama3-8b-8192",
             messages=trimmed_messages,
-            temperature=0.7,
+            temperature=temperature,
             max_completion_tokens=1024,
             stream=False,
         )
@@ -496,26 +497,15 @@ class ChatService:
 
     async def generate_diagram_image(self, chat_history_messages, user_query, chat_id, user_id):
         self.logger.info(f"Starting diagram generation for chat {chat_id}, user query: {user_query}")
-        prompt_content_generation = (
-            'You are an expert explainer working in a multi-agent system.\\n'
-            'Your job is to generate a clear, structured, and technically accurate description of a given topic so it can be turned into a diagram.\\n'
-            'Requirements:\\n'
-            '- Break down the topic into logical steps, layers, or components.\\n'
-            '- Describe each part in order of how it flows or interacts with others.\\n'
-            '- Focus on function, purpose, input/output, and relationships.\\n'
-            '- Keep the explanation concise but informative — not too short, not too long.\\n'
-            '- The description should be suitable for transforming into a technical diagram using Graphviz.\\n'
-            'Your output must be plain text, without code or special formatting.'
-        )
-        
+
         messages_for_description = chat_history_messages + [{"role": "user", "content": user_query}]
-        messages_for_description.insert(0, {"role": "system", "content": prompt_content_generation})
+        messages_for_description.insert(0, {"role": "system", "content": prompt_description})
         self.logger.info(f"Messages for description LLM call (first few): {str(messages_for_description)[:200]}")
 
         try:
             structured_description_content = await self.get_completion(
                 messages=messages_for_description,
-                max_tokens=1500, 
+                max_tokens=5000, 
                 chat_id=chat_id 
             )
             self.logger.info(f"Received structured description: {structured_description_content[:200]}...")
@@ -524,40 +514,20 @@ class ChatService:
                 return None
         except Exception as e:
             self.logger.error(f"Error getting structured description from LLM: {e}", exc_info=True)
-            return None
-
-        # Simplified prompt for Graphviz code generation
-        prompt_graphviz_code_generation = (
-            "You are an expert technical diagram assistant. Your task is to generate ONLY Python code using the Graphviz library "
-            "to create an educational diagram based on the provided structured description.\\n\\n"
-            "IMPORTANT: Return ONLY the exact Python code with no explanations, no markdown formatting, no ```python blocks, and no comments outside the code. "
-            "Start your response directly with 'from graphviz import Digraph' or the appropriate import statement.\\n\\n"
-            "The Python script should:\\n"
-            "- Import `Digraph` from `graphviz` (e.g., `from graphviz import Digraph`).\\n"
-            "- Create a `Digraph` object with ONLY the format parameter: `g = Digraph(format='png')`.\\n"
-            "- Set other graph attributes using the `.attr()` method AFTER creation: `g.attr(dpi='300')` and `g.attr(rankdir='TB')`.\\n"
-            "- Define nodes using `g.node(node_id, label, shape='box', style='filled,rounded', fillcolor='color')`. Do NOT use invalid attributes like 'parent'.\\n"
-            "- Define edges using `g.edge(parent_id, child_id, label=optional_label)`. ALWAYS ensure all parentheses are properly closed.\\n"
-            "- EXAMPLE of a correct edge definition: `g.edge(\"node1\", \"node2\", label=\"connects to\")` - note the closing parenthesis.\\n"
-            "- Create hierarchical relationships by explicitly creating edges between nodes, not by adding nodes with 'parent' attributes.\\n"
-            "- For mind maps specifically, use a central node and connect all main concepts to it.\\n"
-            "- Optionally, use subgraphs/clusters for logical grouping.\\n"
-            "- Optionally, include educational annotations as separate nodes.\\n"
-            "- CAREFULLY check your code for syntax errors, especially unclosed parentheses in method calls.\\n"
-            "- Always conclude with `g.render('diagram_output', view=False, cleanup=True)` to generate the diagram.\\n\\n"
-        )
+            return None        
         
         messages_for_graphviz = [
-            {"role": "system", "content": prompt_graphviz_code_generation},
+            {"role": "system", "content": prompt_code_graphviz},
             {"role": "user", "content": structured_description_content} # The LLM-generated description
         ]
-        self.logger.info(f"Messages for Graphviz LLM call (system prompt length: {len(prompt_graphviz_code_generation)}, user content length: {len(structured_description_content) if structured_description_content else 0})")
+        self.logger.info(f"Messages for Graphviz LLM call (system prompt length: {len(prompt_code_graphviz)}, user content length: {len(structured_description_content) if structured_description_content else 0})")
 
         try:
             graphviz_code_response = await self.get_completion(
                 messages=messages_for_graphviz,
-                max_tokens=2500, # Allow ample tokens for code generation
-                chat_id=chat_id
+                max_tokens=6000, # Allow ample tokens for code generation
+                chat_id=chat_id,
+                temperature=0.0 # change to 0.0 to get stable output
             )
             self.logger.info(f"Received Graphviz code response (first 200 chars): {graphviz_code_response[:200] if graphviz_code_response else 'Empty response'}...")
             if not graphviz_code_response or not graphviz_code_response.strip():
@@ -578,9 +548,7 @@ class ChatService:
                 code_parts = graphviz_code.split("```")
                 if len(code_parts) >= 3:  # At least one complete code block
                     graphviz_code = code_parts[1].strip()
-                    # If it starts with 'python', remove that too
-                    if graphviz_code.startswith("python"):
-                        graphviz_code = graphviz_code[6:].strip()
+                    graphviz_code = graphviz_code.strip('python\n')
             except Exception as e:
                 self.logger.error(f"Error extracting code block: {e}", exc_info=True)
         else:
@@ -611,87 +579,8 @@ class ChatService:
         graphviz_code = re.sub(r'parent\s*=\s*[\'"].*?[\'"]', '', graphviz_code)
         self.logger.info(f"Pre-processed Graphviz code (first 300 chars): {graphviz_code[:300]}...")
 
-        # Add syntax validation and correction for common issues
-        def validate_and_fix_syntax(code):
-            # Check for and fix unclosed parentheses in edge definitions
-            fixed_code = []
-            in_edge_def = False
-            paren_count = 0
-            
-            for line in code.split('\n'):
-                if 'g.edge(' in line:
-                    # Count opening and closing parentheses
-                    open_count = line.count('(')
-                    close_count = line.count(')')
-                    
-                    if open_count > close_count:
-                        # Unclosed parenthesis - add missing closing parenthesis
-                        self.logger.info(f"Fixing unclosed parenthesis in edge definition: {line}")
-                        line = line + ')' * (open_count - close_count)
-                
-                fixed_code.append(line)
-            
-            return '\n'.join(fixed_code)
-            
-        # Apply syntax fixes
-        graphviz_code = validate_and_fix_syntax(graphviz_code)
-        self.logger.info("Applied syntax validation and fixes to Graphviz code")
-
-        def _render_graphviz_sync(code_to_execute, base_filename, topic_name_from_query):
-            # Simplify path structure to match actual storage location
-            diagram_dir = os.path.join('media', 'diagrams')
-            os.makedirs(diagram_dir, exist_ok=True)
-            
-            # Create a more standardized filename
-            safe_topic = sanitize_filename(topic_name_from_query).replace(' ', '_')
-            timestamp = int(time.time())
-            filename = f"{base_filename}_{safe_topic}_{timestamp}.png"
-            output_filepath = os.path.join(diagram_dir, filename)
-            
-            # Get absolute paths for clarity in logging
-            abs_diagram_dir = os.path.abspath(diagram_dir)
-            abs_output_filepath = os.path.abspath(output_filepath)
-            self.logger.info(f"Diagram directory (absolute): {abs_diagram_dir}")
-            self.logger.info(f"Output filepath (absolute): {abs_output_filepath}")
-            
-            # For the URL, we'll return just the path relative to media directory
-            relative_url_path = f"diagrams/{filename}"
-
-            try:
-                # First validate code syntax before executing
-                import ast
-                try:
-                    ast.parse(code_to_execute)
-                    self.logger.info("Code syntax validation passed")
-                except SyntaxError as se:
-                    self.logger.error(f"Syntax error in generated code: {se}")
-                    # Try simple syntax fixes for common errors
-                    line_number = se.lineno if hasattr(se, 'lineno') else -1
-                    if line_number > 0:
-                        lines = code_to_execute.split('\n')
-                        if line_number <= len(lines):
-                            problematic_line = lines[line_number - 1]
-                            self.logger.error(f"Problematic line ({line_number}): {problematic_line}")
-                            # Try to fix specific syntax issues like unclosed parentheses
-                            if '(' in problematic_line and ')' not in problematic_line:
-                                lines[line_number - 1] = problematic_line + ')'
-                                self.logger.info(f"Attempted to fix unclosed parenthesis: {lines[line_number - 1]}")
-                                code_to_execute = '\n'.join(lines)
-                                try:
-                                    ast.parse(code_to_execute)
-                                    self.logger.info("Code syntax fixed and now valid")
-                                except SyntaxError:
-                                    self.logger.error("Failed to fix syntax error")
-                
-                # Log the cleaned code for debugging
-                self.logger.info(f"About to execute graphviz code:\n---CODE START---\n{code_to_execute}\n---CODE END---")
-                
-                local_namespace = {}
-                # Provide necessary imports to the execution scope
-                exec_globals = {"graphviz": graphviz, "Digraph": graphviz.Digraph, "os": os}
-                exec(code_to_execute, exec_globals, local_namespace)
-                
-                # The LLM should have created a Digraph object, commonly 'g'
+        def show_graph(local_namespace,relative_url_path,output_filepath,diagram_dir):
+            # The LLM should have created a Digraph object, commonly 'g'
                 # and called g.render(). We will try to find the path it rendered to,
                 # or use our standard path if the LLM's .render() call was generic.
                 
@@ -767,13 +656,94 @@ class ChatService:
                     graph_related = {name: type(val) for name, val in local_namespace.items()}
                     self.logger.error(f"Objects in namespace: {graph_related}")
                     return None
-            except Exception as e_exec:
-                self.logger.error(f"Error executing generated Graphviz code: {e_exec}", exc_info=True)
-                return None
+            
+        async def _render_graphviz_sync(code_to_execute, base_filename, topic_name_from_query, structured_description_content_for_fix):
+            # Simplify path structure to match actual storage location
+            diagram_dir = os.path.join('media', 'diagrams')
+            os.makedirs(diagram_dir, exist_ok=True)
+            
+            # Create a more standardized filename
+            safe_topic = sanitize_filename(topic_name_from_query).replace(' ', '_')
+            timestamp = int(time.time())
+            filename = f"{base_filename}_{safe_topic}_{timestamp}.png"
+            output_filepath = os.path.join(diagram_dir, filename)
 
+            # Get absolute paths for clarity in logging
+            abs_diagram_dir = os.path.abspath(diagram_dir)
+            abs_output_filepath = os.path.abspath(output_filepath)
+            self.logger.info(f"Diagram directory (absolute): {abs_diagram_dir}")
+            self.logger.info(f"Output filepath (absolute): {abs_output_filepath}")
+
+            # For the URL, we'll return just the path relative to media directory
+            relative_url_path = f"diagrams/{filename}"
+
+            current_code = code_to_execute
+            local_namespace = {}
+            execution_successful = False
+            
+            # Provide necessary imports to the execution scope
+            # graphviz module itself is imported at the top of services.py
+            exec_globals = {"graphviz": graphviz, "Digraph": graphviz.Digraph, "os": os, "__builtins__": __builtins__}
+            
+            # Instantiate LLM for fixing code if needed.
+            # This uses the GroqLangChainLLM class defined in this file.
+            try:
+                exec(current_code, local_namespace)
+                self.logger.info(f"✅ Diagram generated successfully: {filename}.png")
+                return show_graph(local_namespace,relative_url_path,output_filepath,diagram_dir)
+                
+
+            
+            except Exception as e:
+                error_message = f"{str(e)}\n\n{traceback.format_exc()}"
+                self.logger.info(f"❌ Initial attempt failed with error: {str(e)}")
+            
+                for attempt in range(3): # Initial attempt (0) + 2 retries (1, 2)
+                    fix_prompt = prompt_fix_code.format(
+                    topic=topic_name_from_query,
+                    description=structured_description_content_for_fix,
+                    erroneous_code=current_code,
+                    error_message=error_message
+                        )
+                    messages_for_fix = [{"role": "system", "content": fix_prompt}]
+                    try:
+                        fixed_code = await self.get_completion(
+                            messages=messages_for_fix,
+                            max_tokens=5000, 
+                            chat_id=chat_id 
+                        )
+                        self.logger.info(f"Received fixed code: {fixed_code[:200]}...")
+                        if not fixed_code or not fixed_code.strip():
+                            self.logger.error("LLM failed to fix the code.")
+                            return None
+                    except Exception as e:
+                        self.logger.error(f"Error fixing the code from LLM: {e}", exc_info=True)
+                        return None
+                    
+                    if '```' in fixed_code:
+                        fixed_code = fixed_code.split('```')[1].strip('python\n')
+                    else:
+                        fixed_code = fixed_code.strip()
+                    
+                    current_code = fixed_code
+
+                    self.logger.info(f"--- Graphviz Execution Attempt {attempt + 1}/3 ---")
+                    self.logger.debug(f"Code to execute (attempt {attempt + 1}, first 500 chars):\n{current_code[:500]}...")
+
+                    try:
+                        exec(current_code, local_namespace)
+                        self.logger.info(f"✅ Diagram generated successfully: {filename}.png")
+                        return show_graph(local_namespace,relative_url_path,output_filepath,diagram_dir)
+                    except Exception as e:
+                        error_message = f"{str(e)}\n\n{traceback.format_exc()}"
+                        self.logger.info(f"❌ Attempt {attempt + 1}/3 failed with error: {str(e)}")
+                        if attempt == 2:
+                            self.logger.info(f"❌ All attempts failed. Could not generate diagram.")
+                            return None
         try:
-            image_file_path = await sync_to_async(_render_graphviz_sync, thread_sensitive=False)(graphviz_code, "diagram", user_query)
+            image_file_path = await _render_graphviz_sync(graphviz_code, "diagram", user_query, structured_description_content) 
+
             return image_file_path 
-        except Exception as e_render:
-            self.logger.error(f"Error during sync_to_async call for Graphviz rendering: {e_render}", exc_info=True)
+        except Exception as e_render_async_call:
+            self.logger.error(f"Error during top-level sync_to_async call for Graphviz rendering: {type(e_render_async_call).__name__} - {e_render_async_call}", exc_info=True)
             return None
