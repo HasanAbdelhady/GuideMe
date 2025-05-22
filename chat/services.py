@@ -707,11 +707,11 @@ class ChatService:
                         )
                         if not fixed_code_response or not fixed_code_response.strip():
                             self.logger.error("LLM failed to provide fixed code (empty response). Aborting retries.")
-                        return None
+                            continue # Continue the outer loop to the next attempt
                     
                     except Exception as llm_fix_exc: # Inner EXCEPT for the LLM call
                         self.logger.error(f"Error getting fixed code from LLM: {llm_fix_exc}", exc_info=True)
-                        return None 
+                        continue # Continue the outer loop to the next attempt
             # This part is outside the 'for' loop, reached if all attempts in the loop are exhausted without returning.
             self.logger.error("Exited retry loop without successfully generating a diagram or explicitly returning None after max attempts.")
             return None
