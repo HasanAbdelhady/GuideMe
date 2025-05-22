@@ -167,8 +167,8 @@ async function rePromptAfterEdit(editedContent) {
 	// Assuming createTypingIndicator and handleStreamResponse are available globally from chat.js
 	// If not, they might need to be passed or made globally accessible (e.g., window.createTypingIndicator)
 	if (
-		typeof createTypingIndicator !== "function" ||
-		typeof handleStreamResponse !== "function"
+		typeof window.createTypingIndicator !== "function" ||
+		typeof window.handleStreamResponse !== "function"
 	) {
 		console.error(
 			"Helper functions (createTypingIndicator, handleStreamResponse) not found globally."
@@ -183,7 +183,7 @@ async function rePromptAfterEdit(editedContent) {
 		);
 	}
 
-	createTypingIndicator();
+	window.createTypingIndicator();
 	if (stopButton) stopButton.classList.remove("hidden");
 
 	// Abort controller for this specific re-prompt stream
@@ -216,6 +216,11 @@ async function rePromptAfterEdit(editedContent) {
 			formData.append("rag_mode_active", window.isRAGActive);
 		}
 
+		// Add diagram_mode_active if needed and tracked globally
+		if (typeof window.isDiagramModeActive !== "undefined") {
+			formData.append("diagram_mode_active", window.isDiagramModeActive);
+		}
+
 		const streamResponse = await fetch(
 			`/chat/${window.currentChatId}/stream/`,
 			{
@@ -231,15 +236,16 @@ async function rePromptAfterEdit(editedContent) {
 
 		// handleStreamResponse is expected to be global from chat.js
 		// It also handles removing typing indicator and stop button visibility on completion/error.
-		await handleStreamResponse(streamResponse);
+		await window.handleStreamResponse(streamResponse);
 	} catch (error) {
 		console.error("Error during re-prompt after edit:", error);
-		if (typeof removeTypingIndicator === "function") removeTypingIndicator(); // from chat.js
+		if (typeof window.removeTypingIndicator === "function")
+			window.removeTypingIndicator(); // from chat.js
 		if (error.name !== "AbortError") {
 			// appendMessage is also from chat.js
-			if (typeof appendMessage === "function") {
+			if (typeof window.appendMessage === "function") {
 				// appendMessage in chat.js takes (role, content) and returns the message container
-				const errorContainer = appendMessage("assistant", ""); // Create container
+				const errorContainer = window.appendMessage("assistant", ""); // Create container
 				if (errorContainer)
 					errorContainer.innerHTML = `<p class="text-red-400">Error re-prompting: ${error.message}</p>`;
 			} else {

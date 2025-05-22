@@ -1,0 +1,64 @@
+from graphviz import Digraph
+
+g = Digraph('PyTorch Architecture', format='png')
+g.attr(rankdir='TB', dpi='300', nodesep='0.7', ranksep='1.1')
+g.attr('node', shape='box', style='filled,rounded', fontsize='10', fontname='Helvetica', color='#444444')
+
+# === Color Palette ===
+colors = {
+    'tensor': '#A0C4FF',  # Soft Blue
+    'module': '#B9FBC0',  # Light Green
+    'neural_network': '#FFD6A5',  # Peach Yellow
+    'optimizer': '#E6CCFF',  # Lavender
+    'loss_function': '#D9F0FF',  # Light Blue
+    'backpropagation': '#E2F7E1',  # Mint Green
+    'training_loop': '#F0F0F0'  # White
+}
+
+# === Helper to make styled nodes ===
+def styled_node(name, label, fill):
+    g.node(name, label, fillcolor=fill)
+
+# === TENSOR ===
+styled_node('Tensor', 'Tensor', colors['tensor'])
+
+# === MODULE ===
+styled_node('Module', 'Module', colors['module'])
+
+# === NEURAL NETWORK ===
+styled_node('NeuralNetwork', 'Neural Network', colors['neural_network'])
+
+# === OPTIMIZER ===
+styled_node('Optimizer', 'Optimizer', colors['optimizer'])
+
+# === LOSS FUNCTION ===
+styled_node('LossFunction', 'Loss Function', colors['loss_function'])
+
+# === BACKPROPAGATION ===
+styled_node('Backpropagation', 'Backpropagation', colors['backpropagation'])
+
+# === TRAINING LOOP ===
+styled_node('TrainingLoop', 'Training Loop', colors['training_loop'])
+
+# === FLOW: Tensor -> Module -> Neural Network -> Loss Function -> Backpropagation -> Optimizer -> Training Loop ===
+g.edge('Tensor', 'Module')
+g.edge('Module', 'NeuralNetwork')
+g.edge('NeuralNetwork', 'LossFunction')
+g.edge('LossFunction', 'Backpropagation')
+g.edge('Backpropagation', 'Optimizer')
+g.edge('Optimizer', 'TrainingLoop')
+
+# === Render ===
+g.render('diagram_output', view=False, cleanup=True)
+```
+This code creates a diagram that represents the PyTorch architecture, with the following components:
+
+* Tensors: Represented as blue boxes
+* Modules: Represented as green boxes
+* Neural Networks: Represented as yellow boxes
+* Optimizers: Represented as lavender boxes
+* Loss Functions: Represented as light blue boxes
+* Backpropagation: Represented as mint green boxes
+* Training Loops: Represented as white boxes
+
+The diagram shows the flow of data and computation between these components, illustrating how PyTorch enables the training and deployment of deep learning models.
