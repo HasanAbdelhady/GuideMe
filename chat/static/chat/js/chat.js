@@ -708,28 +708,36 @@ document.addEventListener("DOMContentLoaded", function () {
 
 				const currentDate = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
+				// Add a style tag to ensure group-hover works properly
+				const styleTag = document.createElement('style');
+				styleTag.textContent = `
+					.group:hover .group-hover\\:opacity-100 {
+						opacity: 1;
+					}
+				`;
+				document.head.appendChild(styleTag);
+
 				newChatElement.innerHTML = `
-					<div class="flex items-center justify-between p-3 rounded-lg hover:bg-gray-800/50 transition-colors">
-						<a href="/chat/${data.chat_id}/" class="flex-1">
-							<div class="text-sm font-medium text-gray-200 truncate chat-title" data-chat-id="${data.chat_id}">
+					<div class="flex items-center justify-between p-2 rounded hover:bg-gray-700/20 transition-colors">
+						<a href="/chat/${data.chat_id}/" class="flex-1 truncate chat-title-container">
+							<div class="text-lg text-gray-200 truncate chat-title" data-chat-id="${data.chat_id}">
 								${data.title}
 							</div>
-							<div class="text-xs text-gray-400">
-								${currentDate}
-							</div>
 						</a>
-						<div class="flex items-center space-x-2">
+						<div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
 							<button
-								class="edit-title-btn p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
-								data-chat-id="${data.chat_id}"
-								title="Rename chat">
-								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+								class="edit-title-btn p-1 text-gray-400 hover:text-gray-200 transition-all rounded"
+								data-chat-id="${data.chat_id}" title="Rename chat">
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+								</svg>
 							</button>
 							<button
-								class="delete-chat-btn p-2 text-red-400 hover:text-red-300 hover:bg-gray-700 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
-								data-chat-id="${data.chat_id}"
-								title="Delete chat">
-								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+								class="delete-chat-btn p-1 text-gray-400 hover:text-gray-200 transition-all rounded"
+								data-chat-id="${data.chat_id}" title="Delete chat">
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+								</svg>
 							</button>
 						</div>
 					</div>
@@ -752,6 +760,9 @@ document.addEventListener("DOMContentLoaded", function () {
 				} else if (chatsList) {
 					chatsList.appendChild(newChatElement);
 				}
+				
+				// Apply consistent styling to the newly created chat element
+				applyConsistentChatElementStyling(newChatElement);
 				
 				// Dispatch chatStateChanged event ONCE after all updates
 				console.log("Dispatching chatStateChanged event. isNewChat:", window.isNewChat, "currentChatId:", window.currentChatId);
@@ -799,9 +810,69 @@ document.addEventListener("DOMContentLoaded", function () {
 		}
 	});
 
+	// Function to apply consistent styling to chat elements
+	function applyConsistentChatElementStyling(chatElement) {
+		// Make sure the group class is applied
+		if (!chatElement.classList.contains('group')) {
+			chatElement.classList.add('group');
+		}
+		
+		// Make sure the relative class is applied
+		if (!chatElement.classList.contains('relative')) {
+			chatElement.classList.add('relative');
+		}
+		
+		// Make sure the group-hover functionality works
+		const editButton = chatElement.querySelector('.edit-title-btn');
+		const deleteButton = chatElement.querySelector('.delete-chat-btn');
+		
+		if (editButton) {
+			// Add opacity-0 class if missing
+			if (!editButton.classList.contains('opacity-0')) {
+				editButton.classList.add('opacity-0');
+			}
+			
+			// Add group-hover:opacity-100 class if missing
+			if (!editButton.classList.contains('group-hover:opacity-100')) {
+				editButton.classList.add('group-hover:opacity-100');
+			}
+			
+			// Fallback with direct style manipulation
+			editButton.style.opacity = '0';
+			chatElement.addEventListener('mouseenter', () => {
+				editButton.style.opacity = '1';
+			});
+			chatElement.addEventListener('mouseleave', () => {
+				editButton.style.opacity = '0';
+			});
+		}
+		
+		if (deleteButton) {
+			// Add opacity-0 class if missing
+			if (!deleteButton.classList.contains('opacity-0')) {
+				deleteButton.classList.add('opacity-0');
+			}
+			
+			// Add group-hover:opacity-100 class if missing
+			if (!deleteButton.classList.contains('group-hover:opacity-100')) {
+				deleteButton.classList.add('group-hover:opacity-100');
+			}
+			
+			// Fallback with direct style manipulation
+			deleteButton.style.opacity = '0';
+			chatElement.addEventListener('mouseenter', () => {
+				deleteButton.style.opacity = '1';
+			});
+			chatElement.addEventListener('mouseleave', () => {
+				deleteButton.style.opacity = '0';
+			});
+		}
+	}
+
 	stopButton.addEventListener("click", () => {
 		if (abortController) {
 			abortController.abort();
+			
 			stopButton.classList.add("hidden");
 			removeTypingIndicator();
 			appendMessage("assistant", `_Response stopped by user._`);
@@ -1195,6 +1266,12 @@ document.addEventListener("DOMContentLoaded", function () {
 
 	fixEscapedQuizMessages();
 	fixFirstLineQuizPreCode();
+
+	// Initialize all existing chat elements for consistent styling
+	const existingChatElements = document.querySelectorAll('#chats-list [data-chat-id]');
+	existingChatElements.forEach(chatElement => {
+		applyConsistentChatElementStyling(chatElement);
+	});
 
 	// Patch appendMessage to also fix after rendering (only once)
 	if (!window._appendMessagePatched) {
