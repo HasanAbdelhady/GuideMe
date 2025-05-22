@@ -42,7 +42,7 @@ def sanitize_filename(filename):
     return re.sub(r'[<>:"/\\\\|?*]', '_', filename)
 
 class GroqLangChainLLM(LLM):
-    model: str = "meta-llama/llama-4-maverick-17b-128e-instruct"
+    model: str = "llama3-8b-8192"
     _client: Any = PrivateAttr()
 
     def __init__(self, model="llama3-8b-8192", **kwargs):
@@ -371,7 +371,7 @@ class ChatService:
             # For now, assuming it's called in a context that can handle this if it blocks briefly,
             # or that this path is less critical for full async behavior if it's just for the first message.
             completion = (groq_client_local.chat.completions.create)(
-                model="meta-llama/llama-4-maverick-17b-128e-instruct",
+                model="llama3-8b-8192",
                 messages=llm_messages,
                 temperature=temperature,
                 max_completion_tokens=1024,
@@ -406,7 +406,7 @@ class ChatService:
         
         # Wrap the synchronous SDK call
         completion = await sync_to_async(groq_client_local.chat.completions.create)(
-            model="meta-llama/llama-4-maverick-17b-128e-instruct",
+            model="llama3-8b-8192",
             messages=trimmed_messages,
             temperature=temperature,
             max_completion_tokens=1024,
@@ -466,7 +466,7 @@ class ChatService:
         else:
             # This returns a synchronous generator from the Groq SDK
             return groq_client_local.chat.completions.create(
-                model="meta-llama/llama-4-maverick-17b-128e-instruct",
+                model="llama3-8b-8192",
                 messages=trimmed_messages,
                 temperature=0.7,
                 max_completion_tokens=1024,
@@ -709,31 +709,6 @@ class ChatService:
                             self.logger.error("LLM failed to provide fixed code (empty response). Aborting retries.")
                         return None
                     
-                        cleaned_fixed_code = fixed_code_response.strip()
-                        if cleaned_fixed_code.startswith("```python"):
-                            cleaned_fixed_code = cleaned_fixed_code[len("```python"):].strip()
-                            if cleaned_fixed_code.endswith("```"):
-                                cleaned_fixed_code = cleaned_fixed_code[:-len("```")]
-                        elif cleaned_fixed_code.startswith("```"):
-                            cleaned_fixed_code = cleaned_fixed_code[len("```"):].strip()
-                            if cleaned_fixed_code.endswith("```"):
-                                cleaned_fixed_code = cleaned_fixed_code[:-len("```")]
-                        
-                        fixed_lines = cleaned_fixed_code.split('\\n')
-                        fixed_code_start_index = -1
-                        for i, line in enumerate(fixed_lines):
-                            stripped_line = line.strip()
-                            if stripped_line.startswith("from graphviz import") or stripped_line.startswith("import graphviz"):
-                                fixed_code_start_index = i
-                                break
-                        
-                        if fixed_code_start_index != -1:
-                            cleaned_fixed_code = '\\n'.join(fixed_lines[fixed_code_start_index:])
-                        else:
-                            self.logger.warning(f"[_render_graphviz_sync] Could not confidently find start of FIXED Graphviz code. Using as-is: {cleaned_fixed_code[:200]}...")
-
-                        current_code = cleaned_fixed_code 
-                        self.logger.info(f"Received fixed code suggestion for attempt {attempt + 2}. Preview: {current_code[:200]}...")
                     except Exception as llm_fix_exc: # Inner EXCEPT for the LLM call
                         self.logger.error(f"Error getting fixed code from LLM: {llm_fix_exc}", exc_info=True)
                         return None 
