@@ -843,9 +843,167 @@ document.addEventListener("DOMContentLoaded", function () {
 				e.preventDefault();
 				e.stopPropagation();
 				const chatId = deleteButton.dataset.chatId;
-				if (!confirm("Are you sure you want to delete this chat?")) return;
 				
-				console.log(`[chat.js - delegated] Attempting to delete chat ${chatId}`);
+				// Show custom delete confirmation dialog
+				const dialog = document.getElementById('delete-confirm-dialog');
+				if (!dialog) return;
+				
+				// Position dialog near the clicked button
+				const buttonRect = deleteButton.getBoundingClientRect();
+				dialog.style.top = `${buttonRect.bottom + 5}px`;
+				dialog.style.left = `${buttonRect.left - dialog.offsetWidth + 20}px`;
+				dialog.classList.remove('hidden');
+				
+				// Store the chat ID and button reference for the confirm action
+				dialog.dataset.chatId = chatId;
+				dialog.dataset.buttonRect = JSON.stringify({
+					top: buttonRect.top,
+					left: buttonRect.left,
+					width: buttonRect.width,
+					height: buttonRect.height
+				});
+				
+				// Setup cancel button
+				const cancelBtn = document.getElementById('delete-cancel-btn');
+				if (cancelBtn) {
+					cancelBtn.onclick = function() {
+						dialog.classList.add('hidden');
+					};
+				}
+				
+				// Setup confirm button
+				const confirmBtn = document.getElementById('delete-confirm-btn');
+				if (confirmBtn) {
+					confirmBtn.onclick = async function() {
+						dialog.classList.add('hidden');
+						await deleteChatWithAnimation(chatId);
+					};
+				}
+				
+				// Close dialog when clicking outside
+				document.addEventListener('click', function closeDialogOutside(event) {
+					if (!dialog.contains(event.target) && !deleteButton.contains(event.target)) {
+						dialog.classList.add('hidden');
+						document.removeEventListener('click', closeDialogOutside);
+					}
+				});
+			}
+			
+			// Handle edit button clicks
+			const editButton = e.target.closest(".edit-title-btn");
+			if (editButton) {
+				e.preventDefault();
+				e.stopPropagation();
+				const chatId = editButton.dataset.chatId;
+				console.log(`Edit button clicked for chat ID: ${chatId}`);
+				
+				// First try to find the chat element as a parent of the edit button
+				let chatElement = editButton.closest("[data-chat-id]");
+				
+				// If that fails, try to find it by query selector using the chat ID
+				if (!chatElement) {
+					// Try in both the sidebar and chat list
+					const possibleElements = document.querySelectorAll(`[data-chat-id="${chatId}"]`);
+					console.log(`Found ${possibleElements.length} possible chat elements`);
+					
+					// Use the first element that's not a button or title
+					for (const el of possibleElements) {
+						if (!el.classList.contains('edit-title-btn') && 
+							!el.classList.contains('delete-chat-btn') &&
+							!el.classList.contains('chat-title')) {
+							chatElement = el;
+							console.log(`Using element as chat element:`, chatElement);
+							break;
+						}
+					}
+					
+					if (!chatElement) {
+						console.warn(`Could not find chat element for edit button with chat ID: ${chatId}`);
+						return;
+					}
+				}
+				
+				console.log(`Found chat element:`, chatElement);
+				
+				// Try multiple approaches to find the title element
+				let titleElement = null;
+				
+				// Approach 1: Direct querySelector on the chat element
+				titleElement = chatElement.querySelector(`.chat-title[data-chat-id="${chatId}"]`);
+				
+				// Approach 2: Any chat-title inside the chat element
+				if (!titleElement) {
+					titleElement = chatElement.querySelector(".chat-title");
+				}
+				
+				// Approach 3: Find by attribute anywhere in the document
+				if (!titleElement) {
+					titleElement = document.querySelector(`.chat-title[data-chat-id="${chatId}"]`);
+				}
+				
+				// Approach 4: Find any element with this chat ID
+				if (!titleElement) {
+					const allElementsWithChatId = document.querySelectorAll(`[data-chat-id="${chatId}"]`);
+					console.log(`Found ${allElementsWithChatId.length} elements with chat ID ${chatId}:`, allElementsWithChatId);
+					
+					// Find the one that looks like a title (not the chat element itself or a button)
+					for (const el of allElementsWithChatId) {
+						if (el !== chatElement && 
+							!el.classList.contains('edit-title-btn') && 
+							!el.classList.contains('delete-chat-btn')) {
+							titleElement = el;
+							console.log(`Using element as fallback title:`, titleElement);
+							break;
+						}
+					}
+				}
+				
+				if (!titleElement) {
+					console.warn(`Could not find title element for chat ID: ${chatId}`);
+					return;
+				}
+				
+				console.log(`Found title element:`, titleElement);
+				
+				// Try different approaches to find the title container
+				let titleContainer = chatElement.querySelector(".chat-title-container");
+				
+				// If that fails, look for any element containing the chat title
+				if (!titleContainer) {
+					titleContainer = titleElement.parentElement;
+					if (!titleContainer) {
+						// If we still can't find it, just use the chat element as container
+						titleContainer = chatElement;
+						console.warn(`Using chat element as fallback container for chat ID: ${chatId}`);
+					}
+				}
+				
+				console.log(`Found title container:`, titleContainer);
+				
+				startTitleEditing(titleContainer, titleElement, chatId);
+			}
+		});
+	} else {
+		console.warn("Chat list container (for delete delegation) not found.");
+	}
+	
+	// Function to delete chat with animation
+	async function deleteChatWithAnimation(chatId) {
+		console.log(`[chat.js] Attempting to delete chat ${chatId} with animation`);
+		try {
+			const chatElement = document.querySelector(`[data-chat-id="${chatId}"]`);
+			if (!chatElement) {
+				console.warn(`[chat.js] Could not find chat element for ${chatId} to animate.`);
+				return;
+			}
+			
+			// Start fade out animation
+			chatElement.style.transition = "opacity 0.3s, transform 0.3s";
+			chatElement.style.opacity = "0";
+			chatElement.style.transform = "translateX(-20px)";
+			
+			// Wait for animation to complete before making API call
+			setTimeout(async () => {
 				try {
 					const response = await fetch(`/chat/${chatId}/delete/`, {
 						method: "POST",
@@ -854,84 +1012,134 @@ document.addEventListener("DOMContentLoaded", function () {
 							"Content-Type": "application/json"
 						}
 					});
+					
 					if (!response.ok) {
 						const errorData = await response.json().catch(() => ({ error: "Failed to delete chat" }));
 						throw new Error(errorData.error || "Failed to delete chat");
 					}
 					
-					const chatElement = deleteButton.closest("[data-chat-id]");
-					if (chatElement) {
-						console.log(`[chat.js - delegated] Attempting to remove chat element for ${chatId} from sidebar.`);
-						// Using setTimeout as it helped with button visibility, might help here too.
-						setTimeout(() => {
-							chatElement.remove();
-							console.log(`[chat.js - delegated - setTimeout] Chat element ${chatId} removed from sidebar.`);
-						}, 0);
-					} else {
-						console.warn(`[chat.js - delegated] Could not find chat element for ${chatId} in sidebar to remove.`);
-					}
-
+					// Remove the element from DOM after successful API call
+					chatElement.remove();
+					console.log(`[chat.js] Chat ${chatId} deleted and removed from DOM.`);
+					
+					// Redirect if we deleted the current chat
 					if (chatId === window.currentChatId) {
 						window.location.href = "/chat/new/";
 					}
 				} catch (error) {
-					console.error("Error deleting chat (delegated):", error);
+					// Restore the element if API call fails
+					chatElement.style.opacity = "1";
+					chatElement.style.transform = "translateX(0)";
+					console.error(`[chat.js] Error during chat deletion API call: ${error}`);
 					if (typeof appendSystemNotification === 'function') {
 						appendSystemNotification(`Error deleting chat: ${error.message}`, "error");
 					} else {
 						alert(`An error occurred when trying to delete the chat: ${error.message}`);
 					}
 				}
+			}, 300); // Match transition duration
+			
+		} catch (error) {
+			console.error(`[chat.js] Error in deleteChatWithAnimation: ${error}`);
+			if (typeof appendSystemNotification === 'function') {
+				appendSystemNotification(`Error deleting chat: ${error.message}`, "error");
+			} else {
+				alert(`An error occurred when trying to delete the chat: ${error.message}`);
 			}
-		});
-	} else {
-		console.warn("Chat list container (for delete delegation) not found.");
+		}
 	}
 
-	window.startEditing = function (container) {
-		const titleDiv = container.querySelector("div");
-		const currentTitle = titleDiv.textContent.trim();
-		const chatId = container.closest("[data-chat-id]").dataset.chatId;
+	// Function to start title editing
+	function startTitleEditing(container, titleElement, chatId) {
+		console.log(`Starting title editing for chat ID: ${chatId}`);
+		console.log(`Container:`, container);
+		console.log(`Title element:`, titleElement);
+		
+		// Get the current title from the element or use a default
+		const currentTitle = titleElement ? titleElement.textContent.trim() : "Untitled";
+		console.log(`Current title: "${currentTitle}"`);
+		
 		const input = document.createElement("input");
 		input.type = "text";
 		input.value = currentTitle;
 		input.className =
 			"w-full bg-gray-700/70 text-sm rounded px-2 py-1 text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400";
-		container.innerHTML = "";
-		container.appendChild(input);
-		input.focus();
-		input.select();
-		input.addEventListener("blur", () =>
-			finishEditing(container, input, currentTitle, chatId)
-		);
-		input.addEventListener("keydown", (e) => {
-			if (e.key === "Enter") {
-				e.preventDefault();
-				input.blur();
-			} else if (e.key === "Escape") {
-				restoreTitle(container, currentTitle);
-			}
-		});
-	};
+		
+		// Check if we're in the sidebar or chat list view
+		const isSidebar = container.closest("#sidebar") !== null;
+		console.log(`Is in sidebar: ${isSidebar}`);
+		
+		// Replace the title element with the input
+		if (titleElement) {
+			titleElement.style.display = "none";
+		}
+		
+		// Adjust input size based on where we are
+		if (isSidebar) {
+			input.style.fontSize = "1.125rem"; // Match the text-lg class
+		}
+		
+		// Make sure the container is valid before appending
+		if (container && container.appendChild) {
+			container.appendChild(input);
+			input.focus();
+			input.select();
+			
+			input.addEventListener("blur", () =>
+				finishTitleEditing(container, titleElement, input, currentTitle, chatId)
+			);
+			
+			input.addEventListener("keydown", (e) => {
+				if (e.key === "Enter") {
+					e.preventDefault();
+					input.blur();
+				} else if (e.key === "Escape") {
+					cancelTitleEditing(container, titleElement, input);
+				}
+			});
+		} else {
+			console.error(`Invalid container for chat ID: ${chatId}`);
+		}
+	}
 
-	async function finishEditing(container, input, originalTitle, chatId) {
+	async function finishTitleEditing(container, titleElement, input, originalTitle, chatId) {
 		const newTitle = input.value.trim();
 		if (!newTitle || newTitle === originalTitle) {
-			restoreTitle(container, originalTitle);
+			cancelTitleEditing(container, titleElement, input);
 			return;
 		}
+		
 		try {
 			const response = await fetch(`/chat/${chatId}/update-title/`, {
 				method: "POST",
 				headers: {
 					"Content-Type": "application/json",
 					"X-CSRFToken": document.querySelector("[name=csrfmiddlewaretoken]")
-						.value
+						.value || window.getCookie("csrftoken")
 				},
 				body: JSON.stringify({ title: newTitle })
 			});
+			
 			if (!response.ok) throw new Error("Failed to update title");
-			restoreTitle(container, newTitle);
+			
+			// Update the title element
+			if (titleElement) {
+				titleElement.textContent = newTitle;
+				titleElement.style.display = "";
+			}
+			
+			// Always remove the input
+			if (input && input.parentNode) {
+				input.remove();
+			}
+			
+			// Update all instances of this chat title in the DOM
+			document.querySelectorAll(`.chat-title[data-chat-id="${chatId}"]`).forEach(el => {
+				if (el !== titleElement) {
+					el.textContent = newTitle;
+				}
+			});
+			
 			if (chatId === currentChatId) {
 				const mobileHeader = document.querySelector(".md\\:hidden h1");
 				if (mobileHeader) mobileHeader.textContent = newTitle;
@@ -939,13 +1147,19 @@ document.addEventListener("DOMContentLoaded", function () {
 			}
 		} catch (error) {
 			console.error("Error updating chat title:", error);
-			restoreTitle(container, originalTitle);
+			cancelTitleEditing(container, titleElement, input);
 			alert("Failed to update chat title. Please try again.");
 		}
 	}
 
-	function restoreTitle(container, title) {
-		container.textContent = title;
+	function cancelTitleEditing(container, titleElement, input) {
+		if (titleElement) {
+			titleElement.style.display = "";
+		}
+		
+		if (input && input.parentNode) {
+			input.remove();
+		}
 	}
 
 	document.querySelectorAll(".markdown-content").forEach((container) => {

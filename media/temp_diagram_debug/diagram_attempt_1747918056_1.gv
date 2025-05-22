@@ -1,0 +1,73 @@
+from graphviz import Digraph
+
+g = Digraph(format='png')
+g.attr(rankdir='TB', dpi='300', nodesep='0.7', ranksep='1.1')
+g.attr('node', shape='box', style='filled,rounded', fontsize='10', fontname='Helvetica', color='#2F3E46')
+
+# Color Palette
+colors = {
+    'main': '#A0C4FF',  # Soft Blue
+    'secondary': '#B9FBC0',  # Light Green
+    'accent': '#FFD6A5',  # Peach Yellow
+    'background': '#FAFAFA',  # Snow White
+    'text': '#2F3E46'  # Dark Slate Gray
+}
+
+# Helper to make styled nodes
+def styled_node(name, label, fill):
+    g.node(name, label, fillcolor=fill, fontcolor=colors['text'])
+
+# Central Node
+styled_node('Python', '🐍 Python', colors['main'])
+
+# Python Basics Cluster
+with g.subgraph(name='cluster_basics') as c:
+    c.attr(style='filled', fillcolor=colors['accent'])
+    styled_node('Basics', '📝 Python Basics', colors['main'])
+    styled_node('BasicsNote', 'Understanding Python basics is crucial for building more complex applications.', colors['secondary'])
+    c.attr(label='Python Basics', labelloc='t')
+
+g.edge('Python', 'Basics')
+g.edge('Basics', 'BasicsNote', style='dashed')
+
+# Data Structures Cluster
+with g.subgraph(name='cluster_data_structures') as c:
+    c.attr(style='filled', fillcolor=colors['accent'])
+    styled_node('DataStructures', '📊 Data Structures', colors['main'])
+    styled_node('DataStructuresNote', 'Choosing the right data structure can significantly impact the efficiency of your code.', colors['secondary'])
+    c.attr(label='Data Structures', labelloc='t')
+
+g.edge('Python', 'DataStructures')
+g.edge('DataStructures', 'DataStructuresNote', style='dashed')
+
+# Object-Oriented Programming (OOP) Cluster
+with g.subgraph(name='cluster_oop') as c:
+    c.attr(style='filled', fillcolor=colors['accent'])
+    styled_node('OOP', '🔩 Object-Oriented Programming (OOP)', colors['main'])
+    styled_node('OOPNote', 'OOP concepts like inheritance, polymorphism, and encapsulation help write reusable and maintainable code.', colors['secondary'])
+    c.attr(label='Object-Oriented Programming (OOP)', labelloc='t')
+
+g.edge('Python', 'OOP')
+g.edge('OOP', 'OOPNote', style='dashed')
+
+# File Input/Output and Persistence Cluster
+with g.subgraph(name='cluster_file_io') as c:
+    c.attr(style='filled', fillcolor=colors['accent'])
+    styled_node('FileIO', '💾 File Input/Output and Persistence', colors['main'])
+    styled_node('FileIONote', 'Proper file handling is critical for data integrity and security.', colors['secondary'])
+    c.attr(label='File Input/Output and Persistence', labelloc='t')
+
+g.edge('Python', 'FileIO')
+g.edge('FileIO', 'FileIONote', style='dashed')
+
+# Modules and Packages Cluster
+with g.subgraph(name='cluster_modules') as c:
+    c.attr(style='filled', fillcolor=colors['accent'])
+    styled_node('Modules', '📚 Modules and Packages', colors['main'])
+    styled_node('ModulesNote', 'Leveraging existing libraries can save development time and improve code quality.', colors['secondary'])
+    c.attr(label='Modules and Packages', labelloc='t')
+
+g.edge('Python', 'Modules')
+g.edge('Modules', 'ModulesNote', style='dashed')
+
+g.render('diagram_output', view=False, cleanup=True)
