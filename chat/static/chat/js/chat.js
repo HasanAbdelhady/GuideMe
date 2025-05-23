@@ -226,8 +226,8 @@ document.addEventListener("DOMContentLoaded", function () {
 	});
 
 	// Typing indicator
-	function createTypingIndicator() {
-		removeTypingIndicator();
+	window.createTypingIndicator = function () {
+		window.removeTypingIndicator(); // Use the global remove function
 
 		const typingDiv = document.createElement("div");
 		typingDiv.className = "message-enter px-4 md:px-6 py-6";
@@ -251,23 +251,23 @@ document.addEventListener("DOMContentLoaded", function () {
 		`;
 
 		document.getElementById("chat-messages").appendChild(typingDiv);
-		smoothScrollToBottom();
-	}
+		window.smoothScrollToBottom();
+	};
 
-	function removeTypingIndicator() {
+	window.removeTypingIndicator = function () {
 		const typingIndicator = document.getElementById("typing-indicator");
 		if (typingIndicator) {
 			typingIndicator.remove();
 		}
-	}
+	};
 
 	// Smooth scroll
-	function smoothScrollToBottom() {
+	window.smoothScrollToBottom = function () {
 		window.scrollTo({
 			top: document.body.scrollHeight,
 			behavior: "smooth"
 		});
-	}
+	};
 
 	// File handling
 	function clearFileSelection() {
@@ -294,7 +294,7 @@ document.addEventListener("DOMContentLoaded", function () {
 	}
 
 	// Append message
-	function appendMessage(
+	window.appendMessage = function (
 		role,
 		content,
 		messageId = null,
@@ -419,18 +419,18 @@ document.addEventListener("DOMContentLoaded", function () {
 		}
 
 		messagesContainer.appendChild(messageDiv);
-		smoothScrollToBottom();
+		window.smoothScrollToBottom();
 		return contentElementToReturn; // Return the appropriate element
-	}
+	};
 
 	// New function to append system notifications
 	function appendSystemNotification(message, level = "info") {
 		const messagesDiv = document.getElementById("chat-messages");
 		const notificationDiv = document.createElement("div");
-		notificationDiv.className = `message-enter px-4 md:px-6 py-3`; // Less padding than full messages
+		notificationDiv.className = `fixed top-5 w-full px-4 md:px-6 py-3`; // Less padding than full messages
 
-		let bgColor = "bg-gray-700/70"; // Default info
-		let textColor = "text-gray-300";
+		let bgColor = "bg-green-700/80"; // Default info
+		let textColor = "text-white";
 		let iconSvg = `
 			<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
 				<path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -458,8 +458,11 @@ document.addEventListener("DOMContentLoaded", function () {
 				<span>${message}</span>
 			</div>
 		`;
-		messagesDiv.appendChild(notificationDiv);
-		smoothScrollToBottom();
+		document.body.appendChild(notificationDiv);
+		setTimeout(() => {
+			notificationDiv.remove();
+		}, 1500);
+		window.smoothScrollToBottom();
 	}
 
 	function updateAssistantMessage(container, contentChunk) {
@@ -528,11 +531,11 @@ document.addEventListener("DOMContentLoaded", function () {
 				// For safety, we can append if it seems like a text container.
 				container.textContent += contentChunk;
 			}
-			smoothScrollToBottom();
+			window.smoothScrollToBottom();
 		}
 	}
 
-	async function handleStreamResponse(response) {
+	window.handleStreamResponse = async function (response) {
 		const reader = response.body.getReader();
 		const decoder = new TextDecoder();
 		let buffer = "";
@@ -610,7 +613,7 @@ document.addEventListener("DOMContentLoaded", function () {
 								);
 							}
 						} else if (data.type === "done") {
-							removeTypingIndicator();
+							window.removeTypingIndicator();
 						}
 					}
 				}
@@ -622,9 +625,9 @@ document.addEventListener("DOMContentLoaded", function () {
 				"error"
 			);
 		} finally {
-			removeTypingIndicator();
+			window.removeTypingIndicator();
 		}
-	}
+	};
 
 	function appendUserMessage(content) {
 		const messagesDiv = document.getElementById("chat-messages");
@@ -647,7 +650,7 @@ document.addEventListener("DOMContentLoaded", function () {
 			</div>
 		`;
 		messagesDiv.appendChild(messageDiv);
-		smoothScrollToBottom();
+		window.smoothScrollToBottom();
 	}
 
 	form.addEventListener("submit", async function (e) {
@@ -664,7 +667,7 @@ document.addEventListener("DOMContentLoaded", function () {
 		textarea.value = "";
 		window.adjustMainTextareaHeight();
 		if (fileData) clearFileSelection();
-		createTypingIndicator();
+		window.createTypingIndicator();
 		stopButton.classList.remove("hidden");
 		abortController = new AbortController();
 		try {
@@ -729,57 +732,57 @@ document.addEventListener("DOMContentLoaded", function () {
 				// Add a style tag to ensure group-hover works properly
 				const styleTag = document.createElement("style");
 				styleTag.textContent = `
-					.group:hover .group-hover\\:opacity-100 {
-						opacity: 1;
-					}
-				`;
+						.group:hover .group-hover\\:opacity-100 {
+							opacity: 1;
+						}
+					`;
 				document.head.appendChild(styleTag);
 
 				newChatElement.innerHTML = `
-					<div class="flex items-center justify-between p-2 rounded hover:bg-gray-700/20 transition-colors">
-						<a href="/chat/${data.chat_id}/" class="flex-1 truncate chat-title-container">
-							<div class="text-lg text-gray-200 truncate chat-title" data-chat-id="${
-								data.chat_id
-							}">
-								${data.title}
+						<div class="flex items-center justify-between p-2 rounded hover:bg-gray-700/20 transition-colors">
+							<a href="/chat/${data.chat_id}/" class="flex-1 truncate chat-title-container">
+								<div class="text-lg text-gray-200 truncate chat-title" data-chat-id="${
+									data.chat_id
+								}">
+									${data.title}
+								</div>
+							</a>
+							<div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+								<button
+									class="edit-title-btn p-1 text-gray-400 hover:text-gray-200 transition-all rounded"
+									data-chat-id="${data.chat_id}" title="Rename chat">
+									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+									</svg>
+								</button>
+								<button
+									class="delete-chat-btn p-1 text-gray-400 hover:text-gray-200 transition-all rounded"
+									data-chat-id="${data.chat_id}" title="Delete chat">
+									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+									</svg>
+								</button>
 							</div>
-						</a>
-						<div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-							<button
-								class="edit-title-btn p-1 text-gray-400 hover:text-gray-200 transition-all rounded"
-								data-chat-id="${data.chat_id}" title="Rename chat">
-								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-								</svg>
-							</button>
-							<button
-								class="delete-chat-btn p-1 text-gray-400 hover:text-gray-200 transition-all rounded"
-								data-chat-id="${data.chat_id}" title="Delete chat">
-								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-								</svg>
-							</button>
 						</div>
-					</div>
-					<form method="POST" action="/chat/${
-						data.chat_id
-					}/update-title/" class="hidden edit-title-form absolute inset-0 flex items-center bg-gray-800 rounded-lg z-10">
-						<input type="hidden" name="csrfmiddlewaretoken" value="${window.getCookie(
-							"csrftoken"
-						)}">
-						<input type="text" name="title" value="${
-							data.title
-						}" class="flex-grow px-4 py-2 bg-transparent text-white focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-lg" />
-						<div class="flex items-center px-2">
-							<button type="submit" class="p-2 text-green-400 hover:text-green-300 hover:bg-gray-700 rounded-lg transition-colors">
-								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
-							</button>
-							<button type="button" class="cancel-edit p-2 text-red-400 hover:text-red-300 hover:bg-gray-700 rounded-lg transition-colors">
-								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
-							</button>
-						</div>
-					</form>
-				`;
+						<form method="POST" action="/chat/${
+							data.chat_id
+						}/update-title/" class="hidden edit-title-form absolute inset-0 flex items-center bg-gray-800 rounded-lg z-10">
+							<input type="hidden" name="csrfmiddlewaretoken" value="${window.getCookie(
+								"csrftoken"
+							)}">
+							<input type="text" name="title" value="${
+								data.title
+							}" class="flex-grow px-4 py-2 bg-transparent text-white focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-lg" />
+							<div class="flex items-center px-2">
+								<button type="submit" class="p-2 text-green-400 hover:text-green-300 hover:bg-gray-700 rounded-lg transition-colors">
+									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+								</button>
+								<button type="button" class="cancel-edit p-2 text-red-400 hover:text-red-300 hover:bg-gray-700 rounded-lg transition-colors">
+									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+								</button>
+							</div>
+						</form>
+					`;
 
 				if (chatsList && chatsList.firstChild) {
 					chatsList.insertBefore(newChatElement, chatsList.firstChild);
@@ -816,25 +819,25 @@ document.addEventListener("DOMContentLoaded", function () {
 				},
 				signal: abortController.signal
 			});
-			await handleStreamResponse(streamResponse);
+			await window.handleStreamResponse(streamResponse);
 		} catch (error) {
 			console.error("Error:", error);
-			removeTypingIndicator();
+			window.removeTypingIndicator();
 			if (error.name !== "AbortError") {
 				const messageDiv = document.createElement("div");
 				messageDiv.className = "message-enter px-4 md:px-6 py-6";
 				messageDiv.innerHTML = `
-					<div class="chat-container flex gap-4 md:gap-6">
-						<div class="flex-shrink-0 w-7 h-7">
-							<div class="cls w-10 h-7 p-1 rounded-sm bg-slate-100 flex items-center justify-center text-white">
-								<img src="/static/images/logo.png" alt="Assistant icon" class="h-5 w-7">
+						<div class="chat-container flex gap-4 md:gap-6">
+							<div class="flex-shrink-0 w-7 h-7">
+								<div class="cls w-10 h-7 p-1 rounded-sm bg-slate-100 flex items-center justify-center text-white">
+									<img src="/static/images/logo.png" alt="Assistant icon" class="h-5 w-7">
+								</div>
+							</div>
+							<div class="flex-1 overflow-x-auto min-w-0">
+								<p class="text-red-400">Error: ${error.message}</p>
 							</div>
 						</div>
-						<div class="flex-1 overflow-x-auto min-w-0">
-							<p class="text-red-400">Error: ${error.message}</p>
-						</div>
-					</div>
-				`;
+					`;
 				document.getElementById("chat-messages").appendChild(messageDiv);
 			}
 			stopButton.classList.add("hidden");
@@ -905,7 +908,7 @@ document.addEventListener("DOMContentLoaded", function () {
 			abortController.abort();
 
 			stopButton.classList.add("hidden");
-			removeTypingIndicator();
+			window.removeTypingIndicator();
 			appendMessage("assistant", `_Response stopped by user._`);
 		}
 	});
@@ -924,13 +927,13 @@ document.addEventListener("DOMContentLoaded", function () {
 				if (!response.ok) throw new Error("Failed to clear chat");
 			}
 			document.getElementById("chat-messages").innerHTML = `
-				<div class="flex flex-col items-center justify-center h-[calc(100vh-200px)]">
-					<svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="text-gray-400 mb-2">
-						<path d="M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-10.5V21" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
-					</svg>
-					<p class="text-gray-400 text-sm">How can I help you today?</p>
-				</div>
-			`;
+					<div class="flex flex-col items-center justify-center h-[calc(100vh-200px)]">
+						<svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="text-gray-400 mb-2">
+							<path d="M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-10.5V21" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+						</svg>
+						<p class="text-gray-400 text-sm">How can I help you today?</p>
+					</div>
+				`;
 		} catch (error) {
 			console.error("Error clearing chat:", error);
 			alert("There was an error clearing the chat. Please try again.");
@@ -1429,13 +1432,13 @@ document.addEventListener("DOMContentLoaded", function () {
 				fileEl.className =
 					"flex items-center justify-between bg-gray-700 p-2 rounded-md text-sm hover:bg-gray-600/80 transition-colors";
 				fileEl.innerHTML = `
-          <span class=\"text-gray-200 truncate max-w-[80%]\" title=\"${file.name}\">${file.name}</span>
-          <button class=\"delete-rag-file-btn p-1 text-red-400 hover:text-red-300 rounded-full focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50\" data-file-id=\"${file.id}\" title=\"Remove from RAG context\">
-            <svg xmlns=\"http://www.w3.org/2000/svg\" class=\"h-4 w-4\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\" stroke-width=\"2\">
-              <path stroke-linecap=\"round\" stroke-linejoin=\"round\" d=\"M6 18L18 6M6 6l12 12\" />
-            </svg>
-          </button>
-        `;
+	          <span class=\"text-gray-200 truncate max-w-[80%]\" title=\"${file.name}\">${file.name}</span>
+	          <button class=\"delete-rag-file-btn p-1 text-red-400 hover:text-red-300 rounded-full focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50\" data-file-id=\"${file.id}\" title=\"Remove from RAG context\">
+	            <svg xmlns=\"http://www.w3.org/2000/svg\" class=\"h-4 w-4\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\" stroke-width=\"2\">
+	              <path stroke-linecap=\"round\" stroke-linejoin=\"round\" d=\"M6 18L18 6M6 6l12 12\" />
+	            </svg>
+	          </button>
+	        `;
 				ragFilesListDiv.appendChild(fileEl);
 				const deleteBtn = fileEl.querySelector(".delete-rag-file-btn");
 				if (deleteBtn) {
@@ -1502,7 +1505,7 @@ document.addEventListener("DOMContentLoaded", function () {
 		const file = ragFileInput.files[0];
 		if (!file) {
 			appendSystemNotification(
-				"Please select a file to upload to RAG.",
+				"Please upload a file to add to context.",
 				"warning"
 			);
 			return;
@@ -1537,7 +1540,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
 			if (data.success && data.file) {
 				appendSystemNotification(
-					`Successfully added '${data.file.name}' to RAG context.`,
+					`Successfully added '${data.file.name}' to context.`,
 					"info"
 				);
 				fetchRAGFiles(); // Refresh the list
@@ -1589,7 +1592,7 @@ document.addEventListener("DOMContentLoaded", function () {
 			// const data = await response.json(); // If response has body
 			// if (data.success) { // If response has body and a success flag
 			appendSystemNotification(
-				`Successfully removed file from RAG context.`,
+				`Successfully removed file from context.`,
 				"info"
 			);
 			fetchRAGFiles(); // Refresh the list
@@ -1597,7 +1600,7 @@ document.addEventListener("DOMContentLoaded", function () {
 			//     throw new Error(data.error || 'Deletion reported unsuccessful by server.');
 			// }
 		} catch (error) {
-			console.error("Error deleting RAG file:", error);
+			console.error("Error deleting file:", error);
 			appendSystemNotification(
 				`Failed to remove file: ${error.message}`,
 				"error"
@@ -1675,12 +1678,12 @@ document.addEventListener("DOMContentLoaded", function () {
 			}
 			localStorage.setItem("ragModeActive", JSON.stringify(isRAGActive));
 			appendSystemNotification(
-				`RAG mode is now ${isRAGActive ? "ACTIVE" : "INACTIVE"}.`,
+				`Context mode is now ${isRAGActive ? "ACTIVE" : "INACTIVE"}.`,
 				"info"
 			);
 		});
 	} else {
-		console.warn("RAG toggle button not found in the DOM");
+		console.warn("Context toggle button not found in the DOM");
 	}
 
 	// Diagram Mode Toggle Button Logic
@@ -1768,7 +1771,7 @@ document.addEventListener("DOMContentLoaded", function () {
 	hljs.highlightAll();
 	if (document.getElementById("chat-messages").children.length > 1) {
 		// more than just placeholder
-		smoothScrollToBottom();
+		window.smoothScrollToBottom();
 	}
 
 	// --- RAG Context Modal ---
@@ -1801,29 +1804,29 @@ document.addEventListener("DOMContentLoaded", function () {
 		messageDiv.setAttribute("data-message-id", messageId); // For potential future use
 
 		messageDiv.innerHTML = `
-			<div class="chat-container flex gap-4 md:gap-6">
-				<div class="flex-shrink-0 w-7 h-7">
-					<div class="cls w-10 h-7 p-1 rounded-sm bg-slate-100 flex items-center justify-center text-white">
-						<img src="/static/images/logo.png" alt="Assistant icon" class="h-5 w-7">
+				<div class="chat-container flex gap-4 md:gap-6">
+					<div class="flex-shrink-0 w-7 h-7">
+						<div class="cls w-10 h-7 p-1 rounded-sm bg-slate-100 flex items-center justify-center text-white">
+							<img src="/static/images/logo.png" alt="Assistant icon" class="h-5 w-7">
+						</div>
+					</div>
+					<div class="flex-1 overflow-x-auto min-w-0 max-w-[85%]">
+						<div class="diagram-message-container bg-gray-800/50 p-2 my-2 rounded-lg shadow-md flex flex-col justify-center items-center">
+							<img src="${imageUrl}" alt="${textContent || "Generated Diagram"}" 
+								class="max-w-full h-auto rounded-md mb-1 cursor-pointer hover:opacity-90 transition-opacity" 
+								onclick="openImageModal('${imageUrl}')">
+							${
+								textContent
+									? `<p class="text-xs text-gray-400 italic mt-1 text-center">${textContent}</p>`
+									: ""
+							}
+						</div>
 					</div>
 				</div>
-				<div class="flex-1 overflow-x-auto min-w-0 max-w-[85%]">
-					<div class="diagram-message-container bg-gray-800/50 p-2 my-2 rounded-lg shadow-md flex flex-col justify-center items-center">
-						<img src="${imageUrl}" alt="${textContent || "Generated Diagram"}" 
-							class="max-w-full h-auto rounded-md mb-1 cursor-pointer hover:opacity-90 transition-opacity" 
-							onclick="openImageModal('${imageUrl}')">
-						${
-							textContent
-								? `<p class="text-xs text-gray-400 italic mt-1 text-center">${textContent}</p>`
-								: ""
-						}
-					</div>
-				</div>
-			</div>
-		`;
+			`;
 
 		messagesDiv.appendChild(messageDiv);
-		smoothScrollToBottom();
+		window.smoothScrollToBottom();
 	}
 
 	// Make existing diagram images clickable
@@ -1896,7 +1899,7 @@ document.addEventListener("DOMContentLoaded", function () {
 				window.currentChatId !== "new" &&
 				!window.isNewChat
 			) {
-				createTypingIndicator();
+				window.createTypingIndicator();
 				try {
 					const response = await fetch(`/chat/${window.currentChatId}/quiz/`, {
 						method: "POST",
@@ -1905,7 +1908,7 @@ document.addEventListener("DOMContentLoaded", function () {
 						}
 						// No body or Content-Type application/json per previous fixes
 					});
-					removeTypingIndicator();
+					window.removeTypingIndicator();
 
 					if (response.ok) {
 						const data = await response.json();
@@ -1918,10 +1921,10 @@ document.addEventListener("DOMContentLoaded", function () {
 							const actualContentHtml = `<div class="quiz-message max-w-none text-gray-100 bg-gray-700/70 p-2 rounded-xl">${data.quiz_html}</div>`;
 
 							messageDiv.innerHTML = `
-								<div class="chat-container flex gap-4 md:gap-6">
-									<div class="flex-shrink-0 w-7 h-7">${iconHtml}</div>
-									<div class="flex-1 overflow-x-auto min-w-0 max-w-[85%]">${actualContentHtml}</div>
-								</div>`;
+									<div class="chat-container flex gap-4 md:gap-6">
+										<div class="flex-shrink-0 w-7 h-7">${iconHtml}</div>
+										<div class="flex-1 overflow-x-auto min-w-0 max-w-[85%]">${actualContentHtml}</div>
+									</div>`;
 							messagesDiv.appendChild(messageDiv);
 
 							// Process the quiz content that was just added
@@ -1936,7 +1939,7 @@ document.addEventListener("DOMContentLoaded", function () {
 								initializeQuizForms(quizMessageElement);
 							}
 
-							smoothScrollToBottom();
+							window.smoothScrollToBottom();
 						} else if (data.error) {
 							appendSystemNotification(
 								`Error generating quiz: ${data.error}`,
@@ -1965,7 +1968,7 @@ document.addEventListener("DOMContentLoaded", function () {
 						);
 					}
 				} catch (error) {
-					removeTypingIndicator();
+					window.removeTypingIndicator();
 					console.error("Error fetching quiz:", error);
 					appendSystemNotification(
 						`Error fetching quiz: ${error.message}`,

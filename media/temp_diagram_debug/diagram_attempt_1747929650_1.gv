@@ -1,0 +1,60 @@
+from graphviz import Digraph
+
+g = Digraph('Supervised Learning', format='png')
+g.attr(rankdir='TB', dpi='300', nodesep='0.7', ranksep='1.1')
+g.attr('node', shape='box', style='filled,rounded', fontsize='10', fontname='Helvetica', color='#444444')
+
+# === Color Palette ===
+colors = {
+    'training_data': '#FAFAFA',  # Snow White
+    'features': '#A0C4FF',  # Soft Blue
+    'labels': '#B9FBC0',  # Light Green
+    'model': '#FFD6A5',  # Peach Yellow
+    'loss_function': '#2F3E46',  # Dark Slate Gray
+    'optimization': '#2F3E46',  # Dark Slate Gray
+    'training_loop': '#2F3E46',  # Dark Slate Gray
+    'evaluation': '#2F3E46',  # Dark Slate Gray
+}
+
+# === Helper to make styled nodes ===
+def styled_node(name, label, fill):
+    g.node(name, label, fillcolor=fill)
+
+# === TRAINING DATA ===
+styled_node('TrainingData', 'Training Data', colors['training_data'])
+
+# === FEATURES ===
+styled_node('Features', 'Features (X)', colors['features'])
+
+# === LABELS ===
+styled_node('Labels', 'Labels (Y)', colors['labels'])
+
+# === MODEL ===
+styled_node('Model', 'Model (W)', colors['model'])
+
+# === LOSS FUNCTION ===
+styled_node('LossFunction', 'Loss Function', colors['loss_function'])
+
+# === OPTIMIZATION ===
+styled_node('Optimization', 'Optimization', colors['optimization'])
+
+# === TRAINING LOOP ===
+styled_node('TrainingLoop', 'Training Loop', colors['training_loop'])
+
+# === EVALUATION ===
+styled_node('Evaluation', 'Evaluation', colors['evaluation'])
+
+# === EDGES ===
+g.edge('TrainingData', 'Features')
+g.edge('Features', 'Labels')
+g.edge('Labels', 'Model')
+g.edge('Model', 'LossFunction')
+g.edge('LossFunction', 'Optimization')
+g.edge('Optimization', 'TrainingLoop')
+g.edge('TrainingLoop', 'Evaluation')
+
+# === Render ===
+g.render('supervised_learning_diagram', view=False, cleanup=True)
+```
+```
+This code creates a diagram with the main components of Supervised Learning, including Training Data, Features, Labels, Model, Loss Function, Optimization, Training Loop, and Evaluation. The diagram uses a color palette with Snow White, Soft Blue, Light Green, Peach Yellow, and Dark Slate Gray to distinguish between the different components.

@@ -1,0 +1,48 @@
+import graphviz
+from graphviz import Digraph
+
+g = Digraph(format='png')
+g.node_attr.update({'shape': 'box', 'style': 'filled, rounded', 'fillcolor': '#A0C4FF'})
+g.edge_attr.update({'arrowhead': 'vee'})
+
+g.node('A', 'Step 1: Fundamentals and Setup', style='filled, rounded', fillcolor='#A0C4FF')
+g.node('B', 'Step 2: Deep Learning Frameworks and Tools', style='filled, rounded', fillcolor='#A0C4FF')
+g.node('C', 'Step 3: Advanced Deep Learning Topics and Applications', style='filled, rounded', fillcolor='#A0C4FF')
+g.node('D', 'Deep Learning Mastery', style='filled, rounded', fillcolor='#A0C4FF')
+
+g.edge('A', 'B', label='Install necessary libraries')
+g.edge('B', 'C', label='Learn basics of each framework')
+g.edge('C', 'D', label='Apply Deep Learning to real-world problems')
+
+g.node('A1', 'Install necessary libraries', style='filled, rounded', fillcolor='#B9FBC0', shape='note', fontcolor='#2F3E46')
+g.node('A2', 'Familiarize yourself with Python syntax and data structures', style='filled, rounded', fillcolor='#B9FBC0', shape='note', fontcolor='#2F3E46')
+g.node('A3', 'Learn basic Python concepts: functions, modules, and object-oriented programming', style='filled, rounded', fillcolor='#B9FBC0', shape='note', fontcolor='#2F3E46')
+g.node('A4', 'Set up a Python environment on your local machine or cloud platform', style='filled, rounded', fillcolor='#B9FBC0', shape='note', fontcolor='#2F3E46')
+
+g.edge('A', 'A1', style='dashed')
+g.edge('A', 'A2', style='dashed')
+g.edge('A', 'A3', style='dashed')
+g.edge('A', 'A4', style='dashed')
+
+g.node('B1', 'Install popular Deep Learning frameworks: TensorFlow, Keras, or PyTorch', style='filled, rounded', fillcolor='#B9FBC0', shape='note', fontcolor='#2F3E46')
+g.node('B2', 'Learn the basics of each framework: layers, activations, optimizers, and loss functions', style='filled, rounded', fillcolor='#B9FBC0', shape='note', fontcolor='#2F3E46')
+g.node('B3', 'Focus on Keras for now, as it\'s a high-level framework that\'s easy to use', style='filled, rounded', fillcolor='#B9FBC0', shape='note', fontcolor='#2F3E46')
+g.node('B4', 'Practice building and training simple neural networks using Keras', style='filled, rounded', fillcolor='#B9FBC0', shape='note', fontcolor='#2F3E46')
+
+g.edge('B', 'B1', style='dashed')
+g.edge('B', 'B2', style='dashed')
+g.edge('B', 'B3', style='dashed')
+g.edge('B', 'B4', style='dashed')
+
+g.node('C1', 'Dive deeper into advanced topics: convolutional neural networks (CNNs), recurrent neural networks (RNNs), and transformers', style='filled, rounded', fillcolor='#B9FBC0', shape='note', fontcolor='#2F3E46')
+g.node('C2', 'Learn about transfer learning, regularization, and hyperparameter tuning', style='filled, rounded', fillcolor='#B9FBC0', shape='note', fontcolor='#2F3E46')
+g.node('C3', 'Apply Deep Learning to real-world problems: image classification, natural language processing, or time series forecasting', style='filled, rounded', fillcolor='#B9FBC0', shape='note', fontcolor='#2F3E46')
+g.node('C4', 'Explore popular libraries and tools: OpenCV, NLTK, and scikit-image', style='filled, rounded', fillcolor='#B9FBC0', shape='note', fontcolor='#2F3E46')
+
+g.edge('C', 'C1', style='dashed')
+g.edge('C', 'C2', style='dashed')
+g.edge('C', 'C3', style='dashed')
+g.edge('C', 'C4', style
+
+# Fallback render call
+g.render('diagram_output', view=False, cleanup=True)
