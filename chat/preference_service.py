@@ -176,94 +176,32 @@ prompt_code_graphviz ="""
     EXAMPLE 1:
 
     ```python
-    from graphviz import Digraph
+import graphviz
+from graphviz import nohtml
 
-    g = Digraph('Transformer', format='png')
-    g.attr(rankdir='TB', dpi='300', nodesep='0.7', ranksep='1.1')
-    g.attr('node', shape='box', style='filled,rounded', fontsize='10', fontname='Helvetica', color='#444444')
+g = graphviz.Digraph('g', filename='btree.gv',
+                     node_attr={'shape': 'record', 'height': '.1'})
 
-    # === Color Palette ===
-    colors = {
-        'attention': '#E6CCFF',     # lavender
-        'masked_attention': '#FFD6CC',  # light peach
-        'ff': '#D9F0FF',            # light blue
-        'norm': '#E2F7E1',          # mint green
-        'embed': '#FFE9EC',         # soft pink
-        'pos': '#FFFFFF',           # white
-        'final': '#FFFACD',         # lemon chiffon
-        'label': '#F0F0F0'
-    }
+g.node('node0', nohtml('<f0> |<f1> G|<f2>'))
+g.node('node1', nohtml('<f0> |<f1> E|<f2>'))
+g.node('node2', nohtml('<f0> |<f1> B|<f2>'))
+g.node('node3', nohtml('<f0> |<f1> F|<f2>'))
+g.node('node4', nohtml('<f0> |<f1> R|<f2>'))
+g.node('node5', nohtml('<f0> |<f1> H|<f2>'))
+g.node('node6', nohtml('<f0> |<f1> Y|<f2>'))
+g.node('node7', nohtml('<f0> |<f1> A|<f2>'))
+g.node('node8', nohtml('<f0> |<f1> C|<f2>'))
 
-    # === Helper to make styled nodes ===
-    def styled_node(name, label, fill):
-        g.node(name, label, fillcolor=fill)
+g.edge('node0:f2', 'node4:f1')
+g.edge('node0:f0', 'node1:f1')
+g.edge('node1:f0', 'node2:f1')
+g.edge('node1:f2', 'node3:f1')
+g.edge('node2:f2', 'node8:f1')
+g.edge('node2:f0', 'node7:f1')
+g.edge('node4:f2', 'node6:f1')
+g.edge('node4:f0', 'node5:f1')
 
-    # === ENCODER BLOCK ===
-    styled_node('Input', '🡒 Inputs', 'white')
-    styled_node('InputEmbed', 'Input Embedding', colors['embed'])
-    styled_node('PosEnc1', 'Positional Encoding', colors['pos'])
-    styled_node('EncMHA', 'Multi-Head Attention', colors['attention'])
-    styled_node('EncNorm1', 'Add & Norm', colors['norm'])
-    styled_node('EncFF', 'Feed Forward', colors['ff'])
-    styled_node('EncNorm2', 'Add & Norm', colors['norm'])
-    styled_node('EncoderNx', 'Nx Encoder Blocks', colors['label'])
-
-    # === DECODER BLOCK ===
-    styled_node('Output', '🡒 Outputs (shifted right)', 'white')
-    styled_node('OutputEmbed', 'Output Embedding', colors['embed'])
-    styled_node('PosEnc2', 'Positional Encoding', colors['pos'])
-    styled_node('DecMaskedMHA', 'Masked MHA', colors['masked_attention'])
-    styled_node('DecNorm1', 'Add & Norm', colors['norm'])
-    styled_node('DecMHA', 'Multi-Head Attention\n(from Encoder)', colors['attention'])
-    styled_node('DecNorm2', 'Add & Norm', colors['norm'])
-    styled_node('DecFF', 'Feed Forward', colors['ff'])
-    styled_node('DecNorm3', 'Add & Norm', colors['norm'])
-    styled_node('DecoderNx', 'Nx Decoder Blocks', colors['label'])
-
-    # === FINAL LAYERS ===
-    styled_node('Linear', 'Linear', colors['final'])
-    styled_node('Softmax', 'Softmax', colors['final'])
-    styled_node('OutputProbs', '🎯 Output Probabilities', 'white')
-
-    # === FLOW: Encoder ===
-    g.edge('Input', 'InputEmbed')
-    g.edge('InputEmbed', 'PosEnc1')
-    g.edge('PosEnc1', 'EncMHA')
-    g.edge('EncMHA', 'EncNorm1')
-    g.edge('EncNorm1', 'EncFF')
-    g.edge('EncFF', 'EncNorm2')
-    g.edge('EncNorm2', 'EncoderNx')
-
-    # === FLOW: Decoder ===
-    g.edge('Output', 'OutputEmbed')
-    g.edge('OutputEmbed', 'PosEnc2')
-    g.edge('PosEnc2', 'DecMaskedMHA')
-    g.edge('DecMaskedMHA', 'DecNorm1')
-    g.edge('DecNorm1', 'DecMHA')
-    g.edge('EncoderNx', 'DecMHA')  # Cross attention from encoder
-    g.edge('DecMHA', 'DecNorm2')
-    g.edge('DecNorm2', 'DecFF')
-    g.edge('DecFF', 'DecNorm3')
-    g.edge('DecNorm3', 'DecoderNx')
-
-    # === FINAL FLOW ===
-    g.edge('DecoderNx', 'Linear')
-    g.edge('Linear', 'Softmax')
-    g.edge('Softmax', 'OutputProbs')
-
-    # === GROUP LABELS ===
-    with g.subgraph() as encoder:
-        encoder.attr(rank='same')
-        encoder.node('EncoderNx')
-        encoder.attr(label='<<B>ENCODER</B>>', labelloc='t', style='dashed')
-
-    with g.subgraph() as decoder:
-        decoder.attr(rank='same')
-        decoder.node('DecoderNx')
-        decoder.attr(label='<<B>DECODER</B>>', labelloc='t', style='dashed')
-
-    # === Render ===
-    g.render('diagram_output', view=True)
+g.view()
     ```
     """
 
