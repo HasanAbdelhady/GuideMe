@@ -1,7 +1,8 @@
 import os
 import datetime
 import json
-from .models import Message
+from .models import Message, DiagramImage
+from users.models import CustomUser
 from .preference_service import PreferenceService , prompt_description , prompt_code_graphviz , prompt_fix_code
 from django.core.files.storage import default_storage
 from io import StringIO
@@ -34,10 +35,11 @@ from pydantic import PrivateAttr
 
 import graphviz # Added for diagram generation
 import re # Added for sanitizing filenames
-
+from .models import Chat
+from django.conf import settings # Added for MEDIA_ROOT
 
 def sanitize_filename(filename):
-    return re.sub(r'[<>:"/\\|?*]', '_', filename)
+    return re.sub(r'[<>:"/\\\\|?*]', '_', filename)
 
 class GroqLangChainLLM(LLM):
     model: str = "llama3-8b-8192"
@@ -506,7 +508,8 @@ class ChatService:
             structured_description_content = await self.get_completion(
                 messages=messages_for_description,
                 max_tokens=5000, 
-                chat_id=chat_id 
+                chat_id=chat_id,
+                temperature=0.0 # Reverted temperature for description generation
             )
             self.logger.info(f"Received structured description: {structured_description_content[:200]}...")
             if not structured_description_content or not structured_description_content.strip():
@@ -527,7 +530,7 @@ class ChatService:
                 messages=messages_for_graphviz,
                 max_tokens=6000, # Allow ample tokens for code generation
                 chat_id=chat_id,
-                temperature=0.0 # change to 0.0 to get stable output
+                temperature=0.0 # Reverted temperature for initial code generation
             )
             self.logger.info(f"Received Graphviz code response (first 200 chars): {graphviz_code_response[:200] if graphviz_code_response else 'Empty response'}...")
             if not graphviz_code_response or not graphviz_code_response.strip():
@@ -537,29 +540,34 @@ class ChatService:
             self.logger.error(f"Error getting Graphviz code from LLM: {e}", exc_info=True)
             return None
 
-        # Since the prompt now asks for ONLY Python code, no ```python ``` block is expected.
         # We'll take the response as is, after stripping whitespace.
         graphviz_code = graphviz_code_response.strip()
         
         # Extract only the actual Python code, removing any explanatory text
-        if "```" in graphviz_code:
-            # If the response has code blocks, extract the content between the first set of ``` markers
-            try:
-                code_parts = graphviz_code.split("```")
-                if len(code_parts) >= 3:  # At least one complete code block
-                    graphviz_code = code_parts[1].strip()
-                    graphviz_code = graphviz_code.strip('python\n')
-            except Exception as e:
-                self.logger.error(f"Error extracting code block: {e}", exc_info=True)
+        # First, handle common markdown code blocks
+        if graphviz_code.startswith("```python"):
+            graphviz_code = graphviz_code[len("```python"):].strip()
+            if graphviz_code.endswith("```"):
+                graphviz_code = graphviz_code[:-len("```")].strip()
+        elif graphviz_code.startswith("```"):
+            graphviz_code = graphviz_code[len("```"):].strip()
+            if graphviz_code.endswith("```"):
+                graphviz_code = graphviz_code[:-len("```")].strip()
+
+        # More robustly find the start of the actual Graphviz Python code
+        lines = graphviz_code.split('\n')
+        actual_code_start_index = -1
+        for i, line in enumerate(lines):
+            stripped_line = line.strip()
+            if stripped_line.startswith("from graphviz import") or stripped_line.startswith("import graphviz"):
+                actual_code_start_index = i
+                break
+        
+        if actual_code_start_index != -1:
+            graphviz_code = '\n'.join(lines[actual_code_start_index:])
         else:
-            # If no code blocks, try to find the first line that looks like Python code
-            lines = graphviz_code.split('\n')
-            start_idx = 0
-            for i, line in enumerate(lines):
-                if line.strip().startswith("from") or line.strip().startswith("import") or "Digraph" in line:
-                    start_idx = i
-                    break
-            graphviz_code = "\n".join(lines[start_idx:])
+            self.logger.warning(f"[generate_diagram_image] Could not confidently find start of Graphviz code. Proceeding with potentially unclean code: {graphviz_code[:200]}...")
+            # If no clear start found, we use the (already stripped) code as is, hoping for the best.
         
         self.logger.info(f"Cleaned Graphviz code (first 100 chars): {graphviz_code[:100]}...")
         
@@ -576,174 +584,157 @@ class ChatService:
             
         # Pre-process the code to handle common issues
         # Remove invalid 'parent' attribute which is a common mistake in the generated code
-        graphviz_code = re.sub(r'parent\s*=\s*[\'"].*?[\'"]', '', graphviz_code)
+        graphviz_code = re.sub(r"parent\s*=\s*['\"].*?['\"]", '', graphviz_code) # Reverted to more general parent removal, using r"..." for regex string
         self.logger.info(f"Pre-processed Graphviz code (first 300 chars): {graphviz_code[:300]}...")
 
-        def show_graph(local_namespace,relative_url_path,output_filepath,diagram_dir):
-            # The LLM should have created a Digraph object, commonly 'g'
-                # and called g.render(). We will try to find the path it rendered to,
-                # or use our standard path if the LLM's .render() call was generic.
-                
-                graph_object_name = None
-                for name, val in local_namespace.items():
-                    if isinstance(val, graphviz.Digraph):
-                        graph_object_name = name
-                        self.logger.info(f"Found graph object: {name}")
-                        break
-                
-                if graph_object_name:
-                    graph_obj = local_namespace[graph_object_name]
-                    # Ensure our desired output settings are applied if possible,
-                    # though the prompt asks the LLM to set them.
-                    graph_obj.format = 'png'
-                    
-                    # The LLM was instructed to call .render().
-                    # If it used a generic name like 'diagram_output', our output_filepath_stem will be used.
-                    # If it created a file, we need to find it.
-                    # For robust_ness, we will call render again with our explicit path.
-                    # This ensures the file is where we expect it.
-                    filepath_without_ext = os.path.splitext(output_filepath)[0]  # Remove .png extension for render
-                    self.logger.info(f"About to render graph to {filepath_without_ext}")
-                    rendered_path = graph_obj.render(filename=filepath_without_ext, view=False, cleanup=True)
-                    self.logger.info(f"Graph rendered to: {rendered_path}")
-                    
-                    if os.path.exists(rendered_path) and rendered_path.lower().endswith('.png'):
-                        self.logger.info(f"Diagram successfully rendered to: {rendered_path}")
-                        return relative_url_path
-                    elif os.path.exists(output_filepath): # Check our expected path with .png
-                        self.logger.info(f"Diagram successfully rendered, found at expected path: {output_filepath}")
-                        return relative_url_path
-                    else:
-                        self.logger.error(f"Graphviz render did not produce expected PNG file. Checked: {rendered_path} and {output_filepath}. Render output from LLM may have been different or failed silently.")
-                        # Attempt to list files in diagram_dir for debugging
-                        try:
-                            files_in_dir = os.listdir(diagram_dir)
-                            self.logger.info(f"Files in {diagram_dir}: {files_in_dir}")
-                            # Search for any PNG files that might have been created with a different name
-                            png_files = [f for f in files_in_dir if f.endswith('.png') and f.startswith(os.path.basename(filepath_without_ext))]
-                            if png_files:
-                                self.logger.info(f"Found possible match: {png_files[0]}")
-                                return f"diagrams/{png_files[0]}"
-                        except Exception as e:
-                            self.logger.error(f"Error listing directory: {e}")
-                        
-                        # Fallback: Try to render directly with the filename
-                        try:
-                            self.logger.info("Attempting direct render call as fallback")
-                            graph_obj.render('diagram_output', view=False, cleanup=True)
-                            
-                            # Check if the fallback created a file
-                            fallback_file = 'diagram_output.png'
-                            if os.path.exists(fallback_file):
-                                # Move the file to our target location
-                                import shutil
-                                shutil.move(fallback_file, output_filepath)
-                                self.logger.info(f"Fallback render succeeded, moved to: {output_filepath}")
-                                return relative_url_path
-                        except Exception as e_fallback:
-                            self.logger.error(f"Fallback render also failed: {e_fallback}")
-
-                    # Try really hard to find any generated image before giving up
-                    for ext in ['.png', '.jpg', '.jpeg', '.svg']:
-                        potential_file = filepath_without_ext + ext
-                        if os.path.exists(potential_file):
-                            self.logger.info(f"Found image with different extension: {potential_file}")
-                            # Adjust the relative URL path to match the actual extension
-                            return f"diagrams/{os.path.basename(potential_file)}"
-                else:
-                    self.logger.error("Graphviz code did not define a discoverable Digraph object in local_namespace.")
-                    # Look for any graph-related objects in namespace for debugging
-                    graph_related = {name: type(val) for name, val in local_namespace.items()}
-                    self.logger.error(f"Objects in namespace: {graph_related}")
-                    return None
-            
-        async def _render_graphviz_sync(code_to_execute, base_filename, topic_name_from_query, structured_description_content_for_fix):
-            # Simplify path structure to match actual storage location
-            diagram_dir = os.path.join('media', 'diagrams')
-            os.makedirs(diagram_dir, exist_ok=True)
-            
-            # Create a more standardized filename
-            safe_topic = sanitize_filename(topic_name_from_query).replace(' ', '_')
-            timestamp = int(time.time())
-            filename = f"{base_filename}_{safe_topic}_{timestamp}.png"
-            output_filepath = os.path.join(diagram_dir, filename)
-
-            # Get absolute paths for clarity in logging
-            abs_diagram_dir = os.path.abspath(diagram_dir)
-            abs_output_filepath = os.path.abspath(output_filepath)
-            self.logger.info(f"Diagram directory (absolute): {abs_diagram_dir}")
-            self.logger.info(f"Output filepath (absolute): {abs_output_filepath}")
-
-            # For the URL, we'll return just the path relative to media directory
-            relative_url_path = f"diagrams/{filename}"
-
+        async def _render_graphviz_sync(code_to_execute, chat_model_instance, user_model_instance, topic_name_from_query, structured_description_content_for_fix):
             current_code = code_to_execute
             local_namespace = {}
-            execution_successful = False
-            
-            # Provide necessary imports to the execution scope
-            # graphviz module itself is imported at the top of services.py
             exec_globals = {"graphviz": graphviz, "Digraph": graphviz.Digraph, "os": os, "__builtins__": __builtins__}
             
-            # Instantiate LLM for fixing code if needed.
-            # This uses the GroqLangChainLLM class defined in this file.
-            try:
-                exec(current_code, local_namespace)
-                self.logger.info(f"✅ Diagram generated successfully: {filename}.png")
-                return show_graph(local_namespace,relative_url_path,output_filepath,diagram_dir)
+            # --- Debugging: Create temp directory and save .gv file ---
+            debug_dir = os.path.join(settings.MEDIA_ROOT, "temp_diagram_debug")
+            os.makedirs(debug_dir, exist_ok=True)
+            timestamp = int(time.time())
+            # --- End Debugging ---\n
+            for attempt in range(3): # Max 3 attempts (initial + 2 retries)
+                self.logger.info(f"--- Graphviz Execution Attempt {attempt + 1}/3 ---")
                 
+                # --- Debugging: Save .gv file for current attempt ---
+                gv_file_path = os.path.join(debug_dir, f"diagram_attempt_{timestamp}_{attempt + 1}.gv")
+                try:
+                    with open(gv_file_path, "w") as f_gv:
+                        f_gv.write(current_code)
+                    self.logger.info(f"Saved GV code for attempt {attempt + 1} to: {gv_file_path}")
+                except Exception as e_gv_save:
+                    self.logger.error(f"Error saving .gv file: {e_gv_save}")
+                # --- End Debugging ---
 
+                self.logger.debug(f"Code to execute (attempt {attempt + 1}, first 500 chars):\\n{current_code[:500]}...")
+                try: # This is the TRY for exec and image processing
+                    exec(current_code, exec_globals, local_namespace)
+                    
+                    graph_object = None
+                    for name, val in local_namespace.items():
+                        if isinstance(val, graphviz.Digraph):
+                            graph_object = val
+                            self.logger.info(f"Found graph object: {name}")
+                            break
+                        
+                        if graph_object:
+                            # --- Debugging: Render to a temp file before pipe() ---
+                            try:
+                                debug_png_filename_base = f"diagram_attempt_{timestamp}_{attempt + 1}_debug_render"
+                                debug_rendered_path = graph_object.render(filename=debug_png_filename_base, directory=debug_dir, view=False, cleanup=False) # cleanup=False to keep the .png
+                                if debug_rendered_path and debug_rendered_path.lower().endswith('.png'):
+                                    self.logger.info(f"Debug render successful. PNG saved to: {debug_rendered_path}")
+                                else:
+                                    self.logger.warning(f"Debug render did not produce a .png as expected. Path: {debug_rendered_path}")
+                                    if debug_rendered_path and not debug_rendered_path.lower().endswith('.png') and os.path.exists(debug_rendered_path):
+                                        self.logger.info(f"Graphviz object also saved its source to: {debug_rendered_path} (likely a .gv file)")
+                            except Exception as e_debug_render:
+                                self.logger.error(f"Error during debug rendering to file: {e_debug_render}", exc_info=True)
+                            # --- End Debugging ---
+
+                            graph_object.format = 'png'
+                            try:
+                                image_bytes = graph_object.pipe()
+                                self.logger.info(f"graph_object.pipe() returned {len(image_bytes) if image_bytes else 0} bytes.")
+                                if not image_bytes:
+                                    self.logger.error("graph_object.pipe() returned empty bytes.")
+                                    raise ValueError("Image generation failed: no data from pipe.")
+                            except Exception as pipe_exc:
+                                self.logger.error(f"Error during graph_object.pipe(): {pipe_exc}", exc_info=True)
+                                try:
+                                    temp_filename_base = f"temp_diagram_fallback_{timestamp}_{attempt + 1}"
+                                    fallback_render_dir = os.path.join(settings.MEDIA_ROOT, "temp_diagram_fallback_renders")
+                                    os.makedirs(fallback_render_dir, exist_ok=True)
+                                    rendered_path = graph_object.render(filename=temp_filename_base, directory=fallback_render_dir, view=False, cleanup=True)
+                                    if not rendered_path or not rendered_path.lower().endswith('.png'):
+                                        self.logger.error(f"Fallback render did not produce a .png file as expected. Path: {rendered_path}")
+                                        raise ValueError("Fallback render failed to produce PNG.")
+                                    with open(rendered_path, 'rb') as f:
+                                        image_bytes = f.read()
+                                    os.remove(rendered_path)
+                                    self.logger.info(f"Successfully read {len(image_bytes)} image bytes via fallback render to {rendered_path}")
+                                except Exception as fallback_render_exc:
+                                    self.logger.error(f"Fallback render and read also failed: {fallback_render_exc}", exc_info=True)
+                                    raise 
+                            
+                            if not image_bytes: # Double check after pipe and fallback
+                                self.logger.error("Image bytes are still empty after pipe and fallback. Cannot save to DB.")
+                                raise ValueError("Image data is empty, cannot proceed.")
+
+                            # Save to DiagramImage model
+                            safe_topic_filename = sanitize_filename(topic_name_from_query).replace(' ', '_') + ".png"
+                            
+                            self.logger.info(f"Final check before DB save: type(image_bytes)={type(image_bytes)}, len(image_bytes)={len(image_bytes)}")
+                            diagram_image_instance = await sync_to_async(DiagramImage.objects.create)(
+                                chat=chat_model_instance,
+                                user=user_model_instance,
+                                image_data=image_bytes,
+                                filename=safe_topic_filename,
+                                content_type='image/png'
+                            )
+                            self.logger.info(f"✅ Diagram saved to DB with ID: {diagram_image_instance.id}")
+                            return diagram_image_instance.id
+                    else:
+                            self.logger.error("Graphviz code did not define a discoverable Digraph object.")
+                            raise ValueError("No Digraph object found after execution.")
             
-            except Exception as e:
-                error_message = f"{str(e)}\n\n{traceback.format_exc()}"
-                self.logger.info(f"❌ Initial attempt failed with error: {str(e)}")
+                except Exception as e: # This is the EXCEPT for the try block starting with exec(current_code...)
+                    error_message = f"{str(e)}\\n\\n{traceback.format_exc()}"
+                    self.logger.warning(f"❌ Attempt {attempt + 1}/3 failed with error: {str(e)}")
+                    if attempt == 2: 
+                        self.logger.error("❌ All attempts failed. Could not generate diagram after retries.")
+                        return None 
             
-                for attempt in range(3): # Initial attempt (0) + 2 retries (1, 2)
-                    fix_prompt = prompt_fix_code.format(
+                    self.logger.info(f"Attempting to get fixed code from LLM for attempt {attempt + 2}.")
+                    fix_prompt_content = prompt_fix_code.format(
                     topic=topic_name_from_query,
                     description=structured_description_content_for_fix,
                     erroneous_code=current_code,
                     error_message=error_message
                         )
-                    messages_for_fix = [{"role": "system", "content": fix_prompt}]
-                    try:
-                        fixed_code = await self.get_completion(
+                    messages_for_fix = [{"role": "system", "content": "You are a helpful assistant that fixes Python Graphviz code."},
+                                        {"role": "user", "content": fix_prompt_content}]
+                    try: # Inner TRY for the LLM call
+                        fixed_code_response = await self.get_completion(
                             messages=messages_for_fix,
-                            max_tokens=5000, 
-                            chat_id=chat_id 
+                            max_tokens=6000, 
+                            chat_id=chat_model_instance.id,
+                            temperature=0.0
                         )
-                        self.logger.info(f"Received fixed code: {fixed_code[:200]}...")
-                        if not fixed_code or not fixed_code.strip():
-                            self.logger.error("LLM failed to fix the code.")
-                            return None
-                    except Exception as e:
-                        self.logger.error(f"Error fixing the code from LLM: {e}", exc_info=True)
+                        if not fixed_code_response or not fixed_code_response.strip():
+                            self.logger.error("LLM failed to provide fixed code (empty response). Aborting retries.")
                         return None
                     
-                    if '```' in fixed_code:
-                        fixed_code = fixed_code.split('```')[1].strip('python\n')
-                    else:
-                        fixed_code = fixed_code.strip()
-                    
-                    current_code = fixed_code
+                    except Exception as llm_fix_exc: # Inner EXCEPT for the LLM call
+                        self.logger.error(f"Error getting fixed code from LLM: {llm_fix_exc}", exc_info=True)
+                        return None 
+            # This part is outside the 'for' loop, reached if all attempts in the loop are exhausted without returning.
+            self.logger.error("Exited retry loop without successfully generating a diagram or explicitly returning None after max attempts.")
+            return None
 
-                    self.logger.info(f"--- Graphviz Execution Attempt {attempt + 1}/3 ---")
-                    self.logger.debug(f"Code to execute (attempt {attempt + 1}, first 500 chars):\n{current_code[:500]}...")
-
-                    try:
-                        exec(current_code, local_namespace)
-                        self.logger.info(f"✅ Diagram generated successfully: {filename}.png")
-                        return show_graph(local_namespace,relative_url_path,output_filepath,diagram_dir)
-                    except Exception as e:
-                        error_message = f"{str(e)}\n\n{traceback.format_exc()}"
-                        self.logger.info(f"❌ Attempt {attempt + 1}/3 failed with error: {str(e)}")
-                        if attempt == 2:
-                            self.logger.info(f"❌ All attempts failed. Could not generate diagram.")
-                            return None
         try:
-            image_file_path = await _render_graphviz_sync(graphviz_code, "diagram", user_query, structured_description_content) 
+            # Fetch Chat and User model instances to pass to _render_graphviz_sync
+            chat_instance = await sync_to_async(Chat.objects.get)(id=chat_id)
+            user_instance = await sync_to_async(CustomUser.objects.get)(id=user_id) # Changed User to CustomUser
 
-            return image_file_path 
+            diagram_image_id = await _render_graphviz_sync(
+                graphviz_code, 
+                chat_instance, 
+                user_instance, 
+                user_query, # topic_name_from_query
+                structured_description_content # structured_description_content_for_fix
+            ) 
+            return diagram_image_id # This will be the ID or None
+        except Chat.DoesNotExist:
+            self.logger.error(f"Chat with ID {chat_id} not found for diagram generation.")
+            return None
+        except CustomUser.DoesNotExist: # Changed User to CustomUser
+            self.logger.error(f"User with ID {user_id} not found for diagram generation.")
+            return None
         except Exception as e_render_async_call:
-            self.logger.error(f"Error during top-level sync_to_async call for Graphviz rendering: {type(e_render_async_call).__name__} - {e_render_async_call}", exc_info=True)
+            self.logger.error(f"Error during top-level call for Graphviz rendering: {type(e_render_async_call).__name__} - {e_render_async_call}", exc_info=True)
             return None

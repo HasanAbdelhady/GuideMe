@@ -1,0 +1,56 @@
+from graphviz import Digraph
+
+g = Digraph(format='png')
+g.attr(rankdir='TB', dpi='300', nodesep='0.7', ranksep='1.1')
+g.attr('node', shape='box', style='filled,rounded', fontsize='10', fontname='Helvetica', color='#2F3E46', fillcolor='#A0C4FF')
+
+# Input Layer Cluster
+with g.subgraph(name='cluster_input') as c:
+    c.attr(style='filled', color='#FFD6A5', label='Input Layer')
+    c.node('Input', '📝 Input Data (3D Array)', fillcolor='#A0C4FF')
+    c.node('Input_Note', 'Images represented as 3D arrays (height, width, channels)', shape='note', style='filled', fillcolor='#B9FBC0')
+    g.edge('Input', 'Input_Note', style='dashed')
+
+# Convolutional Layer Cluster
+with g.subgraph(name='cluster_conv') as c:
+    c.attr(style='filled', color='#FFD6A5', label='Convolutional Layer')
+    c.node('Conv', '🔍 Convolutional Layer', fillcolor='#A0C4FF')
+    c.node('Conv_Note', 'Filters scan input data, generating feature maps', shape='note', style='filled', fillcolor='#B9FBC0')
+    g.edge('Conv', 'Conv_Note', style='dashed')
+
+# Activation Function Cluster
+with g.subgraph(name='cluster_activation') as c:
+    c.attr(style='filled', color='#FFD6A5', label='Activation Function')
+    c.node('Activation', '⚡️ Activation Function (ReLU)', fillcolor='#A0C4FF')
+    c.node('Activation_Note', 'Introduces non-linearity, mapping negative values to 0', shape='note', style='filled', fillcolor='#B9FBC0')
+    g.edge('Activation', 'Activation_Note', style='dashed')
+
+# Pooling Layer Cluster
+with g.subgraph(name='cluster_pooling') as c:
+    c.attr(style='filled', color='#FFD6A5', label='Pooling Layer')
+    c.node('Pooling', '📉 Pooling Layer (Max Pooling)', fillcolor='#A0C4FF')
+    c.node('Pooling_Note', 'Reduces spatial dimensions, retaining important features', shape='note', style='filled', fillcolor='#B9FBC0')
+    g.edge('Pooling', 'Pooling_Note', style='dashed')
+
+# Fully Connected Layer Cluster
+with g.subgraph(name='cluster_fully_connected') as c:
+    c.attr(style='filled', color='#FFD6A5', label='Fully Connected Layer')
+    c.node('FullyConnected', '🧠 Fully Connected Layer', fillcolor='#A0C4FF')
+    c.node('FullyConnected_Note', 'Used for final classification, connecting every input to every output', shape='note', style='filled', fillcolor='#B9FBC0')
+    g.edge('FullyConnected', 'FullyConnected_Note', style='dashed')
+
+# Output Layer Cluster
+with g.subgraph(name='cluster_output') as c:
+    c.attr(style='filled', color='#FFD6A5', label='Output Layer')
+    c.node('Output', '🎯 Output Layer (Softmax)', fillcolor='#A0C4FF')
+    c.node('Output_Note', 'Produces probability distribution over multiple classes', shape='note', style='filled', fillcolor='#B9FBC0')
+    g.edge('Output', 'Output_Note', style='dashed')
+
+# Edges representing the sequence of layers
+g.edge('Input', 'Conv')
+g.edge('Conv', 'Activation')
+g.edge('Activation', 'Pooling')
+g.edge('Pooling', 'FullyConnected')
+g.edge('FullyConnected', 'Output')
+
+g.render('diagram_output', view=False, cleanup=True)

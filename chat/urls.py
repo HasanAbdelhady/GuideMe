@@ -5,6 +5,7 @@ from .views import (
     ChatStreamView,
     chat_quiz,
     generate_flashcards_view,
+    serve_diagram_image,
 )
 from . import views
 
@@ -23,4 +24,5 @@ urlpatterns = [
     path('<uuid:chat_id>/rag-files/<int:file_id>/delete/', views.ChatRAGFilesView.as_view(), name='delete_rag_file'),
     path('<uuid:chat_id>/message/<int:message_id>/edit/', views.edit_message, name='edit_message'),
     path('flashcards/', generate_flashcards_view, name='flashcards_generator'),
+    path('diagram_image/<uuid:diagram_id>/', serve_diagram_image, name='serve_diagram_image'),
 ]

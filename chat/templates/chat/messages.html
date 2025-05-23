@@ -60,20 +60,20 @@
 			</div>
 			<!-- Message content -->
 			<div class="flex-1 overflow-x-auto min-w-0 max-w-[85%]">
-				{% if msg.text %}
-				<div class="max-w-none markdown-content text-gray-100">
-					{{ msg.text |safe }}
-				</div>
-				{% elif msg.diagram_image_url %}
+				{% if msg.diagram_image_url %}
 				<div
 					class="diagram-message-container bg-gray-800/50 p-2 my-2 rounded-lg shadow-md flex flex-col justify-center items-center">
-					<img src="{{ MEDIA_URL }}{{ msg.diagram_image_url }}"
-						alt="Generated Diagram"
+					<img src="{{ msg.diagram_image_url }}"
+						alt="{{ msg.text | default:'Generated Diagram' }}"
 						class="max-w-full h-auto rounded-md mb-1 cursor-pointer hover:opacity-90 transition-opacity"
-						onclick="openImageModal('{{ MEDIA_URL }}{{ msg.diagram_image_url }}')">
+						onclick="openImageModal('{{ msg.diagram_image_url }}')">
 					{% if msg.text %}
 					<p class="text-xs text-gray-400 italic mt-1 text-center">{{ msg.text }}</p>
 					{% endif %}
+				</div>
+				{% elif msg.text and not msg.diagram_image_id_for_template %}
+				<div class="max-w-none markdown-content text-gray-100">
+					{{ msg.text |safe }}
 				</div>
 				{% elif msg.html %}
 				<div

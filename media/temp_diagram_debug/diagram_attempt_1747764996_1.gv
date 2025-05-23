@@ -1,0 +1,39 @@
+from graphviz import Digraph
+
+g = Digraph(format='png')
+g.attr(rankdir='TB', dpi='300', nodesep='0.7', ranksep='1.1')
+g.attr('node', shape='box', style='filled,rounded', fontname='Helvetica')
+
+# Color Palette
+colors = {
+    'main': '#A0C4FF',  # Soft Blue
+    'secondary': '#B9FBC0',  # Light Green
+    'accent': '#FFD6A5',  # Peach Yellow
+    'text': '#2F3E46'  # Dark Slate Gray
+}
+
+# Set node and edge colors
+g.attr('node', fontcolor=colors['text'], color=colors['text'])
+
+# Input Layer
+g.node('Input', '📝 Input Layer: Data Input', fillcolor=colors['main'])
+g.node('InputNote', 'Data is fed into the model, such as images for a CNN.', shape='note', fillcolor=colors['secondary'])
+g.edge('Input', 'InputNote', style='dashed')
+
+# Hidden Layers
+with g.subgraph(name='cluster_Hidden') as c:
+    c.attr(label='🌟 Hidden Layers: Feature Extraction and Processing', labelloc='t', style='filled', fillcolor=colors['accent'])
+    c.node('Hidden', 'Convolutional, Pooling, and Fully Connected Layers', fillcolor=colors['main'])
+    c.node('HiddenNote', 'These layers process the input data to extract relevant features.', shape='note', fillcolor=colors['secondary'])
+    c.edge('Hidden', 'HiddenNote', style='dashed')
+
+# Output Layer
+g.node('Output', '🎯 Output Layer: Prediction/Classification', fillcolor=colors['main'])
+g.node('OutputNote', 'The final layer generates the output based on the processed features.', shape='note', fillcolor=colors['secondary'])
+g.edge('Output', 'OutputNote', style='dashed')
+
+# Flow
+g.edge('Input', 'Hidden')
+g.edge('Hidden', 'Output')
+
+g.render('diagram_output', view=False, cleanup=True)
