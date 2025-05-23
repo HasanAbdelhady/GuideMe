@@ -14,6 +14,8 @@ import time
 import asyncio
 from asgiref.sync import sync_to_async
 import traceback # Added for error logging in retry logic
+import sys
+import locale
 
 # --- LangChain Imports ---
 from langchain_community.document_loaders import TextLoader
@@ -37,9 +39,16 @@ import graphviz # Added for diagram generation
 import re # Added for sanitizing filenames
 from .models import Chat
 from django.conf import settings # Added for MEDIA_ROOT
+import google.generativeai as genai
 
 def sanitize_filename(filename):
     return re.sub(r'[<>:"/\\\\|?*]', '_', filename)
+
+FLASHCARD_API_KEY = os.environ.get("FLASHCARD")
+
+# Configure the generative AI model for flashcards
+genai.configure(api_key=FLASHCARD_API_KEY)
+flashcard_model = genai.GenerativeModel("gemini-2.5-flash-preview-04-17")
 
 class GroqLangChainLLM(LLM):
     model: str = "llama3-8b-8192"
@@ -504,13 +513,9 @@ class ChatService:
         messages_for_description.insert(0, {"role": "system", "content": prompt_description})
         self.logger.info(f"Messages for description LLM call (first few): {str(messages_for_description)[:200]}")
 
-        try:
-            structured_description_content = await self.get_completion(
-                messages=messages_for_description,
-                max_tokens=5000, 
-                chat_id=chat_id,
-                temperature=0.0 # Reverted temperature for description generation
-            )
+        try:            
+            structured_description_content = flashcard_model.generate_content(f"{prompt_description}\n\nGenerate a structured explanation for: {user_query}")
+            structured_description_content = structured_description_content.text.strip()
             self.logger.info(f"Received structured description: {structured_description_content[:200]}...")
             if not structured_description_content or not structured_description_content.strip():
                 self.logger.error("LLM failed to generate a structured description.")
@@ -519,19 +524,11 @@ class ChatService:
             self.logger.error(f"Error getting structured description from LLM: {e}", exc_info=True)
             return None        
         
-        messages_for_graphviz = [
-            {"role": "system", "content": prompt_code_graphviz},
-            {"role": "user", "content": structured_description_content} # The LLM-generated description
-        ]
         self.logger.info(f"Messages for Graphviz LLM call (system prompt length: {len(prompt_code_graphviz)}, user content length: {len(structured_description_content) if structured_description_content else 0})")
 
         try:
-            graphviz_code_response = await self.get_completion(
-                messages=messages_for_graphviz,
-                max_tokens=6000, # Allow ample tokens for code generation
-                chat_id=chat_id,
-                temperature=0.0 # Reverted temperature for initial code generation
-            )
+            graphviz_code_response = flashcard_model.generate_content(f"{prompt_code_graphviz}\n\nGenerate a structured explanation for: {structured_description_content}")
+            graphviz_code_response = graphviz_code_response.text.strip()
             self.logger.info(f"Received Graphviz code response (first 200 chars): {graphviz_code_response[:200] if graphviz_code_response else 'Empty response'}...")
             if not graphviz_code_response or not graphviz_code_response.strip():
                 self.logger.error("LLM failed to generate Graphviz code (empty response).")
@@ -592,128 +589,132 @@ class ChatService:
             local_namespace = {}
             exec_globals = {"graphviz": graphviz, "Digraph": graphviz.Digraph, "os": os, "__builtins__": __builtins__}
             
-            # --- Debugging: Create temp directory and save .gv file ---
+            # Create temp directory
             debug_dir = os.path.join(settings.MEDIA_ROOT, "temp_diagram_debug")
             os.makedirs(debug_dir, exist_ok=True)
             timestamp = int(time.time())
-            # --- End Debugging ---\n
-            for attempt in range(3): # Max 3 attempts (initial + 2 retries)
+            
+            # Set system encoding to UTF-8 for this process
+            if sys.platform.startswith('win'):
+                # On Windows, we need to set the console encoding
+                sys.stdout.reconfigure(encoding='utf-8')
+                sys.stderr.reconfigure(encoding='utf-8')
+            
+            for attempt in range(3):
                 self.logger.info(f"--- Graphviz Execution Attempt {attempt + 1}/3 ---")
                 
-                # --- Debugging: Save .gv file for current attempt ---
+                # Save .gv file with UTF-8 encoding
                 gv_file_path = os.path.join(debug_dir, f"diagram_attempt_{timestamp}_{attempt + 1}.gv")
                 try:
-                    with open(gv_file_path, "w") as f_gv:
+                    with open(gv_file_path, "w", encoding='utf-8') as f_gv:
                         f_gv.write(current_code)
                     self.logger.info(f"Saved GV code for attempt {attempt + 1} to: {gv_file_path}")
                 except Exception as e_gv_save:
                     self.logger.error(f"Error saving .gv file: {e_gv_save}")
-                # --- End Debugging ---
-
-                self.logger.debug(f"Code to execute (attempt {attempt + 1}, first 500 chars):\\n{current_code[:500]}...")
-                try: # This is the TRY for exec and image processing
+                    # Try alternative encoding if UTF-8 fails
+                    try:
+                        with open(gv_file_path, "w", encoding=self.get_system_encoding()) as f_gv:
+                            f_gv.write(current_code)
+                        self.logger.info(f"Saved GV code with system encoding for attempt {attempt + 1}")
+                    except Exception as e_gv_save_alt:
+                        self.logger.error(f"Error saving .gv file with system encoding: {e_gv_save_alt}")
+                        continue
+                
+                try:
+                    # Execute the code
                     exec(current_code, exec_globals, local_namespace)
                     
+                    # Find the graph object
                     graph_object = None
                     for name, val in local_namespace.items():
                         if isinstance(val, graphviz.Digraph):
                             graph_object = val
                             self.logger.info(f"Found graph object: {name}")
                             break
+                    
+                    if not graph_object:
+                        self.logger.error("No Digraph object found in the executed code")
+                        continue
+                    
+                    # Try to generate the image
+                    try:
+                        graph_object.format = 'png'
                         
-                        if graph_object:
-                            # --- Debugging: Render to a temp file before pipe() ---
-                            try:
-                                debug_png_filename_base = f"diagram_attempt_{timestamp}_{attempt + 1}_debug_render"
-                                debug_rendered_path = graph_object.render(filename=debug_png_filename_base, directory=debug_dir, view=False, cleanup=False) # cleanup=False to keep the .png
-                                if debug_rendered_path and debug_rendered_path.lower().endswith('.png'):
-                                    self.logger.info(f"Debug render successful. PNG saved to: {debug_rendered_path}")
-                                else:
-                                    self.logger.warning(f"Debug render did not produce a .png as expected. Path: {debug_rendered_path}")
-                                    if debug_rendered_path and not debug_rendered_path.lower().endswith('.png') and os.path.exists(debug_rendered_path):
-                                        self.logger.info(f"Graphviz object also saved its source to: {debug_rendered_path} (likely a .gv file)")
-                            except Exception as e_debug_render:
-                                self.logger.error(f"Error during debug rendering to file: {e_debug_render}", exc_info=True)
-                            # --- End Debugging ---
-
-                            graph_object.format = 'png'
-                            try:
-                                image_bytes = graph_object.pipe()
-                                self.logger.info(f"graph_object.pipe() returned {len(image_bytes) if image_bytes else 0} bytes.")
-                                if not image_bytes:
-                                    self.logger.error("graph_object.pipe() returned empty bytes.")
-                                    raise ValueError("Image generation failed: no data from pipe.")
-                            except Exception as pipe_exc:
-                                self.logger.error(f"Error during graph_object.pipe(): {pipe_exc}", exc_info=True)
-                                try:
-                                    temp_filename_base = f"temp_diagram_fallback_{timestamp}_{attempt + 1}"
-                                    fallback_render_dir = os.path.join(settings.MEDIA_ROOT, "temp_diagram_fallback_renders")
-                                    os.makedirs(fallback_render_dir, exist_ok=True)
-                                    rendered_path = graph_object.render(filename=temp_filename_base, directory=fallback_render_dir, view=False, cleanup=True)
-                                    if not rendered_path or not rendered_path.lower().endswith('.png'):
-                                        self.logger.error(f"Fallback render did not produce a .png file as expected. Path: {rendered_path}")
-                                        raise ValueError("Fallback render failed to produce PNG.")
-                                    with open(rendered_path, 'rb') as f:
-                                        image_bytes = f.read()
-                                    os.remove(rendered_path)
-                                    self.logger.info(f"Successfully read {len(image_bytes)} image bytes via fallback render to {rendered_path}")
-                                except Exception as fallback_render_exc:
-                                    self.logger.error(f"Fallback render and read also failed: {fallback_render_exc}", exc_info=True)
-                                    raise 
-                            
-                            if not image_bytes: # Double check after pipe and fallback
-                                self.logger.error("Image bytes are still empty after pipe and fallback. Cannot save to DB.")
-                                raise ValueError("Image data is empty, cannot proceed.")
-
-                            # Save to DiagramImage model
-                            safe_topic_filename = sanitize_filename(topic_name_from_query).replace(' ', '_') + ".png"
-                            
-                            self.logger.info(f"Final check before DB save: type(image_bytes)={type(image_bytes)}, len(image_bytes)={len(image_bytes)}")
-                            diagram_image_instance = await sync_to_async(DiagramImage.objects.create)(
-                                chat=chat_model_instance,
-                                user=user_model_instance,
-                                image_data=image_bytes,
-                                filename=safe_topic_filename,
-                                content_type='image/png'
-                            )
-                            self.logger.info(f"✅ Diagram saved to DB with ID: {diagram_image_instance.id}")
-                            return diagram_image_instance.id
-                    else:
-                            self.logger.error("Graphviz code did not define a discoverable Digraph object.")
-                            raise ValueError("No Digraph object found after execution.")
-            
-                except Exception as e: # This is the EXCEPT for the try block starting with exec(current_code...)
-                    error_message = f"{str(e)}\\n\\n{traceback.format_exc()}"
-                    self.logger.warning(f"❌ Attempt {attempt + 1}/3 failed with error: {str(e)}")
-                    if attempt == 2: 
-                        self.logger.error("❌ All attempts failed. Could not generate diagram after retries.")
-                        return None 
-            
-                    self.logger.info(f"Attempting to get fixed code from LLM for attempt {attempt + 2}.")
-                    fix_prompt_content = prompt_fix_code.format(
-                    topic=topic_name_from_query,
-                    description=structured_description_content_for_fix,
-                    erroneous_code=current_code,
-                    error_message=error_message
+                        # Set font settings to support emoji
+                        graph_object.attr('node', fontname='Segoe UI Emoji')  # Windows emoji font
+                        graph_object.attr('edge', fontname='Segoe UI Emoji')
+                        
+                        # Try to generate the image
+                        try:
+                            image_bytes = graph_object.pipe()
+                        except Exception as pipe_error:
+                            self.logger.warning(f"Pipe failed, trying render method: {pipe_error}")
+                            # Fallback to render method
+                            temp_filename = f"temp_diagram_{timestamp}_{attempt}"
+                            rendered_path = graph_object.render(filename=temp_filename, directory=debug_dir, view=False, cleanup=True)
+                            if rendered_path and os.path.exists(rendered_path):
+                                with open(rendered_path, 'rb') as f:
+                                    image_bytes = f.read()
+                                os.remove(rendered_path)
+                            else:
+                                raise Exception("Failed to generate image using render method")
+                        
+                        if not image_bytes:
+                            self.logger.error("No image data generated")
+                            continue
+                        
+                        # Save to DiagramImage model
+                        safe_topic_filename = sanitize_filename(topic_name_from_query).replace(' ', '_') + ".png"
+                        
+                        diagram_image_instance = await sync_to_async(DiagramImage.objects.create)(
+                            chat=chat_model_instance,
+                            user=user_model_instance,
+                            image_data=image_bytes,
+                            filename=safe_topic_filename,
+                            content_type='image/png'
                         )
-                    messages_for_fix = [{"role": "system", "content": "You are a helpful assistant that fixes Python Graphviz code."},
-                                        {"role": "user", "content": fix_prompt_content}]
-                    try: # Inner TRY for the LLM call
+                        
+                        self.logger.info(f"✅ Diagram saved successfully with ID: {diagram_image_instance.id}")
+                        return diagram_image_instance.id
+                        
+                    except Exception as e:
+                        self.logger.error(f"Error generating image: {str(e)}")
+                        continue
+                    
+                except Exception as e:
+                    self.logger.error(f"Error executing code: {str(e)}")
+                    if attempt == 2:  # Last attempt
+                        return None
+                    
+                    # Try to get fixed code from LLM
+                    try:
+                        fix_prompt_content = prompt_fix_code.format(
+                            topic=topic_name_from_query,
+                            description=structured_description_content_for_fix,
+                            erroneous_code=current_code,
+                            error_message=str(e)
+                        )
+                        
                         fixed_code_response = await self.get_completion(
-                            messages=messages_for_fix,
-                            max_tokens=6000, 
+                            messages=[
+                                {"role": "system", "content": "You are a helpful assistant that fixes Python Graphviz code."},
+                                {"role": "user", "content": fix_prompt_content}
+                            ],
+                            max_tokens=6000,
                             chat_id=chat_model_instance.id,
                             temperature=0.0
                         )
-                        if not fixed_code_response or not fixed_code_response.strip():
-                            self.logger.error("LLM failed to provide fixed code (empty response). Aborting retries.")
+                        
+                        if fixed_code_response and fixed_code_response.strip():
+                            current_code = fixed_code_response.strip()
+                        else:
+                            self.logger.error("No fixed code received from LLM")
+                            return None
+                            
+                    except Exception as llm_fix_exc:
+                        self.logger.error(f"Error getting fixed code: {str(llm_fix_exc)}")
                         return None
-                    
-                    except Exception as llm_fix_exc: # Inner EXCEPT for the LLM call
-                        self.logger.error(f"Error getting fixed code from LLM: {llm_fix_exc}", exc_info=True)
-                        return None 
-            # This part is outside the 'for' loop, reached if all attempts in the loop are exhausted without returning.
-            self.logger.error("Exited retry loop without successfully generating a diagram or explicitly returning None after max attempts.")
+            
             return None
 
         try:
@@ -738,3 +739,10 @@ class ChatService:
         except Exception as e_render_async_call:
             self.logger.error(f"Error during top-level call for Graphviz rendering: {type(e_render_async_call).__name__} - {e_render_async_call}", exc_info=True)
             return None
+
+    def get_system_encoding(self):
+        """Get the system's preferred encoding, defaulting to UTF-8 if not available."""
+        try:
+            return locale.getpreferredencoding()
+        except:
+            return 'utf-8'
