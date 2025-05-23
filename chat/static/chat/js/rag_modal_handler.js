@@ -224,4 +224,11 @@ document.addEventListener("DOMContentLoaded", function () {
     updateManageRagButtonVisibility();
     // Listen to chat changes if other modules emit such events, or re-evaluate on new chat creation if needed.
     // For now, this is set on DOMContentLoaded based on initial window.isNewChat.
+
+    // Listen for the custom event dispatched by chat.js
+    document.addEventListener('chatStateChanged', function(event) {
+        console.log("[rag_modal_handler.js] Caught chatStateChanged event", event.detail);
+        // window.isNewChat and window.currentChatId should be updated by chat.js before this event
+        updateManageRagButtonVisibility(); 
+    });
 }); 

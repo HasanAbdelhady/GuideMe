@@ -1,0 +1,33 @@
+digraph {
+	dpi=300 nodesep=0.7 rankdir=TB ranksep=1.1
+	node [fontcolor="#2F3E46" fontname=Helvetica fontsize=10 shape=box style="filled,rounded"]
+	LearningObjectives [label="📚 Learning Objectives" fillcolor="#A0C4FF"]
+	LearningPath [label="🗺️ Learning Path" fillcolor="#A0C4FF"]
+	PracticeProjects [label="💻 Practice and Projects" fillcolor="#A0C4FF"]
+	Note1 [label="Mastering fundamentals is crucial for advancing in Python programming." fillcolor="#B9FBC0" shape=note]
+	Note2 [label="Practice with simple programs and projects to reinforce understanding." fillcolor="#B9FBC0" shape=note]
+	Note3 [label="Working on projects helps solidify knowledge and builds problem-solving skills." fillcolor="#B9FBC0" shape=note]
+	LearningObjectives -> LearningPath
+	LearningPath -> PracticeProjects
+	LearningObjectives -> Note1 [style=dashed]
+	LearningPath -> Note2 [style=dashed]
+	PracticeProjects -> Note3 [style=dashed]
+	subgraph cluster_learning {
+		fillcolor="#FFD6A5" style=filled
+		LearningObjectives
+		Note1
+		fontsize=12 label="Learning Objectives" labeljust=l labelloc=t
+	}
+	subgraph cluster_path {
+		fillcolor="#FFD6A5" style=filled
+		LearningPath
+		Note2
+		fontsize=12 label="Learning Path" labeljust=l labelloc=t
+	}
+	subgraph cluster_practice {
+		fillcolor="#FFD6A5" style=filled
+		PracticeProjects
+		Note3
+		fontsize=12 label="Practice and Projects" labeljust=l labelloc=t
+	}
+}

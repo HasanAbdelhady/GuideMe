@@ -42,7 +42,7 @@ function openImageModal(imgSrc) {
 		modalOverlay.className =
 			"fixed inset-0 bg-black bg-opacity-80 z-50 flex items-center justify-center opacity-0 pointer-events-none transition-opacity duration-300";
 		modalOverlay.innerHTML = `
-			<div class="relative max-w-full max-h-full p-4">
+			<div class="relative max-w-full max-h-full p-4 m-4">
 				<img id="modal-image" src="" alt="Enlarged diagram" class="max-w-full max-h-[90vh] rounded-lg shadow-xl transform scale-95 transition-transform duration-300">
 				<button id="close-image-modal" class="absolute top-0 right-0 -mt-4 -mr-4 bg-red-600 text-white rounded-full p-2 hover:bg-red-700 focus:outline-none">
 					<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -343,7 +343,7 @@ document.addEventListener("DOMContentLoaded", function () {
 			`;
 		} else {
 			// Assistant message - left aligned
-		messageDiv.innerHTML = `
+			messageDiv.innerHTML = `
 				<div class="chat-container flex gap-4 md:gap-6">
 					<!-- Assistant icon - left side -->
 				<div class="flex-shrink-0 w-7 h-7">
@@ -373,20 +373,23 @@ document.addEventListener("DOMContentLoaded", function () {
 
 			if (type === "text") {
 				// For assistant text messages, we want to return the actual content div for streaming updates
-				const markdownContentDiv = messageDiv.querySelector(".markdown-content");
+				const markdownContentDiv =
+					messageDiv.querySelector(".markdown-content");
 				if (markdownContentDiv) {
 					contentElementToReturn = markdownContentDiv;
 					// Initialize raw text buffer for streaming, NO LONGER sanitize initial content
 					// const sanitizedInitialContent = content.replace(/\n/g, ' '); // REMOVED
 					markdownContentDiv.dataset.rawTextBuffer = content; // Use content directly
 					// Initial parse
-					if (typeof marked !== 'undefined') {
+					if (typeof marked !== "undefined") {
 						marked.setOptions({ breaks: false, gfm: true });
 						markdownContentDiv.innerHTML = marked.parse(content); // Use content directly
-						if (typeof hljs !== 'undefined') {
-							markdownContentDiv.querySelectorAll("pre code").forEach((block) => {
-								hljs.highlightElement(block);
-							});
+						if (typeof hljs !== "undefined") {
+							markdownContentDiv
+								.querySelectorAll("pre code")
+								.forEach((block) => {
+									hljs.highlightElement(block);
+								});
 						}
 						initializeCodeBlockFeatures(markdownContentDiv);
 					} else {
@@ -407,9 +410,11 @@ document.addEventListener("DOMContentLoaded", function () {
 						initializeQuizForms(quizMessageElement);
 					}
 				}, 0);
-				contentElementToReturn = messageDiv.querySelector(".quiz-message") || messageDiv;
+				contentElementToReturn =
+					messageDiv.querySelector(".quiz-message") || messageDiv;
 			} else if (type === "diagram") {
-				contentElementToReturn = messageDiv.querySelector(".diagram-message-container") || messageDiv;
+				contentElementToReturn =
+					messageDiv.querySelector(".diagram-message-container") || messageDiv;
 			}
 		}
 
@@ -476,25 +481,31 @@ document.addEventListener("DOMContentLoaded", function () {
 				// For markdown text, append and re-parse
 				// NO LONGER Sanitize the incoming chunk FIRST
 				// const sanitizedContentChunk = contentChunk.replace(/\n/g, ' '); // REMOVED
-				console.log("Received contentChunk for update:", JSON.stringify(contentChunk));
+				console.log(
+					"Received contentChunk for update:",
+					JSON.stringify(contentChunk)
+				);
 
 				// Use a data attribute to buffer raw text
-				if (typeof container.dataset.rawTextBuffer === 'undefined') {
+				if (typeof container.dataset.rawTextBuffer === "undefined") {
 					// This case should ideally be covered by appendMessage initializing the buffer
-					container.dataset.rawTextBuffer = ""; 
+					container.dataset.rawTextBuffer = "";
 				}
 				container.dataset.rawTextBuffer += contentChunk; // Use contentChunk directly
 
 				// Re-parse the entire accumulated content with marked
 				// Ensure global 'marked' and 'hljs' are available or pass them/access them correctly
-				if (typeof marked !== 'undefined' && typeof hljs !== 'undefined') {
+				if (typeof marked !== "undefined" && typeof hljs !== "undefined") {
 					// Explicitly set marked.js options to ensure standard GFM behavior for newlines
 					marked.setOptions({
 						breaks: false, // GFM line breaks: single newlines are treated as spaces
-						gfm: true       // Use GitHub Flavored Markdown
+						gfm: true // Use GitHub Flavored Markdown
 					});
 					const parsedHtml = marked.parse(container.dataset.rawTextBuffer); // Parse the full buffer
-					console.log("marked.parse() output (first 100 chars):", JSON.stringify(parsedHtml.substring(0,100)));
+					console.log(
+						"marked.parse() output (first 100 chars):",
+						JSON.stringify(parsedHtml.substring(0, 100))
+					);
 					container.innerHTML = parsedHtml;
 					// REMOVE/COMMENT OUT: container.textContent = container.dataset.rawTextBuffer;
 
@@ -505,7 +516,9 @@ document.addEventListener("DOMContentLoaded", function () {
 					// Re-initialize code block features (copy, expand, etc.)
 					initializeCodeBlockFeatures(container);
 				} else {
-					console.warn("marked.js or highlight.js not available for markdown processing.");
+					console.warn(
+						"marked.js or highlight.js not available for markdown processing."
+					);
 					// Fallback to just showing text if markdown/highlighting isn't set up
 					container.textContent = container.dataset.rawTextBuffer; // Ensure raw buffer is shown
 				}
@@ -541,7 +554,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
 						if (data.type === "quiz") {
 							// For now, let's assume quizzes are sent whole and handled by appendMessage
-							if (isFirstTextChunk) { // Use isFirstTextChunk to ensure only one main message container is made
+							if (isFirstTextChunk) {
+								// Use isFirstTextChunk to ensure only one main message container is made
 								appendMessage(
 									"assistant",
 									"", // Content is in quizHtml
@@ -572,7 +586,7 @@ document.addEventListener("DOMContentLoaded", function () {
 								// 	newChunkParagraph.textContent = "CHUNK: " + data.content; // Prefix to make it obvious
 								// 	newChunkParagraph.style.color = "cyan"; // Make it stand out
 								// 	messagesDiv.appendChild(newChunkParagraph);
-								// 	smoothScrollToBottom(); 
+								// 	smoothScrollToBottom();
 								// }
 								updateAssistantMessage(currentMessageContainer, data.content);
 							}
@@ -580,17 +594,18 @@ document.addEventListener("DOMContentLoaded", function () {
 							appendSystemNotification(data.content, "error");
 						} else if (data.type === "diagram_image") {
 							// Handle diagram image message
-							console.log("Received diagram image:", data);
-							if (data.image_url) {
+							console.log("Received diagram image data:", data);
+							if (data.diagram_image_id) {
+								const imageUrl = `/chat/diagram_image/${data.diagram_image_id}/`; // Construct URL
 								appendDiagramMessage(
-									data.image_url,
+									imageUrl,
 									data.text_content || "Generated Diagram",
 									data.message_id
 								);
 								isFirstTextChunk = false; // Ensure we don't create another message
 							} else {
 								appendSystemNotification(
-									"Error: Received diagram response without image URL",
+									"Error: Received diagram response without diagram_image_id",
 									"error"
 								);
 							}
@@ -689,47 +704,112 @@ document.addEventListener("DOMContentLoaded", function () {
 				history.pushState({}, "", data.redirect_url);
 				currentChatId = data.chat_id;
 				isNewChat = false;
+				// Update global window variables that other modules might use
+				window.currentChatId = currentChatId;
+				window.isNewChat = isNewChat;
+
+				// Update mobile header
 				const mobileHeader = document.querySelector(".md\\:hidden h1");
 				if (mobileHeader && data.title) {
 					mobileHeader.textContent = data.title;
 				}
+
+				// Create and add new chat element to the sidebar
 				const chatsList = document.getElementById("chats-list");
 				const newChatElement = document.createElement("div");
-				newChatElement.className =
-					"flex items-center justify-between p-2 rounded bg-gray-700/40 transition-colors group text-sm";
+				newChatElement.classList.add("group", "relative");
 				newChatElement.dataset.chatId = data.chat_id;
-				newChatElement.innerHTML = `
-					<div class="flex-1 truncate chat-title-container cursor-pointer" ondblclick="startEditing(this)">
-						<div class="text-sm text-gray-200 truncate">${data.title}</div>
-					</div>
-					<div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-						<a href="/chat/${data.chat_id}/" class="p-1 text-gray-400 hover:text-gray-200 transition-all rounded">
-							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
-							</svg>
-						</a>
-						<button class="delete-chat-btn p-1 text-gray-400 hover:text-gray-200 transition-all rounded" data-chat-id="${data.chat_id}" title="Delete chat">
-							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-							</svg>
-						</button>
-					</div>
+
+				const currentDate = new Date().toLocaleDateString("en-US", {
+					month: "short",
+					day: "numeric",
+					year: "numeric"
+				});
+
+				// Add a style tag to ensure group-hover works properly
+				const styleTag = document.createElement("style");
+				styleTag.textContent = `
+					.group:hover .group-hover\\:opacity-100 {
+						opacity: 1;
+					}
 				`;
-				if (chatsList.firstChild) {
+				document.head.appendChild(styleTag);
+
+				newChatElement.innerHTML = `
+					<div class="flex items-center justify-between p-2 rounded hover:bg-gray-700/20 transition-colors">
+						<a href="/chat/${data.chat_id}/" class="flex-1 truncate chat-title-container">
+							<div class="text-lg text-gray-200 truncate chat-title" data-chat-id="${
+								data.chat_id
+							}">
+								${data.title}
+							</div>
+						</a>
+						<div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+							<button
+								class="edit-title-btn p-1 text-gray-400 hover:text-gray-200 transition-all rounded"
+								data-chat-id="${data.chat_id}" title="Rename chat">
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+								</svg>
+							</button>
+							<button
+								class="delete-chat-btn p-1 text-gray-400 hover:text-gray-200 transition-all rounded"
+								data-chat-id="${data.chat_id}" title="Delete chat">
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+								</svg>
+							</button>
+						</div>
+					</div>
+					<form method="POST" action="/chat/${
+						data.chat_id
+					}/update-title/" class="hidden edit-title-form absolute inset-0 flex items-center bg-gray-800 rounded-lg z-10">
+						<input type="hidden" name="csrfmiddlewaretoken" value="${window.getCookie(
+							"csrftoken"
+						)}">
+						<input type="text" name="title" value="${
+							data.title
+						}" class="flex-grow px-4 py-2 bg-transparent text-white focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-lg" />
+						<div class="flex items-center px-2">
+							<button type="submit" class="p-2 text-green-400 hover:text-green-300 hover:bg-gray-700 rounded-lg transition-colors">
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+							</button>
+							<button type="button" class="cancel-edit p-2 text-red-400 hover:text-red-300 hover:bg-gray-700 rounded-lg transition-colors">
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+							</button>
+						</div>
+					</form>
+				`;
+
+				if (chatsList && chatsList.firstChild) {
 					chatsList.insertBefore(newChatElement, chatsList.firstChild);
-				} else {
+				} else if (chatsList) {
 					chatsList.appendChild(newChatElement);
 				}
-				const deleteButton = newChatElement.querySelector(".delete-chat-btn");
-				deleteButton.addEventListener("click", async (e) => {
-					e.preventDefault();
-					e.stopPropagation();
-					// ... existing delete chat logic ...
+
+				// Apply consistent styling to the newly created chat element
+				applyConsistentChatElementStyling(newChatElement);
+
+				// Dispatch chatStateChanged event ONCE after all updates
+				console.log(
+					"Dispatching chatStateChanged event. isNewChat:",
+					window.isNewChat,
+					"currentChatId:",
+					window.currentChatId
+				);
+				const chatStateChangedEvent = new CustomEvent("chatStateChanged", {
+					detail: {
+						isNewChat: window.isNewChat,
+						currentChatId: window.currentChatId
+					}
 				});
+				document.dispatchEvent(chatStateChangedEvent);
 			}
+
+			// Stream the response
 			const streamResponse = await fetch(`/chat/${currentChatId}/stream/`, {
 				method: "POST",
-				body: formData,
+				body: formData, // formData now includes rag_mode_active and diagram_mode_active
 				headers: {
 					"X-CSRFToken": document.querySelector("[name=csrfmiddlewaretoken]")
 						.value
@@ -761,9 +841,69 @@ document.addEventListener("DOMContentLoaded", function () {
 		}
 	});
 
+	// Function to apply consistent styling to chat elements
+	function applyConsistentChatElementStyling(chatElement) {
+		// Make sure the group class is applied
+		if (!chatElement.classList.contains("group")) {
+			chatElement.classList.add("group");
+		}
+
+		// Make sure the relative class is applied
+		if (!chatElement.classList.contains("relative")) {
+			chatElement.classList.add("relative");
+		}
+
+		// Make sure the group-hover functionality works
+		const editButton = chatElement.querySelector(".edit-title-btn");
+		const deleteButton = chatElement.querySelector(".delete-chat-btn");
+
+		if (editButton) {
+			// Add opacity-0 class if missing
+			if (!editButton.classList.contains("opacity-0")) {
+				editButton.classList.add("opacity-0");
+			}
+
+			// Add group-hover:opacity-100 class if missing
+			if (!editButton.classList.contains("group-hover:opacity-100")) {
+				editButton.classList.add("group-hover:opacity-100");
+			}
+
+			// Fallback with direct style manipulation
+			editButton.style.opacity = "0";
+			chatElement.addEventListener("mouseenter", () => {
+				editButton.style.opacity = "1";
+			});
+			chatElement.addEventListener("mouseleave", () => {
+				editButton.style.opacity = "0";
+			});
+		}
+
+		if (deleteButton) {
+			// Add opacity-0 class if missing
+			if (!deleteButton.classList.contains("opacity-0")) {
+				deleteButton.classList.add("opacity-0");
+			}
+
+			// Add group-hover:opacity-100 class if missing
+			if (!deleteButton.classList.contains("group-hover:opacity-100")) {
+				deleteButton.classList.add("group-hover:opacity-100");
+			}
+
+			// Fallback with direct style manipulation
+			deleteButton.style.opacity = "0";
+			chatElement.addEventListener("mouseenter", () => {
+				deleteButton.style.opacity = "1";
+			});
+			chatElement.addEventListener("mouseleave", () => {
+				deleteButton.style.opacity = "0";
+			});
+		}
+	}
+
 	stopButton.addEventListener("click", () => {
 		if (abortController) {
 			abortController.abort();
+
 			stopButton.classList.add("hidden");
 			removeTypingIndicator();
 			appendMessage("assistant", `_Response stopped by user._`);
@@ -797,79 +937,361 @@ document.addEventListener("DOMContentLoaded", function () {
 		}
 	});
 
-	document.querySelectorAll(".delete-chat-btn").forEach((button) => {
-		button.addEventListener("click", async (e) => {
-			e.preventDefault();
-			e.stopPropagation();
-			const chatId = button.dataset.chatId;
-			if (!confirm("Are you sure you want to delete this chat?")) return;
-			try {
-				const response = await fetch(`/chat/${chatId}/delete/`, {
-					method: "POST",
-					headers: {
-						"X-CSRFToken": document.querySelector("[name=csrfmiddlewaretoken]")
-							.value
+	const chatsList = document.getElementById("chats-list");
+	if (chatsList) {
+		chatsList.addEventListener("click", async function (e) {
+			const deleteButton = e.target.closest(".delete-chat-btn");
+			if (deleteButton) {
+				e.preventDefault();
+				e.stopPropagation();
+				const chatId = deleteButton.dataset.chatId;
+
+				// Show custom delete confirmation dialog
+				const dialog = document.getElementById("delete-confirm-dialog");
+				if (!dialog) return;
+
+				// Position dialog near the clicked button
+				const buttonRect = deleteButton.getBoundingClientRect();
+				dialog.style.top = `${buttonRect.bottom + 5}px`;
+				dialog.style.left = `${buttonRect.left - dialog.offsetWidth + 20}px`;
+				dialog.classList.remove("hidden");
+
+				// Store the chat ID and button reference for the confirm action
+				dialog.dataset.chatId = chatId;
+				dialog.dataset.buttonRect = JSON.stringify({
+					top: buttonRect.top,
+					left: buttonRect.left,
+					width: buttonRect.width,
+					height: buttonRect.height
+				});
+
+				// Setup cancel button
+				const cancelBtn = document.getElementById("delete-cancel-btn");
+				if (cancelBtn) {
+					cancelBtn.onclick = function () {
+						dialog.classList.add("hidden");
+					};
+				}
+
+				// Setup confirm button
+				const confirmBtn = document.getElementById("delete-confirm-btn");
+				if (confirmBtn) {
+					confirmBtn.onclick = async function () {
+						dialog.classList.add("hidden");
+						await deleteChatWithAnimation(chatId);
+					};
+				}
+
+				// Close dialog when clicking outside
+				document.addEventListener("click", function closeDialogOutside(event) {
+					if (
+						!dialog.contains(event.target) &&
+						!deleteButton.contains(event.target)
+					) {
+						dialog.classList.add("hidden");
+						document.removeEventListener("click", closeDialogOutside);
 					}
 				});
-				if (!response.ok) throw new Error("Failed to delete chat");
-				const chatElement = button.closest("[data-chat-id]");
-				if (chatElement) chatElement.remove();
-				if (chatId === currentChatId) {
-					window.location.href = "/chat/new/";
+			}
+
+			// Handle edit button clicks
+			const editButton = e.target.closest(".edit-title-btn");
+			if (editButton) {
+				e.preventDefault();
+				e.stopPropagation();
+				const chatId = editButton.dataset.chatId;
+				console.log(`Edit button clicked for chat ID: ${chatId}`);
+
+				// First try to find the chat element as a parent of the edit button
+				let chatElement = editButton.closest("[data-chat-id]");
+
+				// If that fails, try to find it by query selector using the chat ID
+				if (!chatElement) {
+					// Try in both the sidebar and chat list
+					const possibleElements = document.querySelectorAll(
+						`[data-chat-id="${chatId}"]`
+					);
+					console.log(
+						`Found ${possibleElements.length} possible chat elements`
+					);
+
+					// Use the first element that's not a button or title
+					for (const el of possibleElements) {
+						if (
+							!el.classList.contains("edit-title-btn") &&
+							!el.classList.contains("delete-chat-btn") &&
+							!el.classList.contains("chat-title")
+						) {
+							chatElement = el;
+							console.log(`Using element as chat element:`, chatElement);
+							break;
+						}
+					}
+
+					if (!chatElement) {
+						console.warn(
+							`Could not find chat element for edit button with chat ID: ${chatId}`
+						);
+						return;
+					}
 				}
-			} catch (error) {
-				console.error("Error deleting chat:", error);
-				alert(
-					"An error occurred when trying to delete the chat. Please refresh the page."
+
+				console.log(`Found chat element:`, chatElement);
+
+				// Try multiple approaches to find the title element
+				let titleElement = null;
+
+				// Approach 1: Direct querySelector on the chat element
+				titleElement = chatElement.querySelector(
+					`.chat-title[data-chat-id="${chatId}"]`
 				);
+
+				// Approach 2: Any chat-title inside the chat element
+				if (!titleElement) {
+					titleElement = chatElement.querySelector(".chat-title");
+				}
+
+				// Approach 3: Find by attribute anywhere in the document
+				if (!titleElement) {
+					titleElement = document.querySelector(
+						`.chat-title[data-chat-id="${chatId}"]`
+					);
+				}
+
+				// Approach 4: Find any element with this chat ID
+				if (!titleElement) {
+					const allElementsWithChatId = document.querySelectorAll(
+						`[data-chat-id="${chatId}"]`
+					);
+					console.log(
+						`Found ${allElementsWithChatId.length} elements with chat ID ${chatId}:`,
+						allElementsWithChatId
+					);
+
+					// Find the one that looks like a title (not the chat element itself or a button)
+					for (const el of allElementsWithChatId) {
+						if (
+							el !== chatElement &&
+							!el.classList.contains("edit-title-btn") &&
+							!el.classList.contains("delete-chat-btn")
+						) {
+							titleElement = el;
+							console.log(`Using element as fallback title:`, titleElement);
+							break;
+						}
+					}
+				}
+
+				if (!titleElement) {
+					console.warn(`Could not find title element for chat ID: ${chatId}`);
+					return;
+				}
+
+				console.log(`Found title element:`, titleElement);
+
+				// Try different approaches to find the title container
+				let titleContainer = chatElement.querySelector(".chat-title-container");
+
+				// If that fails, look for any element containing the chat title
+				if (!titleContainer) {
+					titleContainer = titleElement.parentElement;
+					if (!titleContainer) {
+						// If we still can't find it, just use the chat element as container
+						titleContainer = chatElement;
+						console.warn(
+							`Using chat element as fallback container for chat ID: ${chatId}`
+						);
+					}
+				}
+
+				console.log(`Found title container:`, titleContainer);
+
+				startTitleEditing(titleContainer, titleElement, chatId);
 			}
 		});
-	});
+	} else {
+		console.warn("Chat list container (for delete delegation) not found.");
+	}
 
-	window.startEditing = function (container) {
-		const titleDiv = container.querySelector("div");
-		const currentTitle = titleDiv.textContent.trim();
-		const chatId = container.closest("[data-chat-id]").dataset.chatId;
+	// Function to delete chat with animation
+	async function deleteChatWithAnimation(chatId) {
+		console.log(`[chat.js] Attempting to delete chat ${chatId} with animation`);
+		try {
+			const chatElement = document.querySelector(`[data-chat-id="${chatId}"]`);
+			if (!chatElement) {
+				console.warn(
+					`[chat.js] Could not find chat element for ${chatId} to animate.`
+				);
+				return;
+			}
+
+			// Start fade out animation
+			chatElement.style.transition = "opacity 0.3s, transform 0.3s";
+			chatElement.style.opacity = "0";
+			chatElement.style.transform = "translateX(-20px)";
+
+			// Wait for animation to complete before making API call
+			setTimeout(async () => {
+				try {
+					const response = await fetch(`/chat/${chatId}/delete/`, {
+						method: "POST",
+						headers: {
+							"X-CSRFToken": window.getCookie("csrftoken"),
+							"Content-Type": "application/json"
+						}
+					});
+
+					if (!response.ok) {
+						const errorData = await response
+							.json()
+							.catch(() => ({ error: "Failed to delete chat" }));
+						throw new Error(errorData.error || "Failed to delete chat");
+					}
+
+					// Remove the element from DOM after successful API call
+					chatElement.remove();
+					console.log(`[chat.js] Chat ${chatId} deleted and removed from DOM.`);
+
+					// Redirect if we deleted the current chat
+					if (chatId === window.currentChatId) {
+						window.location.href = "/chat/new/";
+					}
+				} catch (error) {
+					// Restore the element if API call fails
+					chatElement.style.opacity = "1";
+					chatElement.style.transform = "translateX(0)";
+					console.error(
+						`[chat.js] Error during chat deletion API call: ${error}`
+					);
+					if (typeof appendSystemNotification === "function") {
+						appendSystemNotification(
+							`Error deleting chat: ${error.message}`,
+							"error"
+						);
+					} else {
+						alert(
+							`An error occurred when trying to delete the chat: ${error.message}`
+						);
+					}
+				}
+			}, 300); // Match transition duration
+		} catch (error) {
+			console.error(`[chat.js] Error in deleteChatWithAnimation: ${error}`);
+			if (typeof appendSystemNotification === "function") {
+				appendSystemNotification(
+					`Error deleting chat: ${error.message}`,
+					"error"
+				);
+			} else {
+				alert(
+					`An error occurred when trying to delete the chat: ${error.message}`
+				);
+			}
+		}
+	}
+
+	// Function to start title editing
+	function startTitleEditing(container, titleElement, chatId) {
+		console.log(`Starting title editing for chat ID: ${chatId}`);
+		console.log(`Container:`, container);
+		console.log(`Title element:`, titleElement);
+
+		// Get the current title from the element or use a default
+		const currentTitle = titleElement
+			? titleElement.textContent.trim()
+			: "Untitled";
+		console.log(`Current title: "${currentTitle}"`);
+
 		const input = document.createElement("input");
 		input.type = "text";
 		input.value = currentTitle;
 		input.className =
 			"w-full bg-gray-700/70 text-sm rounded px-2 py-1 text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400";
-		container.innerHTML = "";
-		container.appendChild(input);
-		input.focus();
-		input.select();
-		input.addEventListener("blur", () =>
-			finishEditing(container, input, currentTitle, chatId)
-		);
-		input.addEventListener("keydown", (e) => {
-			if (e.key === "Enter") {
-				e.preventDefault();
-				input.blur();
-			} else if (e.key === "Escape") {
-				restoreTitle(container, currentTitle);
-			}
-		});
-	};
 
-	async function finishEditing(container, input, originalTitle, chatId) {
+		// Check if we're in the sidebar or chat list view
+		const isSidebar = container.closest("#sidebar") !== null;
+		console.log(`Is in sidebar: ${isSidebar}`);
+
+		// Replace the title element with the input
+		if (titleElement) {
+			titleElement.style.display = "none";
+		}
+
+		// Adjust input size based on where we are
+		if (isSidebar) {
+			input.style.fontSize = "1.125rem"; // Match the text-lg class
+		}
+
+		// Make sure the container is valid before appending
+		if (container && container.appendChild) {
+			container.appendChild(input);
+			input.focus();
+			input.select();
+
+			input.addEventListener("blur", () =>
+				finishTitleEditing(container, titleElement, input, currentTitle, chatId)
+			);
+
+			input.addEventListener("keydown", (e) => {
+				if (e.key === "Enter") {
+					e.preventDefault();
+					input.blur();
+				} else if (e.key === "Escape") {
+					cancelTitleEditing(container, titleElement, input);
+				}
+			});
+		} else {
+			console.error(`Invalid container for chat ID: ${chatId}`);
+		}
+	}
+
+	async function finishTitleEditing(
+		container,
+		titleElement,
+		input,
+		originalTitle,
+		chatId
+	) {
 		const newTitle = input.value.trim();
 		if (!newTitle || newTitle === originalTitle) {
-			restoreTitle(container, originalTitle);
+			cancelTitleEditing(container, titleElement, input);
 			return;
 		}
+
 		try {
 			const response = await fetch(`/chat/${chatId}/update-title/`, {
 				method: "POST",
 				headers: {
 					"Content-Type": "application/json",
-					"X-CSRFToken": document.querySelector("[name=csrfmiddlewaretoken]")
-						.value
+					"X-CSRFToken":
+						document.querySelector("[name=csrfmiddlewaretoken]").value ||
+						window.getCookie("csrftoken")
 				},
 				body: JSON.stringify({ title: newTitle })
 			});
+
 			if (!response.ok) throw new Error("Failed to update title");
-			restoreTitle(container, newTitle);
+
+			// Update the title element
+			if (titleElement) {
+				titleElement.textContent = newTitle;
+				titleElement.style.display = "";
+			}
+
+			// Always remove the input
+			if (input && input.parentNode) {
+				input.remove();
+			}
+
+			// Update all instances of this chat title in the DOM
+			document
+				.querySelectorAll(`.chat-title[data-chat-id="${chatId}"]`)
+				.forEach((el) => {
+					if (el !== titleElement) {
+						el.textContent = newTitle;
+					}
+				});
+
 			if (chatId === currentChatId) {
 				const mobileHeader = document.querySelector(".md\\:hidden h1");
 				if (mobileHeader) mobileHeader.textContent = newTitle;
@@ -877,13 +1299,19 @@ document.addEventListener("DOMContentLoaded", function () {
 			}
 		} catch (error) {
 			console.error("Error updating chat title:", error);
-			restoreTitle(container, originalTitle);
+			cancelTitleEditing(container, titleElement, input);
 			alert("Failed to update chat title. Please try again.");
 		}
 	}
 
-	function restoreTitle(container, title) {
-		container.textContent = title;
+	function cancelTitleEditing(container, titleElement, input) {
+		if (titleElement) {
+			titleElement.style.display = "";
+		}
+
+		if (input && input.parentNode) {
+			input.remove();
+		}
 	}
 
 	document.querySelectorAll(".markdown-content").forEach((container) => {
@@ -919,6 +1347,14 @@ document.addEventListener("DOMContentLoaded", function () {
 
 	fixEscapedQuizMessages();
 	fixFirstLineQuizPreCode();
+
+	// Initialize all existing chat elements for consistent styling
+	const existingChatElements = document.querySelectorAll(
+		"#chats-list [data-chat-id]"
+	);
+	existingChatElements.forEach((chatElement) => {
+		applyConsistentChatElementStyling(chatElement);
+	});
 
 	// Patch appendMessage to also fix after rendering (only once)
 	if (!window._appendMessagePatched) {
@@ -1280,6 +1716,16 @@ document.addEventListener("DOMContentLoaded", function () {
 
 		updateDiagramModeToggleButtonStyle(); // Set initial style
 
+		const setInactiveStyles = () => {
+			console.log("Setting RAG inactive styles");
+			// For icons, we reset the SVG color
+			if (ragToggleButton.querySelector("svg")) {
+				ragToggleButton.querySelector("svg").classList.remove("text-green-400");
+				ragToggleButton.querySelector("svg").classList.add("text-gray-400");
+				ragToggleButton.classList.remove("bg-gray-800"); // Remove background
+			}
+		};
+
 		diagramModeToggleButton.addEventListener("click", () => {
 			console.log(
 				"Diagram mode button clicked, current state:",
@@ -1318,7 +1764,7 @@ document.addEventListener("DOMContentLoaded", function () {
 		}
 	});
 	// Initialize all quiz forms present on initial page load
-	initializeQuizForms(document.getElementById('chat-messages'));
+	initializeQuizForms(document.getElementById("chat-messages"));
 	hljs.highlightAll();
 	if (document.getElementById("chat-messages").children.length > 1) {
 		// more than just placeholder
@@ -1342,17 +1788,13 @@ document.addEventListener("DOMContentLoaded", function () {
 		);
 		if (placeholder) placeholder.remove();
 
-		console.log("Appending diagram message with image URL:", imageUrl);
+		console.log(
+			"Appending diagram message with constructed image URL:",
+			imageUrl
+		);
 
-		// Ensure imageUrl has the proper media URL prefix
-		if (
-			imageUrl &&
-			!imageUrl.startsWith("http") &&
-			!imageUrl.startsWith("/media/")
-		) {
-			imageUrl = `/media/${imageUrl}`;
-			console.log("Updated image URL with media prefix:", imageUrl);
-		}
+		// The imageUrl is now constructed with the correct path to the serving endpoint
+		// No need for /media/ prefix check here as it's a direct path to the view
 
 		const messageDiv = document.createElement("div");
 		messageDiv.className = "message-enter px-4 md:px-6 py-6";
@@ -1557,18 +1999,64 @@ document.addEventListener("DOMContentLoaded", function () {
 	};
 	// Initial call to set visibility
 	window.updateQuizButtonVisibility();
+
+	// Add an event listener for chatStateChanged to update UI elements
+	document.addEventListener("chatStateChanged", function (event) {
+		console.log(
+			"[chat.js] Caught chatStateChanged event directly.",
+			event.detail
+		);
+		if (typeof updateNewChatUI === "function") {
+			updateNewChatUI(event.detail.isNewChat);
+		}
+	});
 });
 
 function updateNewChatUI(isNew) {
 	const quizButtonContainer = document.getElementById("quiz-button-container");
 	const manageRagButton = document.getElementById("manage-rag-context-btn");
 
+	console.log("[updateNewChatUI from chat.js] Called with isNew:", isNew);
+
 	if (isNew) {
-		if (quizButtonContainer) quizButtonContainer.classList.add("hidden");
-		if (manageRagButton) manageRagButton.classList.add("hidden");
+		console.log("[updateNewChatUI from chat.js] HIDING buttons.");
+		if (quizButtonContainer) {
+			quizButtonContainer.classList.add("hidden");
+		}
+		if (manageRagButton) {
+			manageRagButton.classList.add("hidden");
+		}
 	} else {
-		if (quizButtonContainer) quizButtonContainer.classList.remove("hidden");
-		if (manageRagButton) manageRagButton.classList.remove("hidden");
+		// Defer the showing logic slightly
+		setTimeout(() => {
+			console.log(
+				"[updateNewChatUI from chat.js - setTimeout] SHOWING buttons."
+			);
+			if (quizButtonContainer) {
+				quizButtonContainer.classList.remove("hidden");
+				quizButtonContainer.style.display = "";
+				console.log(
+					"[updateNewChatUI from chat.js - setTimeout] Quiz button hidden class removed. Hidden status:",
+					quizButtonContainer.classList.contains("hidden")
+				);
+				console.log(
+					"[updateNewChatUI from chat.js - setTimeout] Quiz button style.display:",
+					quizButtonContainer.style.display
+				);
+			}
+			if (manageRagButton) {
+				manageRagButton.classList.remove("hidden");
+				manageRagButton.style.display = "";
+				console.log(
+					"[updateNewChatUI from chat.js - setTimeout] RAG button hidden class removed. Hidden status:",
+					manageRagButton.classList.contains("hidden")
+				);
+				console.log(
+					"[updateNewChatUI from chat.js - setTimeout] RAG button style.display:",
+					manageRagButton.style.display
+				);
+			}
+		}, 0); // Zero delay, just defers to next tick
 	}
 }
 

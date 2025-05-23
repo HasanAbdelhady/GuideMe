@@ -162,7 +162,12 @@ prompt_code_graphviz ="""
     - Always conclude with `g.render('diagram_output', view=False, cleanup=True)` to generate the diagram.
     Goal: Produce a diagram that teaches students or junior developers by visually representing the topic in a clear, engaging format suitable for blogs, classrooms, or presentations.
 
-    Output: Return ONLY the exact Python code with no explanations, no markdown formatting, no ```python blocks, and no comments outside the code. "
+    Output: Return the Python code wrapped in a markdown code block like so:
+    ```python
+    # Your Graphviz code here
+    ```
+    Ensure there are no explanations or comments outside the markdown code block.
+    "
     ---
 
     Here are some examples of the kind of Python code you should generate:
@@ -275,9 +280,12 @@ prompt_fix_code = """
     - Analyze the error message and traceback to identify the issue.
     - Fix the code to resolve the error while ensuring it still generates a valid Graphviz diagram for the given topic and description.
     - Ensure the fixed code adheres to the original requirements (e.g., uses `Digraph(format='png')`, `rankdir='TB'`, `dpi='300'`, includes notes, colors, etc.).
-    - Only output the corrected Python code, without any explanations or markdown formatting.
+    - Output the corrected Python code wrapped in a markdown code block like so:
+    ```python
+    # Your fixed Graphviz code here
+    ```
+    Ensure there are no explanations or comments outside the markdown code block.
     - If the error is unrelated to Graphviz (e.g., syntax error), fix it while preserving the diagram's structure.
-    - If the error is due to missing imports, invalid node/edge definitions, or incorrect Graphviz syntax, correct those specifically.
 
     **Original Topic**: {topic}
 
@@ -293,6 +301,6 @@ prompt_fix_code = """
     {error_message}
     ```
 
-    **Output**: Only the corrected Python code using the `graphviz` library.
+    **Output**: The corrected Python code using the `graphviz` library, wrapped in a markdown code block.
     """
 
