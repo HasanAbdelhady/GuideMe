@@ -1,0 +1,12 @@
+digraph Roadmap {
+    rankdir=TB;
+    node [shape=box, style="filled,rounded", fillcolor=lightblue, fontname="Arial"];
+    edge [color=darkgray, fontname="Arial"];
+
+    node1 [label="Python Fundamentals\n2024-02-01", title="Python Fundamentals", date="2024-02-01"];
+    node2 [label="Deep Learning Frameworks\n2024-03-15", title="Deep Learning Frameworks", date="2024-03-15"];
+    node3 [label="Advanced Deep Learning Topics\n2024-04-30", title="Advanced Deep Learning Topics", date="2024-04-30"];
+
+    node1 -> node2 [label="depends on"];
+    node2 -> node3 [label="depends on"];
+}
