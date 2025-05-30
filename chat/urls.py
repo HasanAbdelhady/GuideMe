@@ -1,6 +1,5 @@
 from django.urls import path
 from .views import (
-    ChatListView,
     ChatView,
     ChatStreamView,
     chat_quiz,
@@ -10,7 +9,7 @@ from .views import (
 from . import views
 
 urlpatterns = [
-    path('', ChatListView.as_view(), name='chat_list'),
+   # path('', ChatListView.as_view(), name='chat_list'),
     path('new/', ChatView.as_view(), name='new_chat'),
     path('create/', views.create_chat, name='create_chat'),
     path('<uuid:chat_id>/', ChatView.as_view(), name='chat_detail'),
@@ -26,3 +25,4 @@ urlpatterns = [
     path('flashcards/', generate_flashcards_view, name='flashcards_generator'),
     path('diagram_image/<uuid:diagram_id>/', serve_diagram_image, name='serve_diagram_image'),
 ]
+

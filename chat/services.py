@@ -540,37 +540,50 @@ class ChatService:
         # We'll take the response as is, after stripping whitespace.
         graphviz_code = graphviz_code_response.strip()
         
-        # Extract only the actual Python code, removing any explanatory text
-        # First, handle common markdown code blocks
-        if graphviz_code.startswith("```python"):
-            graphviz_code = graphviz_code[len("```python"):].strip()
-            if graphviz_code.endswith("```"):
-                graphviz_code = graphviz_code[:-len("```")].strip()
-        elif graphviz_code.startswith("```"):
-            graphviz_code = graphviz_code[len("```"):].strip()
-            if graphviz_code.endswith("```"):
-                graphviz_code = graphviz_code[:-len("```")].strip()
-
-        # More robustly find the start of the actual Graphviz Python code
-        lines = graphviz_code.split('\n')
-        actual_code_start_index = -1
-        for i, line in enumerate(lines):
-            stripped_line = line.strip()
-            if stripped_line.startswith("from graphviz import") or stripped_line.startswith("import graphviz"):
-                actual_code_start_index = i
-                break
-        
-        if actual_code_start_index != -1:
-            graphviz_code = '\n'.join(lines[actual_code_start_index:])
+        # Extract Python code from markdown block
+        # Try ```python ... ``` first
+        python_match = re.search(r"```python\s*\n(.*?)\n```", graphviz_code, re.DOTALL)
+        if python_match:
+            graphviz_code = python_match.group(1).strip()
+            self.logger.info("Extracted code from ```python block.")
         else:
-            self.logger.warning(f"[generate_diagram_image] Could not confidently find start of Graphviz code. Proceeding with potentially unclean code: {graphviz_code[:200]}...")
-            # If no clear start found, we use the (already stripped) code as is, hoping for the best.
+            # Try generic ``` ... ``` if ```python block is not found
+            generic_match = re.search(r"```\s*\n(.*?)\n```", graphviz_code, re.DOTALL)
+            if generic_match:
+                graphviz_code = generic_match.group(1).strip()
+                self.logger.info("Extracted code from generic ``` block.")
+            else:
+                # If no markdown block found, it might be raw code.
+                self.logger.warning("Could not find markdown code block. Assuming response might be raw code or require import-based cleaning.")
+                # The following "find 'import graphviz'" logic will attempt to find the code start if markdown was missed.
+                # This is a fallback and primarily handles leading non-code text if no markdown was used.
+                # The regex extraction is the primary mechanism for handling text outside of correctly used markdown blocks.
+
+        # If code was NOT extracted from markdown (i.e., no fences found), try to find the start of Python code by 'import graphviz'
+        # This helps clean up potential leading non-code text if the LLM didn't use markdown.
+        if not python_match and not generic_match:
+            lines = graphviz_code.split('\n')
+            actual_code_start_index = -1
+            for i, line in enumerate(lines):
+                stripped_line = line.strip()
+                if stripped_line.startswith("from graphviz import") or stripped_line.startswith("import graphviz"):
+                    actual_code_start_index = i
+                    break
+            
+            if actual_code_start_index != -1:
+                # If 'import' is found, take everything from that line onwards and strip any trailing whitespace/newlines.
+                graphviz_code = '\n'.join(lines[actual_code_start_index:]).strip()
+                self.logger.info("Found code start using 'import graphviz' after no markdown blocks were detected.")
+            else:
+                # This means no markdown and no 'import graphviz' found. Code is likely bad or not Python/Graphviz.
+                self.logger.warning(f"[generate_diagram_image] Could not find markdown blocks or 'import graphviz'. Code is likely not valid Python/Graphviz. Proceeding with potentially unclean code: {graphviz_code[:200]}...")
         
         self.logger.info(f"Cleaned Graphviz code (first 100 chars): {graphviz_code[:100]}...")
         
         # More lenient check - only require import and Digraph creation
-        if not ("from graphviz import Digraph" in graphviz_code and "Digraph(" in graphviz_code):
-            self.logger.error(f"Generated Graphviz code does not appear to be valid. Preview: {graphviz_code[:500]}")
+        # This check is now more critical as graphviz_code might be empty if regex found nothing and no import line was present
+        if not graphviz_code or not ("graphviz" in graphviz_code and "Digraph(" in graphviz_code):
+            self.logger.error(f"Generated Graphviz code does not appear to be valid or is empty. Preview: {graphviz_code[:500]}")
             return None
             
         # Add fallback .render() call if missing
