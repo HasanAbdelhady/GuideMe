@@ -34,36 +34,17 @@ chat_service = ChatService()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Initialize the Groq client.
 groq_client = Groq()
 
-# It's good practice to move API keys to settings or environment variables
 # get your api key from https://aistudio.google.com/apikey
 FLASHCARD_API_KEY = os.environ.get("FLASHCARD")
 
 # Configure the generative AI model for flashcards
-try:
-    genai.configure(api_key=FLASHCARD_API_KEY)
-    flashcard_model = genai.GenerativeModel("gemini-2.5-flash-preview-04-17")
-except Exception as e:
-    # Handle API key configuration errors, e.g., log them
-    print(f"Error configuring Generative AI for flashcards: {e}")
-    flashcard_model = None
+genai.configure(api_key=FLASHCARD_API_KEY)
+flashcard_model = genai.GenerativeModel("gemini-2.5-flash-preview-04-17")
 
-# Pydantic model for input validation (optional, can use dict access too)
-class TopicInput(BaseModel):
-    topic: str
-
-@method_decorator(login_required, name='dispatch')
-class ChatListView(ListView):
-    model = Chat
-    template_name = 'chat/chat_list.html'
-    context_object_name = 'chats'
-
-    # get_queryset is used by ListView, so keep it
-    def get_queryset(self):
-        return Chat.objects.filter(user=self.request.user).order_by('-updated_at')
-
+def custom_404_view(request, exception):
+    return redirect("new_chat")
 
 @method_decorator(login_required, name='dispatch')
 class ChatView(View):
@@ -775,10 +756,11 @@ def generate_flashcards_view(request):
             return JsonResponse({"error": "Flashcard generation model not configured."}, status=500)
         
         try:
+            print(f"Request's BODY:\n {request.body}")
             data = json.loads(request.body)
-            # topic_input = TopicInput(**data) # If using Pydantic
-            # topic = topic_input.topic.strip()
+            print(f"Data in json format: \n {data}")
             topic = data.get('topic', '').strip() # If using dictionary access
+            print(f"The TOPIC IS: {topic}")
         except json.JSONDecodeError:
             return JsonResponse({"error": "Invalid JSON."}, status=400)
         # except Exception as e: # If using Pydantic and validation fails
@@ -788,32 +770,49 @@ def generate_flashcards_view(request):
             return JsonResponse({"error": "Topic is required."}, status=400)
 
         prompt = f"""Generate a list of flashcards for the topic of "{topic}". 
-Each flashcard should have a term and a concise definition. Format the output as a list of "Term: Definition" pairs, one per line. Example:
-Hello: Hola
-Goodbye: Adiós"""
+                    Each flashcard should have a term and a concise definition. Format the output as a list of "Term: Definition" pairs, one per line, the text for a single cards must all be included in a single line
+                    no linebreakes are allowed for a single entry. Example:
+                    Hello: Hola
+                    Goodbye: Adiós"""
 
         try:
             response = flashcard_model.generate_content(prompt)
+            print(f"Response text {response.text}")
             text = response.text.strip()
+            print(f"flashcard model text {text}")
 
             flashcards = []
-            for line in text.splitlines():
+            for index, line in enumerate(text.splitlines()):
+                append_to_which = None
+                line_to_append = ""
+                if not ":" in line and index == 0:
+                    append_to_which = 0
+                    line_to_append = line
+                elif not ":" in line and index == 1:
+                    append_to_which = 1
+                    line_to_append = line
+                elif not ":" in line and index != 0 and index != 1:
+                    line_to_append = line
                 if ":" in line:
                     parts = line.split(":", 1)
+
+                    if line_to_append and append_to_which == 0:
+                        parts[append_to_which] = line_to_append + f" {parts[append_to_which]}"
+                    elif line_to_append and append_to_which == 1:
+                        parts[append_to_which] += f" {line_to_append}"
+
+                    print(f"Parts are {parts}")
                     term = parts[0].strip()
+                    print(f"Term is {term}")
                     definition = parts[1].strip() if len(parts) > 1 else ""
+                    print(f"Definition is {definition}")
                     if term and definition: # Ensure both term and definition are present
                         flashcards.append({
                             "term": term,
                             "definition": definition
                         })
-            
+                print(f"Flashcards here: \n {flashcards}")
             if not flashcards:
-                # Check if response.parts[0].finish_reason is not 'STOP' for other issues
-                # For example, if the model generated text but not in the expected format
-                # Or if there was a safety block or other non-STOP reason.
-                # Depending on response structure, you might need: response.parts[0].finish_reason
-                # For now, assuming any non-flashcard outcome is an issue.
                 return JsonResponse({"error": "No valid flashcards were generated by the model. The response might have been empty or not in the expected format.", "details": text}, status=500)
 
 

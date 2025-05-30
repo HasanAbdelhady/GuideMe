@@ -175,34 +175,31 @@ prompt_code_graphviz ="""
 
     EXAMPLE 1:
 
-    ```python
-import graphviz
-from graphviz import nohtml
-
-g = graphviz.Digraph('g', filename='btree.gv',
-                     node_attr={'shape': 'record', 'height': '.1'})
-
-g.node('node0', nohtml('<f0> |<f1> G|<f2>'))
-g.node('node1', nohtml('<f0> |<f1> E|<f2>'))
-g.node('node2', nohtml('<f0> |<f1> B|<f2>'))
-g.node('node3', nohtml('<f0> |<f1> F|<f2>'))
-g.node('node4', nohtml('<f0> |<f1> R|<f2>'))
-g.node('node5', nohtml('<f0> |<f1> H|<f2>'))
-g.node('node6', nohtml('<f0> |<f1> Y|<f2>'))
-g.node('node7', nohtml('<f0> |<f1> A|<f2>'))
-g.node('node8', nohtml('<f0> |<f1> C|<f2>'))
-
-g.edge('node0:f2', 'node4:f1')
-g.edge('node0:f0', 'node1:f1')
-g.edge('node1:f0', 'node2:f1')
-g.edge('node1:f2', 'node3:f1')
-g.edge('node2:f2', 'node8:f1')
-g.edge('node2:f0', 'node7:f1')
-g.edge('node4:f2', 'node6:f1')
-g.edge('node4:f0', 'node5:f1')
-
-g.view()
     ```
+digraph {
+	dpi=300 nodesep=0.7 rankdir=TB ranksep=1.1
+	node [color="#2F3E46" fontname=Helvetica fontsize=10 shape=box style="filled,rounded"]
+	InputLayer [label="📝 Input Layer" fillcolor="#A0C4FF"]
+	ModelArchitecture [label="🤖 Model Architecture" fillcolor="#A0C4FF"]
+	OutputLayer [label="🎯 Output Layer" fillcolor="#A0C4FF"]
+	node [fontsize=8 shape=note style=filled]
+	InputNote [label="The input layer processes the initial text, tokenizing it into subwords or characters." fillcolor="#B9FBC0"]
+	ModelNote [label="The transformer architecture enables LLMs to understand context and generate coherent text by leveraging self-attention mechanisms." fillcolor="#B9FBC0"]
+	OutputNote [label="The output layer produces the final text, which can be a response, translation, or completion of the input prompt." fillcolor="#B9FBC0"]
+	node [fontsize=10 shape=box style="filled,rounded"]
+	InputLayer -> ModelArchitecture
+	ModelArchitecture -> OutputLayer
+	edge [style=dashed]
+	InputLayer -> InputNote
+	ModelArchitecture -> ModelNote
+	OutputLayer -> OutputNote
+	subgraph LLM {
+		bgcolor="#FFD6A5" label="Large Language Model (LLM)" labelloc=t
+		InputLayer
+		ModelArchitecture
+		OutputLayer
+	}
+}
     """
 
 # Prompt for fixing erroneous code    
