@@ -43,7 +43,8 @@ class Message(models.Model):
     role = models.CharField(max_length=10, choices=[('user', 'User'), ('assistant', 'Assistant')])
     content = models.TextField(blank=True)  # For normal text
     type = models.CharField(
-        max_length=20, default='text', choices=[('text', 'Text'), ('quiz', 'Quiz'), ('diagram', 'Diagram')])
+        max_length=20, default='text', choices=[('text', 'Text'), ('quiz', 'Quiz'), ('diagram', 'Diagram'), ('youtube', 'YouTube')])
+    structured_content = models.JSONField(null=True, blank=True) # For structured data like YouTube links
     quiz_html = models.TextField(blank=True, null=True)  # For quiz HTML
     diagram_image = models.ForeignKey(
         DiagramImage, 

@@ -40,6 +40,7 @@ import re # Added for sanitizing filenames
 from .models import Chat
 from django.conf import settings # Added for MEDIA_ROOT
 import google.generativeai as genai
+from .agent_service import run_youtube_agent
 
 def sanitize_filename(filename):
     return re.sub(r'[<>:"/\\\\|?*]', '_', filename)
@@ -168,6 +169,20 @@ class ChatService:
     def __init__(self):
         self.logger = logging.getLogger(__name__)
         self.rag_cache = {}  # Cache RAG instances by chat_id (for Part 2 - Manage RAG Context)
+
+    async def get_youtube_agent_response(self, query: str):
+        """
+        Runs the YouTube agent for a given query and returns the result.
+        This is an async wrapper around the synchronous agent execution.
+        """
+        self.logger.info(f"Passing query to YouTube agent: {query}")
+        try:
+            # Use sync_to_async to run the synchronous agent function in an async context
+            response = await sync_to_async(run_youtube_agent, thread_sensitive=False)(query)
+            return response
+        except Exception as e:
+            self.logger.error(f"Error calling YouTube agent via sync_to_async: {e}", exc_info=True)
+            return "An error occurred while communicating with the YouTube agent."
 
     def get_files_rag(self, chat_id):
         """Return the cached RAG for this chat, if any. (Used by Part 2: Manage RAG Context)"""

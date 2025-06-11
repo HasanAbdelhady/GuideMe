@@ -93,7 +93,8 @@ class ChatView(View):
                         'text': None,        # Default to None
                         'html': None,        # Default to None (used for quiz HTML by current template)
                         'diagram_image_url': None, # Initialize diagram_image_url
-                        'diagram_image_id_for_template': None # ADD THIS
+                        'diagram_image_id_for_template': None, # ADD THIS
+                        'structured_content': None
                     }
 
                     # Handle different message types properly
@@ -105,6 +106,9 @@ class ChatView(View):
                         msg_dict['diagram_image_id_for_template'] = str(msg_obj.diagram_image_id) # ADD THIS
                         logger.info(f"Loaded diagram message. URL: {msg_dict['diagram_image_url']}, ID for template: {msg_dict['diagram_image_id_for_template']}")
                         logger.info(f"[ChatView.get] Preparing diagram msg_dict: {msg_dict}")
+                    elif msg_obj.type == 'youtube':
+                        msg_dict['text'] = msg_obj.content
+                        msg_dict['structured_content'] = msg_obj.structured_content
                     elif msg_obj.role == 'assistant' and msg_obj.type == 'quiz':
                         # This is a quiz message
                         if msg_obj.quiz_html:
@@ -175,6 +179,10 @@ class ChatStreamView(View):
             diagram_mode_active = diagram_mode_active_str.lower() == 'true'
             logger.info(f"Diagram mode active: {diagram_mode_active}")
 
+            youtube_mode_active_str = request.POST.get('youtube_mode_active', 'false')
+            youtube_mode_active = youtube_mode_active_str.lower() == 'true'
+            logger.info(f"YouTube mode active: {youtube_mode_active}")
+
             files_rag_instance = None   
             attached_file_names_for_rag_context = []
             if rag_mode_active:
@@ -209,6 +217,11 @@ class ChatStreamView(View):
             if diagram_mode_active:
                 logger.info("Diagram mode is ACTIVE. RAG mode will be ignored for this turn if it was also active.")
                 rag_mode_active = False # Ensure RAG is off if diagram is on for this turn
+            
+            if youtube_mode_active:
+                logger.info("YouTube mode is ACTIVE. RAG and Diagram modes will be ignored for this turn.")
+                rag_mode_active = False
+                diagram_mode_active = False
 
             is_reprompt_after_edit = request.POST.get("is_reprompt_after_edit") == "true"
             
@@ -267,14 +280,16 @@ class ChatStreamView(View):
                 attached_file_name_for_rag=", ".join(attached_file_names_for_rag_context) if rag_mode_active and attached_file_names_for_rag_context else None,
                 file_info_for_truncation_warning=file_info_for_llm,
                 diagram_mode_active=diagram_mode_active, # Pass diagram_mode_active
-                user_id_for_diagram=user.id if diagram_mode_active else None # Pass user_id for diagram path
+                user_id_for_diagram=user.id if diagram_mode_active else None, # Pass user_id for diagram path
+                youtube_mode_active=youtube_mode_active,
+                query_for_youtube_agent=user_typed_prompt if youtube_mode_active else None
             )
 
         except Exception as e:
             logger.error(f"Exception in ChatStreamView.post: {str(e)}", exc_info=True)
             return JsonResponse({'error': str(e)}, status=500)
 
-    async def stream_response(self, chat, messages_for_llm, query_for_rag=None, files_rag_instance=None, is_new_chat=False, current_user_prompt_for_saving=None, attached_file_name_for_rag=None, file_info_for_truncation_warning=None, diagram_mode_active=False, user_id_for_diagram=None):
+    async def stream_response(self, chat, messages_for_llm, query_for_rag=None, files_rag_instance=None, is_new_chat=False, current_user_prompt_for_saving=None, attached_file_name_for_rag=None, file_info_for_truncation_warning=None, diagram_mode_active=False, user_id_for_diagram=None, youtube_mode_active=False, query_for_youtube_agent=None):
         async def event_stream_async():
             user_message_saved = False
             try:
@@ -299,6 +314,37 @@ class ChatStreamView(View):
                     await sync_to_async(Message.objects.create)(chat=chat, role='user', content=current_user_prompt_for_saving)
                     user_message_saved = True
                     logger.info(f"User message '{current_user_prompt_for_saving[:50]}...' saved (Normal stream mode).")
+
+                if youtube_mode_active:
+                    logger.info(f"YouTube mode active in event_stream. Query: {query_for_youtube_agent}")
+                    agent_response = await chat_service.get_youtube_agent_response(query_for_youtube_agent)
+                    
+                    # Try to parse the response as JSON for video recommendations
+                    try:
+                        video_data = json.loads(agent_response)
+                        if isinstance(video_data, list):
+                            # It's a list of videos, save as structured message
+                            await sync_to_async(close_old_connections)()
+                            await sync_to_async(Message.objects.create)(
+                                chat=chat, 
+                                role='assistant', 
+                                content="Here are some videos I found for you:", # Fallback/summary text
+                                type='youtube',
+                                structured_content=video_data
+                            )
+                            logger.info(f"YouTube agent video recommendations saved to DB.")
+                            yield f"data: {json.dumps({'type': 'youtube_recommendations', 'data': video_data})}\n\n"
+                        else:
+                            raise ValueError("JSON is not a list")
+                    except (json.JSONDecodeError, ValueError):
+                        # It's a regular text response (e.g., summary or error)
+                        await sync_to_async(close_old_connections)()
+                        await sync_to_async(Message.objects.create)(chat=chat, role='assistant', content=agent_response)
+                        logger.info(f"YouTube agent text response saved to DB: {agent_response[:100]}...")
+                        yield f"data: {json.dumps({'type': 'content', 'content': agent_response})}\n\n"
+
+                    yield f"data: {json.dumps({'type': 'done'})}\n\n"
+                    return
 
                 if diagram_mode_active:
                     logger.info(f"Diagram mode active in event_stream. User query for diagram: {messages_for_llm[-1]['content'][:100]}...") # messages_for_llm[-1] is the current user prompt

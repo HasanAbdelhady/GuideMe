@@ -15,6 +15,7 @@ window.isNewChat = isNewChat;
 let abortController = null;
 let isRAGActive = false; // Default if nothing in localStorage
 let isDiagramModeActive = false; // Default for Diagram mode
+let isYoutubeModeActive = false; // Default for YouTube mode
 
 // Standard getCookie function (now global)
 window.getCookie = function (name) {
@@ -142,6 +143,14 @@ document.addEventListener("DOMContentLoaded", function () {
 		);
 	}
 
+    const savedYoutubeModeState = localStorage.getItem("youtubeModeActive");
+    if (savedYoutubeModeState !== null) {
+        isYoutubeModeActive = JSON.parse(savedYoutubeModeState);
+        console.log("Loaded YouTube mode state:", isYoutubeModeActive);
+    } else {
+        localStorage.setItem("youtubeModeActive", JSON.stringify(isYoutubeModeActive));
+	}
+
 	// DOM elements
 	const form = document.getElementById("chat-form");
 	const textarea = document.getElementById("prompt");
@@ -159,6 +168,7 @@ document.addEventListener("DOMContentLoaded", function () {
 	const diagramModeToggleButton = document.getElementById(
 		"diagram-mode-toggle"
 	);
+	const youtubeModeToggleButton = document.getElementById("youtube-mode-toggle");
 	const ragModalOverlay = document.getElementById("rag-modal-overlay");
 
 	// Sidebar toggle
@@ -343,7 +353,7 @@ document.addEventListener("DOMContentLoaded", function () {
 			`;
 		} else {
 			// Assistant message - left aligned
-			messageDiv.innerHTML = `
+		messageDiv.innerHTML = `
 				<div class="chat-container flex gap-4 md:gap-6">
 					<!-- Assistant icon - left side -->
 				<div class="flex-shrink-0 w-7 h-7">
@@ -388,8 +398,8 @@ document.addEventListener("DOMContentLoaded", function () {
 							markdownContentDiv
 								.querySelectorAll("pre code")
 								.forEach((block) => {
-									hljs.highlightElement(block);
-								});
+								hljs.highlightElement(block);
+							});
 						}
 						initializeCodeBlockFeatures(markdownContentDiv);
 					} else {
@@ -492,7 +502,7 @@ document.addEventListener("DOMContentLoaded", function () {
 				// Use a data attribute to buffer raw text
 				if (typeof container.dataset.rawTextBuffer === "undefined") {
 					// This case should ideally be covered by appendMessage initializing the buffer
-					container.dataset.rawTextBuffer = "";
+					container.dataset.rawTextBuffer = ""; 
 				}
 				container.dataset.rawTextBuffer += contentChunk; // Use contentChunk directly
 
@@ -590,7 +600,7 @@ document.addEventListener("DOMContentLoaded", function () {
 								// 	newChunkParagraph.textContent = "CHUNK: " + data.content; // Prefix to make it obvious
 								// 	newChunkParagraph.style.color = "cyan"; // Make it stand out
 								// 	messagesDiv.appendChild(newChunkParagraph);
-								// 	smoothScrollToBottom();
+								// 	smoothScrollToBottom(); 
 								// }
 								updateAssistantMessage(currentMessageContainer, data.content);
 							}
@@ -617,6 +627,33 @@ document.addEventListener("DOMContentLoaded", function () {
 							}
 						} else if (data.type === "done") {
 							window.removeTypingIndicator();
+						} else if (data.type === "youtube_recommendations") {
+                            // This is a new message, so create the container for it
+                            const messagesContainer = document.getElementById("chat-messages");
+                            const messageDiv = document.createElement("div");
+                            messageDiv.className = "message-enter px-4 md:px-6 py-6";
+                            
+                            messageDiv.innerHTML = `
+                                <div class="chat-container flex gap-4 md:gap-6">
+                                    <div class="flex-shrink-0 w-7 h-7">
+                                        <div class="cls w-10 h-7 p-1 rounded-sm bg-slate-100 flex items-center justify-center text-white">
+                                            <img src="/static/images/logo.png" alt="Assistant icon" class="h-5 w-7">
+                                        </div>
+                                    </div>
+                                    <div class="flex-1 overflow-x-auto min-w-0 max-w-[85%]" data-role="youtube-content-wrapper">
+                                        <!-- YouTube recommendations will be rendered here -->
+                                    </div>
+                                </div>
+                            `;
+                            messagesContainer.appendChild(messageDiv);
+                            const youtubeWrapper = messageDiv.querySelector('[data-role="youtube-content-wrapper"]');
+                            
+                            if (window.YoutubeHandler && youtubeWrapper) {
+                                window.YoutubeHandler.renderRecommendations(youtubeWrapper, data.data);
+                            }
+                            window.smoothScrollToBottom();
+                            currentMessageContainer = null;
+                            isFirstTextChunk = true;
 						}
 					}
 				}
@@ -682,11 +719,13 @@ document.addEventListener("DOMContentLoaded", function () {
 
 			console.log("Submitting form with states:", {
 				isRAGActive,
-				isDiagramModeActive
+				isDiagramModeActive,
+                isYoutubeModeActive
 			});
 
 			formData.append("rag_mode_active", isRAGActive.toString());
 			formData.append("diagram_mode_active", isDiagramModeActive.toString());
+            formData.append("youtube_mode_active", isYoutubeModeActive.toString());
 
 			if (isNewChat) {
 				const createResponse = await fetch("/chat/create/", {
@@ -721,8 +760,8 @@ document.addEventListener("DOMContentLoaded", function () {
 				// Create and add new chat element to the sidebar
 				const chatsList = document.getElementById("chats-list");
 				const newChatElement = document.createElement("div");
-				newChatElement.classList.add("group", "relative");
-				newChatElement.dataset.chatId = data.chat_id;
+				newChatElement.classList.add("group", "relative"); 
+				newChatElement.dataset.chatId = data.chat_id; 
 
 				const currentDate = new Date().toLocaleDateString("en-US", {
 					month: "short",
@@ -745,26 +784,26 @@ document.addEventListener("DOMContentLoaded", function () {
 								<div class="text-lg text-gray-200 truncate chat-title" data-chat-id="${
 									data.chat_id
 								}">
-									${data.title}
-								</div>
-							</a>
+								${data.title}
+							</div>
+						</a>
 							<div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-								<button
+							<button
 									class="edit-title-btn p-1 text-gray-400 hover:text-gray-200 transition-all rounded"
 									data-chat-id="${data.chat_id}" title="Rename chat">
 									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
 									</svg>
-								</button>
-								<button
+							</button>
+							<button
 									class="delete-chat-btn p-1 text-gray-400 hover:text-gray-200 transition-all rounded"
 									data-chat-id="${data.chat_id}" title="Delete chat">
 									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
 									</svg>
-								</button>
-							</div>
+							</button>
 						</div>
+					</div>
 						<form method="POST" action="/chat/${
 							data.chat_id
 						}/update-title/" class="hidden edit-title-form absolute inset-0 flex items-center bg-gray-800 rounded-lg z-10">
@@ -774,16 +813,16 @@ document.addEventListener("DOMContentLoaded", function () {
 							<input type="text" name="title" value="${
 								data.title
 							}" class="flex-grow px-4 py-2 bg-transparent text-white focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-lg" />
-							<div class="flex items-center px-2">
-								<button type="submit" class="p-2 text-green-400 hover:text-green-300 hover:bg-gray-700 rounded-lg transition-colors">
-									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
-								</button>
-								<button type="button" class="cancel-edit p-2 text-red-400 hover:text-red-300 hover:bg-gray-700 rounded-lg transition-colors">
-									<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
-								</button>
-							</div>
-						</form>
-					`;
+						<div class="flex items-center px-2">
+							<button type="submit" class="p-2 text-green-400 hover:text-green-300 hover:bg-gray-700 rounded-lg transition-colors">
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+							</button>
+							<button type="button" class="cancel-edit p-2 text-red-400 hover:text-red-300 hover:bg-gray-700 rounded-lg transition-colors">
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+							</button>
+						</div>
+					</form>
+				`;
 
 				if (chatsList && chatsList.firstChild) {
 					chatsList.insertBefore(newChatElement, chatsList.firstChild);
@@ -793,7 +832,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
 				// Apply consistent styling to the newly created chat element
 				applyConsistentChatElementStyling(newChatElement);
-
+				
 				// Dispatch chatStateChanged event ONCE after all updates
 				console.log(
 					"Dispatching chatStateChanged event. isNewChat:",
@@ -828,17 +867,17 @@ document.addEventListener("DOMContentLoaded", function () {
 				const messageDiv = document.createElement("div");
 				messageDiv.className = "message-enter px-4 md:px-6 py-6";
 				messageDiv.innerHTML = `
-						<div class="chat-container flex gap-4 md:gap-6">
-							<div class="flex-shrink-0 w-7 h-7">
-								<div class="cls w-10 h-7 p-1 rounded-sm bg-slate-100 flex items-center justify-center text-white">
-									<img src="/static/images/logo.png" alt="Assistant icon" class="h-5 w-7">
-								</div>
-							</div>
-							<div class="flex-1 overflow-x-auto min-w-0">
-								<p class="text-red-400">Error: ${error.message}</p>
+					<div class="chat-container flex gap-4 md:gap-6">
+						<div class="flex-shrink-0 w-7 h-7">
+							<div class="cls w-10 h-7 p-1 rounded-sm bg-slate-100 flex items-center justify-center text-white">
+								<img src="/static/images/logo.png" alt="Assistant icon" class="h-5 w-7">
 							</div>
 						</div>
-					`;
+						<div class="flex-1 overflow-x-auto min-w-0">
+							<p class="text-red-400">Error: ${error.message}</p>
+						</div>
+					</div>
+				`;
 				document.getElementById("chat-messages").appendChild(messageDiv);
 			}
 			stopButton.classList.add("hidden");
@@ -929,12 +968,12 @@ document.addEventListener("DOMContentLoaded", function () {
 			}
 			document.getElementById("chat-messages").innerHTML = `
 					<div id="initial-chat-placeholder" class="flex flex-col items-center justify-center h-[calc(100vh-200px)]">
-						<svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="text-gray-400 mb-2">
-							<path d="M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-10.5V21" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
-						</svg>
-						<p class="text-gray-400 text-sm">How can I help you today?</p>
-					</div>
-				`;
+					<svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="text-gray-400 mb-2">
+						<path d="M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-10.5V21" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+					</svg>
+					<p class="text-gray-400 text-sm">How can I help you today?</p>
+				</div>
+			`;
 		} catch (error) {
 			console.error("Error clearing chat:", error);
 			alert("There was an error clearing the chat. Please try again.");
@@ -1151,9 +1190,9 @@ document.addEventListener("DOMContentLoaded", function () {
 							.catch(() => ({ error: "Failed to delete chat" }));
 						throw new Error(errorData.error || "Failed to delete chat");
 					}
-
+					
 					// Remove the element from DOM after successful API call
-					chatElement.remove();
+							chatElement.remove();
 					console.log(`[chat.js] Chat ${chatId} deleted and removed from DOM.`);
 
 					// Redirect if we deleted the current chat
@@ -1186,7 +1225,7 @@ document.addEventListener("DOMContentLoaded", function () {
 					`Error deleting chat: ${error.message}`,
 					"error"
 				);
-			} else {
+	} else {
 				alert(
 					`An error occurred when trying to delete the chat: ${error.message}`
 				);
@@ -1228,19 +1267,19 @@ document.addEventListener("DOMContentLoaded", function () {
 
 		// Make sure the container is valid before appending
 		if (container && container.appendChild) {
-			container.appendChild(input);
-			input.focus();
-			input.select();
+		container.appendChild(input);
+		input.focus();
+		input.select();
 
-			input.addEventListener("blur", () =>
+		input.addEventListener("blur", () =>
 				finishTitleEditing(container, titleElement, input, currentTitle, chatId)
-			);
+		);
 
-			input.addEventListener("keydown", (e) => {
-				if (e.key === "Enter") {
-					e.preventDefault();
-					input.blur();
-				} else if (e.key === "Escape") {
+		input.addEventListener("keydown", (e) => {
+			if (e.key === "Enter") {
+				e.preventDefault();
+				input.blur();
+			} else if (e.key === "Escape") {
 					cancelTitleEditing(container, titleElement, input);
 				}
 			});
@@ -1433,13 +1472,13 @@ document.addEventListener("DOMContentLoaded", function () {
 				fileEl.className =
 					"flex items-center justify-between bg-gray-700 p-2 rounded-md text-sm hover:bg-gray-600/80 transition-colors";
 				fileEl.innerHTML = `
-	          <span class=\"text-gray-200 truncate max-w-[80%]\" title=\"${file.name}\">${file.name}</span>
-	          <button class=\"delete-rag-file-btn p-1 text-red-400 hover:text-red-300 rounded-full focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50\" data-file-id=\"${file.id}\" title=\"Remove from RAG context\">
-	            <svg xmlns=\"http://www.w3.org/2000/svg\" class=\"h-4 w-4\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\" stroke-width=\"2\">
-	              <path stroke-linecap=\"round\" stroke-linejoin=\"round\" d=\"M6 18L18 6M6 6l12 12\" />
-	            </svg>
-	          </button>
-	        `;
+          <span class=\"text-gray-200 truncate max-w-[80%]\" title=\"${file.name}\">${file.name}</span>
+          <button class=\"delete-rag-file-btn p-1 text-red-400 hover:text-red-300 rounded-full focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50\" data-file-id=\"${file.id}\" title=\"Remove from RAG context\">
+            <svg xmlns=\"http://www.w3.org/2000/svg\" class=\"h-4 w-4\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\" stroke-width=\"2\">
+              <path stroke-linecap=\"round\" stroke-linejoin=\"round\" d=\"M6 18L18 6M6 6l12 12\" />
+            </svg>
+          </button>
+        `;
 				ragFilesListDiv.appendChild(fileEl);
 				const deleteBtn = fileEl.querySelector(".delete-rag-file-btn");
 				if (deleteBtn) {
@@ -1674,6 +1713,11 @@ document.addEventListener("DOMContentLoaded", function () {
 						JSON.stringify(isDiagramModeActive)
 					);
 				}
+				if (isYoutubeModeActive) {
+					isYoutubeModeActive = false;
+					updateYoutubeModeToggleButton();
+					localStorage.setItem("youtubeModeActive", JSON.stringify(isYoutubeModeActive));
+				}
 			} else {
 				setInactiveStyles();
 			}
@@ -1746,6 +1790,11 @@ document.addEventListener("DOMContentLoaded", function () {
 					setInactiveStyles(); // Use the RAG inactive style function
 					localStorage.setItem("ragModeActive", JSON.stringify(isRAGActive));
 				}
+				if (isYoutubeModeActive) {
+					isYoutubeModeActive = false;
+					updateYoutubeModeToggleButton();
+					localStorage.setItem("youtubeModeActive", JSON.stringify(isYoutubeModeActive));
+				}
 			}
 			localStorage.setItem(
 				"diagramModeActive",
@@ -1758,6 +1807,74 @@ document.addEventListener("DOMContentLoaded", function () {
 		});
 	} else {
 		console.warn("Diagram mode toggle button not found in the DOM");
+	}
+
+    // YouTube Mode Toggle Button Logic
+    function updateYoutubeModeToggleButton() {
+        if (!youtubeModeToggleButton) return;
+        const icon = youtubeModeToggleButton.querySelector("svg");
+        if (isYoutubeModeActive) {
+            console.log("Setting youtube mode active styles");
+            if (icon) {
+                icon.classList.remove("text-gray-400");
+                icon.classList.add("text-red-500");
+                youtubeModeToggleButton.classList.add("bg-gray-800");
+            }
+        } else {
+            console.log("Setting youtube mode inactive styles");
+            if (icon) {
+                icon.classList.remove("text-red-500");
+                icon.classList.add("text-gray-400");
+                youtubeModeToggleButton.classList.remove("bg-gray-800");
+            }
+        }
+    }
+
+	if (youtubeModeToggleButton) {
+		console.log("Found YouTube mode toggle button", isYoutubeModeActive);
+		updateYoutubeModeToggleButton();
+
+		const setRAGInactiveStyles = () => {
+			if (ragToggleButton.querySelector("svg")) {
+				ragToggleButton.querySelector("svg").classList.remove("text-green-400");
+				ragToggleButton.querySelector("svg").classList.add("text-gray-400");
+				ragToggleButton.classList.remove("bg-gray-800"); 
+			}
+		};
+        
+        const setDiagramInactiveStyles = () => {
+			if (diagramModeToggleButton.querySelector("svg")) {
+				diagramModeToggleButton.querySelector("svg").classList.remove("text-blue-400");
+				diagramModeToggleButton.querySelector("svg").classList.add("text-gray-400");
+				diagramModeToggleButton.classList.remove("bg-gray-800");
+			}
+		};
+
+        youtubeModeToggleButton.addEventListener("click", () => {
+            console.log("YouTube mode button clicked, current state:", isYoutubeModeActive);
+            isYoutubeModeActive = !isYoutubeModeActive;
+            console.log("Toggling YouTube mode to:", isYoutubeModeActive);
+
+            updateYoutubeModeToggleButton();
+            if (isYoutubeModeActive) {
+                if (isRAGActive) {
+                    isRAGActive = false;
+                    setRAGInactiveStyles();
+                    localStorage.setItem("ragModeActive", JSON.stringify(isRAGActive));
+                }
+                if (isDiagramModeActive) {
+                    isDiagramModeActive = false;
+                    setDiagramInactiveStyles();
+                    localStorage.setItem("diagramModeActive", JSON.stringify(isDiagramModeActive));
+                }
+            }
+            localStorage.setItem("youtubeModeActive", JSON.stringify(isYoutubeModeActive));
+            appendSystemNotification(
+                `YouTube mode is now ${isYoutubeModeActive ? "ACTIVE" : "INACTIVE"}.`, "info"
+            );
+        });
+    } else {
+        console.warn("YouTube mode toggle button not found in the DOM");
 	}
 
 	// Initial calls for existing messages (if any)
@@ -1803,26 +1920,26 @@ document.addEventListener("DOMContentLoaded", function () {
 		messageDiv.setAttribute("data-message-id", messageId); // For potential future use
 
 		messageDiv.innerHTML = `
-				<div class="chat-container flex gap-4 md:gap-6">
-					<div class="flex-shrink-0 w-7 h-7">
-						<div class="cls w-10 h-7 p-1 rounded-sm bg-slate-100 flex items-center justify-center text-white">
-							<img src="/static/images/logo.png" alt="Assistant icon" class="h-5 w-7">
-						</div>
-					</div>
-					<div class="flex-1 overflow-x-auto min-w-0 max-w-[85%]">
-						<div class="diagram-message-container bg-gray-800/50 p-2 my-2 rounded-lg shadow-md flex flex-col justify-center items-center">
-							<img src="${imageUrl}" alt="${textContent || "Generated Diagram"}" 
-								class="max-w-full h-auto rounded-md mb-1 cursor-pointer hover:opacity-90 transition-opacity" 
-								onclick="openImageModal('${imageUrl}')">
-							${
-								textContent
-									? `<p class="text-xs text-gray-400 italic mt-1 text-center">${textContent}</p>`
-									: ""
-							}
-						</div>
+			<div class="chat-container flex gap-4 md:gap-6">
+				<div class="flex-shrink-0 w-7 h-7">
+					<div class="cls w-10 h-7 p-1 rounded-sm bg-slate-100 flex items-center justify-center text-white">
+						<img src="/static/images/logo.png" alt="Assistant icon" class="h-5 w-7">
 					</div>
 				</div>
-			`;
+				<div class="flex-1 overflow-x-auto min-w-0 max-w-[85%]">
+					<div class="diagram-message-container bg-gray-800/50 p-2 my-2 rounded-lg shadow-md flex flex-col justify-center items-center">
+						<img src="${imageUrl}" alt="${textContent || "Generated Diagram"}" 
+							class="max-w-full h-auto rounded-md mb-1 cursor-pointer hover:opacity-90 transition-opacity" 
+							onclick="openImageModal('${imageUrl}')">
+						${
+							textContent
+								? `<p class="text-xs text-gray-400 italic mt-1 text-center">${textContent}</p>`
+								: ""
+						}
+					</div>
+				</div>
+			</div>
+		`;
 
 		messagesDiv.appendChild(messageDiv);
 		window.smoothScrollToBottom();
@@ -1920,10 +2037,10 @@ document.addEventListener("DOMContentLoaded", function () {
 							const actualContentHtml = `<div class="quiz-message max-w-none text-gray-100 bg-gray-700/70 p-2 rounded-xl">${data.quiz_html}</div>`;
 
 							messageDiv.innerHTML = `
-									<div class="chat-container flex gap-4 md:gap-6">
-										<div class="flex-shrink-0 w-7 h-7">${iconHtml}</div>
-										<div class="flex-1 overflow-x-auto min-w-0 max-w-[85%]">${actualContentHtml}</div>
-									</div>`;
+								<div class="chat-container flex gap-4 md:gap-6">
+									<div class="flex-shrink-0 w-7 h-7">${iconHtml}</div>
+									<div class="flex-1 overflow-x-auto min-w-0 max-w-[85%]">${actualContentHtml}</div>
+								</div>`;
 							messagesDiv.appendChild(messageDiv);
 
 							// Process the quiz content that was just added
@@ -2002,16 +2119,69 @@ document.addEventListener("DOMContentLoaded", function () {
 	// Initial call to set visibility
 	window.updateQuizButtonVisibility();
 
-	// Add an event listener for chatStateChanged to update UI elements
+    // Add an event listener for chatStateChanged to update UI elements
 	document.addEventListener("chatStateChanged", function (event) {
 		console.log(
 			"[chat.js] Caught chatStateChanged event directly.",
 			event.detail
 		);
 		if (typeof updateNewChatUI === "function") {
-			updateNewChatUI(event.detail.isNewChat);
-		}
-	});
+            updateNewChatUI(event.detail.isNewChat);
+        }
+    });
+
+    window.YoutubeHandler = {
+        renderRecommendations: function(container, videoData) {
+            if (!Array.isArray(videoData) || videoData.length === 0) {
+                return;
+            }
+
+            // Create a container for the recommendations
+            const recommendationsContainer = document.createElement('div');
+            recommendationsContainer.className = 'youtube-recommendations-container space-y-3';
+
+            // Add a header text
+            const header = document.createElement('p');
+            header.className = 'text-gray-200';
+            header.textContent = 'Here are some videos I found for you:';
+            recommendationsContainer.appendChild(header);
+
+            // Create and append each video embed
+            videoData.forEach(video => {
+                const link = document.createElement('a');
+                link.href = video.url;
+                link.target = '_blank';
+                link.rel = 'noopener noreferrer';
+                link.className = 'flex items-center bg-gray-800/50 hover:bg-gray-700/60 border border-gray-700 rounded-lg p-2 no-underline transition-all duration-200 group';
+
+                const thumbnailDiv = document.createElement('div');
+                thumbnailDiv.className = 'flex-shrink-0 w-32 h-18 mr-3';
+                
+                const thumbnailImg = document.createElement('img');
+                thumbnailImg.src = video.thumbnail;
+                thumbnailImg.alt = `Thumbnail for ${video.title}`;
+                thumbnailImg.className = 'w-full h-full object-cover rounded-md border border-gray-600';
+                
+                thumbnailDiv.appendChild(thumbnailImg);
+
+                const infoDiv = document.createElement('div');
+                infoDiv.className = 'flex-1 min-w-0';
+
+                const titleP = document.createElement('p');
+                titleP.className = 'text-gray-100 font-medium text-sm truncate group-hover:text-white';
+                titleP.textContent = video.title;
+
+                infoDiv.appendChild(titleP);
+
+                link.appendChild(thumbnailDiv);
+                link.appendChild(infoDiv);
+
+                recommendationsContainer.appendChild(link);
+            });
+
+            container.appendChild(recommendationsContainer);
+        }
+    };
 });
 
 function updateNewChatUI(isNew) {
@@ -2023,20 +2193,20 @@ function updateNewChatUI(isNew) {
 	if (isNew) {
 		console.log("[updateNewChatUI from chat.js] HIDING buttons.");
 		if (quizButtonContainer) {
-			quizButtonContainer.classList.add("hidden");
-		}
+            quizButtonContainer.classList.add("hidden");
+        }
 		if (manageRagButton) {
-			manageRagButton.classList.add("hidden");
-		}
+            manageRagButton.classList.add("hidden");
+        }
 	} else {
-		// Defer the showing logic slightly
-		setTimeout(() => {
+        // Defer the showing logic slightly
+        setTimeout(() => {
 			console.log(
 				"[updateNewChatUI from chat.js - setTimeout] SHOWING buttons."
 			);
-			if (quizButtonContainer) {
-				quizButtonContainer.classList.remove("hidden");
-				quizButtonContainer.style.display = "";
+            if (quizButtonContainer) {
+                quizButtonContainer.classList.remove("hidden");
+                quizButtonContainer.style.display = ""; 
 				console.log(
 					"[updateNewChatUI from chat.js - setTimeout] Quiz button hidden class removed. Hidden status:",
 					quizButtonContainer.classList.contains("hidden")
@@ -2045,10 +2215,10 @@ function updateNewChatUI(isNew) {
 					"[updateNewChatUI from chat.js - setTimeout] Quiz button style.display:",
 					quizButtonContainer.style.display
 				);
-			}
-			if (manageRagButton) {
-				manageRagButton.classList.remove("hidden");
-				manageRagButton.style.display = "";
+            }
+            if (manageRagButton) {
+                manageRagButton.classList.remove("hidden");
+                manageRagButton.style.display = ""; 
 				console.log(
 					"[updateNewChatUI from chat.js - setTimeout] RAG button hidden class removed. Hidden status:",
 					manageRagButton.classList.contains("hidden")
@@ -2057,8 +2227,8 @@ function updateNewChatUI(isNew) {
 					"[updateNewChatUI from chat.js - setTimeout] RAG button style.display:",
 					manageRagButton.style.display
 				);
-			}
-		}, 0); // Zero delay, just defers to next tick
+            }
+        }, 0); // Zero delay, just defers to next tick
 	}
 }
 
