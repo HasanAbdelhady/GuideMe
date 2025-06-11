@@ -59,10 +59,10 @@
 				</div>
 			</div>
 			<!-- Message content -->
-			<div class="flex-1 overflow-x-auto min-w-0 max-w-[85%]">
+			<div class="block overflow-x-auto min-w-[65%] max-w-[85%]">
 				{% if msg.diagram_image_url %}
 				<div
-					class="diagram-message-container bg-gray-800/50 p-2 my-2 rounded-lg shadow-md flex flex-col justify-center items-center">
+					class="diagram-message-container borderd border-red-600 shadow-md shadow-gray-900 bg-gray-800/50 p-2 my-2 rounded-lg shadow-md flex flex-col justify-center items-center">
 					<img src="{{ msg.diagram_image_url }}"
 						alt="{{ msg.text | default:'Generated Diagram' }}"
 						class="max-w-full h-auto rounded-md mb-1 cursor-pointer hover:opacity-90 transition-opacity"
@@ -86,7 +86,8 @@
 		{% endif %}
 	</div>
 	{% empty %}
-	<div class="flex flex-col items-center justify-center h-[calc(100vh-200px)] ">
+	<div id="initial-chat-placeholder"
+		class="flex flex-col items-center justify-center h-[calc(100vh-200px)] ">
 		<img src="{% static 'images/logo.png' %}" alt="Assistant icon"
 			class="h-14 w-24">
 

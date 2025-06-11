@@ -566,7 +566,8 @@ document.addEventListener("DOMContentLoaded", function () {
 									"quiz",
 									data.quiz_html
 								);
-								isFirstTextChunk = false;
+								currentMessageContainer = null; // Reset after quiz handling
+								isFirstTextChunk = true;
 							}
 						} else if (data.type === "content") {
 							const messagesDiv = document.getElementById("chat-messages");
@@ -596,7 +597,7 @@ document.addEventListener("DOMContentLoaded", function () {
 						} else if (data.type === "error") {
 							appendSystemNotification(data.content, "error");
 						} else if (data.type === "diagram_image") {
-							// Handle diagram image message
+							// Handle diagram image data
 							console.log("Received diagram image data:", data);
 							if (data.diagram_image_id) {
 								const imageUrl = `/chat/diagram_image/${data.diagram_image_id}/`; // Construct URL
@@ -605,7 +606,9 @@ document.addEventListener("DOMContentLoaded", function () {
 									data.text_content || "Generated Diagram",
 									data.message_id
 								);
-								isFirstTextChunk = false; // Ensure we don't create another message
+								// After a diagram is handled, reset state for the next message component
+								currentMessageContainer = null;
+								isFirstTextChunk = true;
 							} else {
 								appendSystemNotification(
 									"Error: Received diagram response without diagram_image_id",
@@ -631,9 +634,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
 	function appendUserMessage(content) {
 		const messagesDiv = document.getElementById("chat-messages");
-		const placeholder = messagesDiv.querySelector(
-			".flex.flex-col.items-center.justify-center"
-		);
+		const placeholder = document.getElementById("initial-chat-placeholder");
 		if (placeholder) placeholder.remove();
 		const messageDiv = document.createElement("div");
 		messageDiv.className = "message-enter px-4 md:px-6 py-6";
@@ -927,7 +928,7 @@ document.addEventListener("DOMContentLoaded", function () {
 				if (!response.ok) throw new Error("Failed to clear chat");
 			}
 			document.getElementById("chat-messages").innerHTML = `
-					<div class="flex flex-col items-center justify-center h-[calc(100vh-200px)]">
+					<div id="initial-chat-placeholder" class="flex flex-col items-center justify-center h-[calc(100vh-200px)]">
 						<svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="text-gray-400 mb-2">
 							<path d="M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-10.5V21" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
 						</svg>
@@ -1399,7 +1400,7 @@ document.addEventListener("DOMContentLoaded", function () {
 	);
 
 	let currentRAGFiles = []; // To store {id: '...', name: '...'} objects
-	const MAX_RAG_FILES = 3;
+	const MAX_RAG_FILES = 10;
 
 	function openRAGModal() {
 		if (!ragModalOverlay || !ragModalContent) return;
@@ -1786,9 +1787,7 @@ document.addEventListener("DOMContentLoaded", function () {
 		const messagesDiv = document.getElementById("chat-messages");
 
 		// Remove empty placeholder if present
-		const placeholder = messagesDiv.querySelector(
-			".flex.flex-col.items-center.justify-center"
-		);
+		const placeholder = document.getElementById("initial-chat-placeholder");
 		if (placeholder) placeholder.remove();
 
 		console.log(

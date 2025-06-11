@@ -69,6 +69,7 @@
 	font-size: 0.9em;
 	padding: 0.2em 0.4em;
 	border-radius: 0.25rem;
+	background-color: #0f1218;
 }
 
 .markdown-content:not(pre) > code {

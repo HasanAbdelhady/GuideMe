@@ -12,8 +12,9 @@ from googleapiclient.discovery import build
 import isodate
 import traceback
 from dotenv import load_dotenv
+import imageio_ffmpeg
 
-load_dotenv("API.env")
+load_dotenv("../.env")
 
 # Initialize LLM
 llm = ChatGroq(model="llama3-70b-8192", temperature=0.3)
@@ -34,6 +35,7 @@ def summarize_video(url, filename="audio"):
                 'preferredquality': '168',
             }],
             'outtmpl': filename,
+            'ffmpeg_location': os.path.dirname(imageio_ffmpeg.get_ffmpeg_exe())
         }
 
         try:
@@ -82,14 +84,14 @@ def summarize_video(url, filename="audio"):
     except Exception as e:
         return f"Unexpected error: {str(e)}"
 
-youtude_api = os.getenv("YOUTUBE_API_KEY") 
+youtube_api = os.getenv("YOUTUBE_API") 
 
 # Importent variables
 MAX_RESULTS = 10
 
 def get_video_details(video_id):
     try:
-        youtube = build('youtube', 'v3', developerKey=youtude_api)
+        youtube = build('youtube', 'v3', developerKey=youtube_api)
         
         response = youtube.videos().list(
             part="snippet,contentDetails,statistics,status",
@@ -159,7 +161,7 @@ def prompt(user_query, video_metadata_list):
                 
 def recommend_videos(user_query):
     try:
-        youtube = build("youtube", "v3", developerKey=youtude_api)
+        youtube = build("youtube", "v3", developerKey=youtube_api)
         response = youtube.search().list(
             q=user_query,
             part="snippet",
