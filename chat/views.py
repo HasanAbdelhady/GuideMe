@@ -678,7 +678,7 @@ class ChatRAGFilesView(View):
             return JsonResponse({'error': 'Could not retrieve RAG files.'}, status=500)
 
     def post(self, request, chat_id):
-        MAX_RAG_FILES = 3
+        MAX_RAG_FILES = 10
         try:
             chat = get_object_or_404(Chat, id=chat_id, user=request.user)
 

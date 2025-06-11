@@ -778,7 +778,7 @@ document.addEventListener("DOMContentLoaded", function () {
 	);
 
 	let currentRAGFiles = []; // To store {id: '...', name: '...'} objects
-	const MAX_RAG_FILES = 3;
+	const MAX_RAG_FILES = 10;
 
 	function openRAGModal() {
 		if (!ragModalOverlay || !ragModalContent) return;
