@@ -71,15 +71,6 @@
 					<p class="text-xs text-gray-400 italic mt-1 text-center">{{ msg.text }}</p>
 					{% endif %}
 				</div>
-				{% elif msg.text and not msg.diagram_image_id_for_template %}
-				<div class="max-w-none markdown-content text-gray-100">
-					{{ msg.text |safe }}
-				</div>
-				{% elif msg.html %}
-				<div
-					class="quiz-message max-w-none text-gray-100 bg-gray-700/70 p-2 rounded-xl ">
-					{{ msg.html | safe }}
-				</div>
 				{% elif msg.type == 'youtube' and msg.structured_content %}
 				<div class="youtube-recommendations-container space-y-3">
 					<p class="text-gray-200">{{ msg.text }}</p>
@@ -93,6 +84,15 @@
 						</div>
 					</a>
 					{% endfor %}
+				</div>
+				{% elif msg.text and not msg.diagram_image_id_for_template %}
+				<div class="max-w-none markdown-content text-gray-100">
+					{{ msg.text |safe }}
+				</div>
+				{% elif msg.html %}
+				<div
+					class="quiz-message max-w-none text-gray-100 bg-gray-700/70 p-2 rounded-xl ">
+					{{ msg.html | safe }}
 				</div>
 				{% endif %}
 			</div>

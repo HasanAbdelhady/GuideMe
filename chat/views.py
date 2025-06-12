@@ -87,6 +87,7 @@ class ChatView(View):
                     msg_dict = {
                         'role': msg_obj.role,
                         'id': msg_obj.id,
+                        'type': msg_obj.type,
                         'created_at': msg_obj.created_at.isoformat(),
                         'is_edited': msg_obj.is_edited,
                         'edited_at': msg_obj.edited_at.isoformat() if msg_obj.edited_at else None,
@@ -818,8 +819,8 @@ def generate_flashcards_view(request):
         prompt = f"""Generate a list of flashcards for the topic of "{topic}". 
                     Each flashcard should have a term and a concise definition. Format the output as a list of "Term: Definition" pairs, one per line, the text for a single cards must all be included in a single line
                     no linebreakes are allowed for a single entry. Example:
-                    Hello: Hola
-                    Goodbye: Adiós"""
+Hello: Hola
+Goodbye: Adiós"""
 
         try:
             response = flashcard_model.generate_content(prompt)
