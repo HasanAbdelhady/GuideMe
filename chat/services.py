@@ -528,7 +528,7 @@ class ChatService:
         messages_for_description.insert(0, {"role": "system", "content": prompt_description})
         self.logger.info(f"Messages for description LLM call (first few): {str(messages_for_description)[:200]}")
 
-        try:            
+        try:
             structured_description_content = flashcard_model.generate_content(f"{prompt_description}\n\nGenerate a structured explanation for: {user_query}")
             structured_description_content = structured_description_content.text.strip()
             self.logger.info(f"Received structured description: {structured_description_content[:200]}...")
@@ -586,12 +586,12 @@ class ChatService:
                     break
             
             if actual_code_start_index != -1:
-                # If 'import' is found, take everything from that line onwards and strip any trailing whitespace/newlines.
-                graphviz_code = '\n'.join(lines[actual_code_start_index:]).strip()
-                self.logger.info("Found code start using 'import graphviz' after no markdown blocks were detected.")
+                    # If 'import' is found, take everything from that line onwards and strip any trailing whitespace/newlines.
+                    graphviz_code = '\n'.join(lines[actual_code_start_index:]).strip()
+                    self.logger.info("Found code start using 'import graphviz' after no markdown blocks were detected.")
             else:
-                # This means no markdown and no 'import graphviz' found. Code is likely bad or not Python/Graphviz.
-                self.logger.warning(f"[generate_diagram_image] Could not find markdown blocks or 'import graphviz'. Code is likely not valid Python/Graphviz. Proceeding with potentially unclean code: {graphviz_code[:200]}...")
+                    # This means no markdown and no 'import graphviz' found. Code is likely bad or not Python/Graphviz.
+                    self.logger.warning(f"[generate_diagram_image] Could not find markdown blocks or 'import graphviz'. Code is likely not valid Python/Graphviz. Proceeding with potentially unclean code: {graphviz_code[:200]}...")
         
         self.logger.info(f"Cleaned Graphviz code (first 100 chars): {graphviz_code[:100]}...")
         
@@ -659,7 +659,7 @@ class ChatService:
                             graph_object = val
                             self.logger.info(f"Found graph object: {name}")
                             break
-                    
+                        
                     if not graph_object:
                         self.logger.error("No Digraph object found in the executed code")
                         continue
@@ -673,6 +673,7 @@ class ChatService:
                         graph_object.attr('edge', fontname='Segoe UI Emoji')
                         
                         # Try to generate the image
+                        image_bytes = None
                         try:
                             image_bytes = graph_object.pipe()
                         except Exception as pipe_error:
@@ -690,7 +691,7 @@ class ChatService:
                         if not image_bytes:
                             self.logger.error("No image data generated")
                             continue
-                        
+
                         # Save to DiagramImage model
                         safe_topic_filename = sanitize_filename(topic_name_from_query).replace(' ', '_') + ".png"
                         
@@ -701,19 +702,19 @@ class ChatService:
                             filename=safe_topic_filename,
                             content_type='image/png'
                         )
-                        
+                    
                         self.logger.info(f"✅ Diagram saved successfully with ID: {diagram_image_instance.id}")
                         return diagram_image_instance.id
                         
                     except Exception as e:
                         self.logger.error(f"Error generating image: {str(e)}")
                         continue
-                    
+            
                 except Exception as e:
                     self.logger.error(f"Error executing code: {str(e)}")
                     if attempt == 2:  # Last attempt
-                        return None
-                    
+                        return None 
+            
                     # Try to get fixed code from LLM
                     try:
                         fix_prompt_content = prompt_fix_code.format(
@@ -728,7 +729,7 @@ class ChatService:
                                 {"role": "system", "content": "You are a helpful assistant that fixes Python Graphviz code."},
                                 {"role": "user", "content": fix_prompt_content}
                             ],
-                            max_tokens=6000,
+                            max_tokens=6000, 
                             chat_id=chat_model_instance.id,
                             temperature=0.0
                         )
@@ -742,7 +743,7 @@ class ChatService:
                     except Exception as llm_fix_exc:
                         self.logger.error(f"Error getting fixed code: {str(llm_fix_exc)}")
                         return None
-            
+                    
             return None
 
         try:
