@@ -22,12 +22,12 @@
     <form id="chat-form" enctype="multipart/form-data">
         {% csrf_token %}
         <div
-            class="relative shadow-md rounded-lg overflow-hidden border border-gray-600/40">
+            class="bg-gray-700 relative shadow-md rounded-lg overflow-hidden">
             <textarea id="prompt" name="prompt" rows="1"
                 placeholder="Teach me about..."
-                class="chat-input input-glow w-full py-2 pl-4 pr-36 text-gray-100 rounded-md focus:outline-none resize-none max-h-40"></textarea>
+                class="bg-gray-700/40 w-full py-2 pl-4 pr-36 text-gray-100 rounded-md focus:outline-none resize-none max-h-40"></textarea>
 
-            <div class="absolute right-2 bottom-2.5 flex">
+            <div class="relative left-2 bottom-0 flex p-1 ">
                 <!-- RAG Mode Toggle Button -->
                 <button id="rag-mode-toggle"
                     class="p-1 mr-2 rounded-md hover:bg-gray-700/70 focus:outline-none transition-colors flex items-center"
@@ -61,8 +61,12 @@
                 <button id="youtube-mode-toggle"
                     class="p-1 mr-2 rounded-md hover:bg-gray-700/70 focus:outline-none transition-colors flex items-center"
                     title="Toggle YouTube Mode (Summarize or Recommend Videos)">
-                    <svg id="youtube-mode-icon" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M21.582,6.186c-0.23-0.86-0.908-1.538-1.768-1.768C18.254,4,12,4,12,4S5.746,4,4.186,4.418 c-0.86,0.23-1.538,0.908-1.768,1.768C2,7.746,2,12,2,12s0,4.254,0.418,5.814c0.23,0.86,0.908,1.538,1.768,1.768 C5.746,20,12,20,12,20s6.254,0,7.814-0.418c0.861-0.23,1.538-0.908,1.768-1.768C22,16.254,22,12,22,12S22,7.746,21.582,6.186z M10,15.464V8.536L16,12L10,15.464z"/>
+                    <svg id="youtube-mode-icon"
+                        xmlns="http://www.w3.org/2000/svg"
+                        class="h-4 w-4 mr-1 text-gray-400" viewBox="0 0 24 24"
+                        fill="currentColor">
+                        <path
+                            d="M21.582,6.186c-0.23-0.86-0.908-1.538-1.768-1.768C18.254,4,12,4,12,4S5.746,4,4.186,4.418 c-0.86,0.23-1.538,0.908-1.768,1.768C2,7.746,2,12,2,12s0,4.254,0.418,5.814c0.23,0.86,0.908,1.538,1.768,1.768 C5.746,20,12,20,12,20s6.254,0,7.814-0.418c0.861-0.23,1.538-0.908,1.768-1.768C22,16.254,22,12,22,12S22,7.746,21.582,6.186z M10,15.464V8.536L16,12L10,15.464z" />
                     </svg>
                     <span class="text-xs text-gray-400">YouTube</span>
                 </button>

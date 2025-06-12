@@ -143,12 +143,15 @@ document.addEventListener("DOMContentLoaded", function () {
 		);
 	}
 
-    const savedYoutubeModeState = localStorage.getItem("youtubeModeActive");
-    if (savedYoutubeModeState !== null) {
-        isYoutubeModeActive = JSON.parse(savedYoutubeModeState);
-        console.log("Loaded YouTube mode state:", isYoutubeModeActive);
-    } else {
-        localStorage.setItem("youtubeModeActive", JSON.stringify(isYoutubeModeActive));
+	const savedYoutubeModeState = localStorage.getItem("youtubeModeActive");
+	if (savedYoutubeModeState !== null) {
+		isYoutubeModeActive = JSON.parse(savedYoutubeModeState);
+		console.log("Loaded YouTube mode state:", isYoutubeModeActive);
+	} else {
+		localStorage.setItem(
+			"youtubeModeActive",
+			JSON.stringify(isYoutubeModeActive)
+		);
 	}
 
 	// DOM elements
@@ -168,7 +171,9 @@ document.addEventListener("DOMContentLoaded", function () {
 	const diagramModeToggleButton = document.getElementById(
 		"diagram-mode-toggle"
 	);
-	const youtubeModeToggleButton = document.getElementById("youtube-mode-toggle");
+	const youtubeModeToggleButton = document.getElementById(
+		"youtube-mode-toggle"
+	);
 	const ragModalOverlay = document.getElementById("rag-modal-overlay");
 
 	// Sidebar toggle
@@ -353,7 +358,7 @@ document.addEventListener("DOMContentLoaded", function () {
 			`;
 		} else {
 			// Assistant message - left aligned
-		messageDiv.innerHTML = `
+			messageDiv.innerHTML = `
 				<div class="chat-container flex gap-4 md:gap-6">
 					<!-- Assistant icon - left side -->
 				<div class="flex-shrink-0 w-7 h-7">
@@ -398,8 +403,8 @@ document.addEventListener("DOMContentLoaded", function () {
 							markdownContentDiv
 								.querySelectorAll("pre code")
 								.forEach((block) => {
-								hljs.highlightElement(block);
-							});
+									hljs.highlightElement(block);
+								});
 						}
 						initializeCodeBlockFeatures(markdownContentDiv);
 					} else {
@@ -502,7 +507,7 @@ document.addEventListener("DOMContentLoaded", function () {
 				// Use a data attribute to buffer raw text
 				if (typeof container.dataset.rawTextBuffer === "undefined") {
 					// This case should ideally be covered by appendMessage initializing the buffer
-					container.dataset.rawTextBuffer = ""; 
+					container.dataset.rawTextBuffer = "";
 				}
 				container.dataset.rawTextBuffer += contentChunk; // Use contentChunk directly
 
@@ -600,7 +605,7 @@ document.addEventListener("DOMContentLoaded", function () {
 								// 	newChunkParagraph.textContent = "CHUNK: " + data.content; // Prefix to make it obvious
 								// 	newChunkParagraph.style.color = "cyan"; // Make it stand out
 								// 	messagesDiv.appendChild(newChunkParagraph);
-								// 	smoothScrollToBottom(); 
+								// 	smoothScrollToBottom();
 								// }
 								updateAssistantMessage(currentMessageContainer, data.content);
 							}
@@ -628,12 +633,13 @@ document.addEventListener("DOMContentLoaded", function () {
 						} else if (data.type === "done") {
 							window.removeTypingIndicator();
 						} else if (data.type === "youtube_recommendations") {
-                            // This is a new message, so create the container for it
-                            const messagesContainer = document.getElementById("chat-messages");
-                            const messageDiv = document.createElement("div");
-                            messageDiv.className = "message-enter px-4 md:px-6 py-6";
-                            
-                            messageDiv.innerHTML = `
+							// This is a new message, so create the container for it
+							const messagesContainer =
+								document.getElementById("chat-messages");
+							const messageDiv = document.createElement("div");
+							messageDiv.className = "message-enter px-4 md:px-6 py-6";
+
+							messageDiv.innerHTML = `
                                 <div class="chat-container flex gap-4 md:gap-6">
                                     <div class="flex-shrink-0 w-7 h-7">
                                         <div class="cls w-10 h-7 p-1 rounded-sm bg-slate-100 flex items-center justify-center text-white">
@@ -645,15 +651,20 @@ document.addEventListener("DOMContentLoaded", function () {
                                     </div>
                                 </div>
                             `;
-                            messagesContainer.appendChild(messageDiv);
-                            const youtubeWrapper = messageDiv.querySelector('[data-role="youtube-content-wrapper"]');
-                            
-                            if (window.YoutubeHandler && youtubeWrapper) {
-                                window.YoutubeHandler.renderRecommendations(youtubeWrapper, data.data);
-                            }
-                            window.smoothScrollToBottom();
-                            currentMessageContainer = null;
-                            isFirstTextChunk = true;
+							messagesContainer.appendChild(messageDiv);
+							const youtubeWrapper = messageDiv.querySelector(
+								'[data-role="youtube-content-wrapper"]'
+							);
+
+							if (window.YoutubeHandler && youtubeWrapper) {
+								window.YoutubeHandler.renderRecommendations(
+									youtubeWrapper,
+									data.data
+								);
+							}
+							window.smoothScrollToBottom();
+							currentMessageContainer = null;
+							isFirstTextChunk = true;
 						}
 					}
 				}
@@ -720,12 +731,12 @@ document.addEventListener("DOMContentLoaded", function () {
 			console.log("Submitting form with states:", {
 				isRAGActive,
 				isDiagramModeActive,
-                isYoutubeModeActive
+				isYoutubeModeActive
 			});
 
 			formData.append("rag_mode_active", isRAGActive.toString());
 			formData.append("diagram_mode_active", isDiagramModeActive.toString());
-            formData.append("youtube_mode_active", isYoutubeModeActive.toString());
+			formData.append("youtube_mode_active", isYoutubeModeActive.toString());
 
 			if (isNewChat) {
 				const createResponse = await fetch("/chat/create/", {
@@ -760,8 +771,8 @@ document.addEventListener("DOMContentLoaded", function () {
 				// Create and add new chat element to the sidebar
 				const chatsList = document.getElementById("chats-list");
 				const newChatElement = document.createElement("div");
-				newChatElement.classList.add("group", "relative"); 
-				newChatElement.dataset.chatId = data.chat_id; 
+				newChatElement.classList.add("group", "relative");
+				newChatElement.dataset.chatId = data.chat_id;
 
 				const currentDate = new Date().toLocaleDateString("en-US", {
 					month: "short",
@@ -832,7 +843,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
 				// Apply consistent styling to the newly created chat element
 				applyConsistentChatElementStyling(newChatElement);
-				
+
 				// Dispatch chatStateChanged event ONCE after all updates
 				console.log(
 					"Dispatching chatStateChanged event. isNewChat:",
@@ -1190,9 +1201,9 @@ document.addEventListener("DOMContentLoaded", function () {
 							.catch(() => ({ error: "Failed to delete chat" }));
 						throw new Error(errorData.error || "Failed to delete chat");
 					}
-					
+
 					// Remove the element from DOM after successful API call
-							chatElement.remove();
+					chatElement.remove();
 					console.log(`[chat.js] Chat ${chatId} deleted and removed from DOM.`);
 
 					// Redirect if we deleted the current chat
@@ -1225,7 +1236,7 @@ document.addEventListener("DOMContentLoaded", function () {
 					`Error deleting chat: ${error.message}`,
 					"error"
 				);
-	} else {
+			} else {
 				alert(
 					`An error occurred when trying to delete the chat: ${error.message}`
 				);
@@ -1267,19 +1278,19 @@ document.addEventListener("DOMContentLoaded", function () {
 
 		// Make sure the container is valid before appending
 		if (container && container.appendChild) {
-		container.appendChild(input);
-		input.focus();
-		input.select();
+			container.appendChild(input);
+			input.focus();
+			input.select();
 
-		input.addEventListener("blur", () =>
+			input.addEventListener("blur", () =>
 				finishTitleEditing(container, titleElement, input, currentTitle, chatId)
-		);
+			);
 
-		input.addEventListener("keydown", (e) => {
-			if (e.key === "Enter") {
-				e.preventDefault();
-				input.blur();
-			} else if (e.key === "Escape") {
+			input.addEventListener("keydown", (e) => {
+				if (e.key === "Enter") {
+					e.preventDefault();
+					input.blur();
+				} else if (e.key === "Escape") {
 					cancelTitleEditing(container, titleElement, input);
 				}
 			});
@@ -1440,6 +1451,37 @@ document.addEventListener("DOMContentLoaded", function () {
 
 	let currentRAGFiles = []; // To store {id: '...', name: '...'} objects
 	const MAX_RAG_FILES = 10;
+
+	function updateRagToggleButtonStyle(isActive) {
+		if (!ragToggleButton) return;
+		console.log(
+			`Setting RAG button style to: ${isActive ? "ACTIVE" : "INACTIVE"}`
+		);
+		const icon = ragToggleButton.querySelector("svg");
+		const text = ragToggleButton.querySelector("span");
+
+		if (isActive) {
+			ragToggleButton.classList.add("bg-gray-800");
+			if (icon) {
+				icon.classList.remove("text-gray-400");
+				icon.classList.add("text-green-400");
+			}
+			if (text) {
+				text.classList.remove("text-gray-400");
+				text.classList.add("text-green-400");
+			}
+		} else {
+			ragToggleButton.classList.remove("bg-gray-800");
+			if (icon) {
+				icon.classList.remove("text-green-400");
+				icon.classList.add("text-gray-400");
+			}
+			if (text) {
+				text.classList.remove("text-green-400");
+				text.classList.add("text-gray-400");
+			}
+		}
+	}
 
 	function openRAGModal() {
 		if (!ragModalOverlay || !ragModalContent) return;
@@ -1670,40 +1712,17 @@ document.addEventListener("DOMContentLoaded", function () {
 	if (ragToggleButton) {
 		console.log("Found RAG toggle button", isRAGActive);
 
-		const setActiveStyles = () => {
-			console.log("Setting RAG active styles");
-			// For icons, we change the SVG color
-			if (ragToggleButton.querySelector("svg")) {
-				ragToggleButton.querySelector("svg").classList.remove("text-gray-400");
-				ragToggleButton.querySelector("svg").classList.add("text-green-400");
-				ragToggleButton.classList.add("bg-gray-800"); // Add background for better visual feedback
-			}
-		};
-
-		const setInactiveStyles = () => {
-			console.log("Setting RAG inactive styles");
-			// For icons, we reset the SVG color
-			if (ragToggleButton.querySelector("svg")) {
-				ragToggleButton.querySelector("svg").classList.remove("text-green-400");
-				ragToggleButton.querySelector("svg").classList.add("text-gray-400");
-				ragToggleButton.classList.remove("bg-gray-800"); // Remove background
-			}
-		};
-
 		// Initial styling based on loaded/default state
-		if (isRAGActive) {
-			setActiveStyles();
-		} else {
-			setInactiveStyles();
-		}
+		updateRagToggleButtonStyle(isRAGActive);
 
 		ragToggleButton.addEventListener("click", () => {
 			console.log("RAG button clicked, current state:", isRAGActive);
 			isRAGActive = !isRAGActive;
 			console.log("Toggling RAG mode to:", isRAGActive);
 
+			updateRagToggleButtonStyle(isRAGActive);
+
 			if (isRAGActive) {
-				setActiveStyles();
 				// If RAG becomes active, disable other modes
 				if (isDiagramModeActive) {
 					isDiagramModeActive = false;
@@ -1716,10 +1735,11 @@ document.addEventListener("DOMContentLoaded", function () {
 				if (isYoutubeModeActive) {
 					isYoutubeModeActive = false;
 					updateYoutubeModeToggleButton();
-					localStorage.setItem("youtubeModeActive", JSON.stringify(isYoutubeModeActive));
+					localStorage.setItem(
+						"youtubeModeActive",
+						JSON.stringify(isYoutubeModeActive)
+					);
 				}
-			} else {
-				setInactiveStyles();
 			}
 			localStorage.setItem("ragModeActive", JSON.stringify(isRAGActive));
 			appendSystemNotification(
@@ -1734,27 +1754,29 @@ document.addEventListener("DOMContentLoaded", function () {
 	// Diagram Mode Toggle Button Logic
 	function updateDiagramModeToggleButtonStyle() {
 		if (!diagramModeToggleButton) return;
+		const icon = diagramModeToggleButton.querySelector("svg");
+		const text = diagramModeToggleButton.querySelector("span");
 		if (isDiagramModeActive) {
 			console.log("Setting diagram mode active styles");
-			if (diagramModeToggleButton.querySelector("svg")) {
-				diagramModeToggleButton
-					.querySelector("svg")
-					.classList.remove("text-gray-400");
-				diagramModeToggleButton
-					.querySelector("svg")
-					.classList.add("text-blue-400");
-				diagramModeToggleButton.classList.add("bg-gray-800"); // Add background for better visual feedback
+			diagramModeToggleButton.classList.add("bg-gray-800"); // Add background for better visual feedback
+			if (icon) {
+				icon.classList.remove("text-gray-400");
+				icon.classList.add("text-blue-400");
+			}
+			if (text) {
+				text.classList.remove("text-gray-400");
+				text.classList.add("text-blue-400");
 			}
 		} else {
 			console.log("Setting diagram mode inactive styles");
-			if (diagramModeToggleButton.querySelector("svg")) {
-				diagramModeToggleButton
-					.querySelector("svg")
-					.classList.remove("text-blue-400");
-				diagramModeToggleButton
-					.querySelector("svg")
-					.classList.add("text-gray-400");
-				diagramModeToggleButton.classList.remove("bg-gray-800"); // Remove background
+			diagramModeToggleButton.classList.remove("bg-gray-800"); // Remove background
+			if (icon) {
+				icon.classList.remove("text-blue-400");
+				icon.classList.add("text-gray-400");
+			}
+			if (text) {
+				text.classList.remove("text-blue-400");
+				text.classList.add("text-gray-400");
 			}
 		}
 	}
@@ -1763,16 +1785,6 @@ document.addEventListener("DOMContentLoaded", function () {
 		console.log("Found diagram mode toggle button", isDiagramModeActive);
 
 		updateDiagramModeToggleButtonStyle(); // Set initial style
-
-		const setInactiveStyles = () => {
-			console.log("Setting RAG inactive styles");
-			// For icons, we reset the SVG color
-			if (ragToggleButton.querySelector("svg")) {
-				ragToggleButton.querySelector("svg").classList.remove("text-green-400");
-				ragToggleButton.querySelector("svg").classList.add("text-gray-400");
-				ragToggleButton.classList.remove("bg-gray-800"); // Remove background
-			}
-		};
 
 		diagramModeToggleButton.addEventListener("click", () => {
 			console.log(
@@ -1787,13 +1799,16 @@ document.addEventListener("DOMContentLoaded", function () {
 				// If Diagram Mode becomes active, disable other modes
 				if (isRAGActive) {
 					isRAGActive = false;
-					setInactiveStyles(); // Use the RAG inactive style function
+					updateRagToggleButtonStyle(false); // Use the RAG inactive style function
 					localStorage.setItem("ragModeActive", JSON.stringify(isRAGActive));
 				}
 				if (isYoutubeModeActive) {
 					isYoutubeModeActive = false;
 					updateYoutubeModeToggleButton();
-					localStorage.setItem("youtubeModeActive", JSON.stringify(isYoutubeModeActive));
+					localStorage.setItem(
+						"youtubeModeActive",
+						JSON.stringify(isYoutubeModeActive)
+					);
 				}
 			}
 			localStorage.setItem(
@@ -1809,72 +1824,75 @@ document.addEventListener("DOMContentLoaded", function () {
 		console.warn("Diagram mode toggle button not found in the DOM");
 	}
 
-    // YouTube Mode Toggle Button Logic
-    function updateYoutubeModeToggleButton() {
-        if (!youtubeModeToggleButton) return;
-        const icon = youtubeModeToggleButton.querySelector("svg");
-        if (isYoutubeModeActive) {
-            console.log("Setting youtube mode active styles");
-            if (icon) {
-                icon.classList.remove("text-gray-400");
-                icon.classList.add("text-red-500");
-                youtubeModeToggleButton.classList.add("bg-gray-800");
-            }
-        } else {
-            console.log("Setting youtube mode inactive styles");
-            if (icon) {
-                icon.classList.remove("text-red-500");
-                icon.classList.add("text-gray-400");
-                youtubeModeToggleButton.classList.remove("bg-gray-800");
-            }
-        }
-    }
+	// YouTube Mode Toggle Button Logic
+	function updateYoutubeModeToggleButton() {
+		if (!youtubeModeToggleButton) return;
+		const icon = youtubeModeToggleButton.querySelector("svg");
+		const text = youtubeModeToggleButton.querySelector("span");
+		if (isYoutubeModeActive) {
+			console.log("Setting youtube mode active styles");
+			youtubeModeToggleButton.classList.add("bg-gray-800");
+			if (icon) {
+				icon.classList.remove("text-gray-400");
+				icon.classList.add("text-red-500");
+			}
+			if (text) {
+				text.classList.remove("text-gray-400");
+				text.classList.add("text-red-500");
+			}
+		} else {
+			console.log("Setting youtube mode inactive styles");
+			youtubeModeToggleButton.classList.remove("bg-gray-800");
+			if (icon) {
+				icon.classList.remove("text-red-500");
+				icon.classList.add("text-gray-400");
+			}
+			if (text) {
+				text.classList.remove("text-red-500");
+				text.classList.add("text-gray-400");
+			}
+		}
+	}
 
 	if (youtubeModeToggleButton) {
 		console.log("Found YouTube mode toggle button", isYoutubeModeActive);
 		updateYoutubeModeToggleButton();
 
-		const setRAGInactiveStyles = () => {
-			if (ragToggleButton.querySelector("svg")) {
-				ragToggleButton.querySelector("svg").classList.remove("text-green-400");
-				ragToggleButton.querySelector("svg").classList.add("text-gray-400");
-				ragToggleButton.classList.remove("bg-gray-800"); 
-			}
-		};
-        
-        const setDiagramInactiveStyles = () => {
-			if (diagramModeToggleButton.querySelector("svg")) {
-				diagramModeToggleButton.querySelector("svg").classList.remove("text-blue-400");
-				diagramModeToggleButton.querySelector("svg").classList.add("text-gray-400");
-				diagramModeToggleButton.classList.remove("bg-gray-800");
-			}
-		};
+		youtubeModeToggleButton.addEventListener("click", () => {
+			console.log(
+				"YouTube mode button clicked, current state:",
+				isYoutubeModeActive
+			);
+			isYoutubeModeActive = !isYoutubeModeActive;
+			console.log("Toggling YouTube mode to:", isYoutubeModeActive);
 
-        youtubeModeToggleButton.addEventListener("click", () => {
-            console.log("YouTube mode button clicked, current state:", isYoutubeModeActive);
-            isYoutubeModeActive = !isYoutubeModeActive;
-            console.log("Toggling YouTube mode to:", isYoutubeModeActive);
-
-            updateYoutubeModeToggleButton();
-            if (isYoutubeModeActive) {
-                if (isRAGActive) {
-                    isRAGActive = false;
-                    setRAGInactiveStyles();
-                    localStorage.setItem("ragModeActive", JSON.stringify(isRAGActive));
-                }
-                if (isDiagramModeActive) {
-                    isDiagramModeActive = false;
-                    setDiagramInactiveStyles();
-                    localStorage.setItem("diagramModeActive", JSON.stringify(isDiagramModeActive));
-                }
-            }
-            localStorage.setItem("youtubeModeActive", JSON.stringify(isYoutubeModeActive));
-            appendSystemNotification(
-                `YouTube mode is now ${isYoutubeModeActive ? "ACTIVE" : "INACTIVE"}.`, "info"
-            );
-        });
-    } else {
-        console.warn("YouTube mode toggle button not found in the DOM");
+			updateYoutubeModeToggleButton();
+			if (isYoutubeModeActive) {
+				if (isRAGActive) {
+					isRAGActive = false;
+					updateRagToggleButtonStyle(false);
+					localStorage.setItem("ragModeActive", JSON.stringify(isRAGActive));
+				}
+				if (isDiagramModeActive) {
+					isDiagramModeActive = false;
+					setDiagramInactiveStyles();
+					localStorage.setItem(
+						"diagramModeActive",
+						JSON.stringify(isDiagramModeActive)
+					);
+				}
+			}
+			localStorage.setItem(
+				"youtubeModeActive",
+				JSON.stringify(isYoutubeModeActive)
+			);
+			appendSystemNotification(
+				`YouTube mode is now ${isYoutubeModeActive ? "ACTIVE" : "INACTIVE"}.`,
+				"info"
+			);
+		});
+	} else {
+		console.warn("YouTube mode toggle button not found in the DOM");
 	}
 
 	// Initial calls for existing messages (if any)
@@ -2119,69 +2137,73 @@ document.addEventListener("DOMContentLoaded", function () {
 	// Initial call to set visibility
 	window.updateQuizButtonVisibility();
 
-    // Add an event listener for chatStateChanged to update UI elements
+	// Add an event listener for chatStateChanged to update UI elements
 	document.addEventListener("chatStateChanged", function (event) {
 		console.log(
 			"[chat.js] Caught chatStateChanged event directly.",
 			event.detail
 		);
 		if (typeof updateNewChatUI === "function") {
-            updateNewChatUI(event.detail.isNewChat);
-        }
-    });
+			updateNewChatUI(event.detail.isNewChat);
+		}
+	});
 
-    window.YoutubeHandler = {
-        renderRecommendations: function(container, videoData) {
-            if (!Array.isArray(videoData) || videoData.length === 0) {
-                return;
-            }
+	window.YoutubeHandler = {
+		renderRecommendations: function (container, videoData) {
+			if (!Array.isArray(videoData) || videoData.length === 0) {
+				return;
+			}
 
-            // Create a container for the recommendations
-            const recommendationsContainer = document.createElement('div');
-            recommendationsContainer.className = 'youtube-recommendations-container space-y-3';
+			// Create a container for the recommendations
+			const recommendationsContainer = document.createElement("div");
+			recommendationsContainer.className =
+				"youtube-recommendations-container space-y-3";
 
-            // Add a header text
-            const header = document.createElement('p');
-            header.className = 'text-gray-200';
-            header.textContent = 'Here are some videos I found for you:';
-            recommendationsContainer.appendChild(header);
+			// Add a header text
+			const header = document.createElement("p");
+			header.className = "text-gray-200";
+			header.textContent = "Here are some videos I found for you:";
+			recommendationsContainer.appendChild(header);
 
-            // Create and append each video embed
-            videoData.forEach(video => {
-                const link = document.createElement('a');
-                link.href = video.url;
-                link.target = '_blank';
-                link.rel = 'noopener noreferrer';
-                link.className = 'flex items-center bg-gray-800/50 hover:bg-gray-700/60 border border-gray-700 rounded-lg p-2 no-underline transition-all duration-200 group';
+			// Create and append each video embed
+			videoData.forEach((video) => {
+				const link = document.createElement("a");
+				link.href = video.url;
+				link.target = "_blank";
+				link.rel = "noopener noreferrer";
+				link.className =
+					"flex items-center bg-gray-800/50 hover:bg-gray-700/60 border border-gray-700 rounded-lg p-2 no-underline transition-all duration-200 group";
 
-                const thumbnailDiv = document.createElement('div');
-                thumbnailDiv.className = 'flex-shrink-0 w-32 h-18 mr-3';
-                
-                const thumbnailImg = document.createElement('img');
-                thumbnailImg.src = video.thumbnail;
-                thumbnailImg.alt = `Thumbnail for ${video.title}`;
-                thumbnailImg.className = 'w-full h-full object-cover rounded-md border border-gray-600';
-                
-                thumbnailDiv.appendChild(thumbnailImg);
+				const thumbnailDiv = document.createElement("div");
+				thumbnailDiv.className = "flex-shrink-0 w-32 h-18 mr-3";
 
-                const infoDiv = document.createElement('div');
-                infoDiv.className = 'flex-1 min-w-0';
+				const thumbnailImg = document.createElement("img");
+				thumbnailImg.src = video.thumbnail;
+				thumbnailImg.alt = `Thumbnail for ${video.title}`;
+				thumbnailImg.className =
+					"w-full h-full object-cover rounded-md border border-gray-600";
 
-                const titleP = document.createElement('p');
-                titleP.className = 'text-gray-100 font-medium text-sm truncate group-hover:text-white';
-                titleP.textContent = video.title;
+				thumbnailDiv.appendChild(thumbnailImg);
 
-                infoDiv.appendChild(titleP);
+				const infoDiv = document.createElement("div");
+				infoDiv.className = "flex-1 min-w-0";
 
-                link.appendChild(thumbnailDiv);
-                link.appendChild(infoDiv);
+				const titleP = document.createElement("p");
+				titleP.className =
+					"text-gray-100 font-medium text-sm truncate group-hover:text-white";
+				titleP.textContent = video.title;
 
-                recommendationsContainer.appendChild(link);
-            });
+				infoDiv.appendChild(titleP);
 
-            container.appendChild(recommendationsContainer);
-        }
-    };
+				link.appendChild(thumbnailDiv);
+				link.appendChild(infoDiv);
+
+				recommendationsContainer.appendChild(link);
+			});
+
+			container.appendChild(recommendationsContainer);
+		}
+	};
 });
 
 function updateNewChatUI(isNew) {
@@ -2193,20 +2215,20 @@ function updateNewChatUI(isNew) {
 	if (isNew) {
 		console.log("[updateNewChatUI from chat.js] HIDING buttons.");
 		if (quizButtonContainer) {
-            quizButtonContainer.classList.add("hidden");
-        }
+			quizButtonContainer.classList.add("hidden");
+		}
 		if (manageRagButton) {
-            manageRagButton.classList.add("hidden");
-        }
+			manageRagButton.classList.add("hidden");
+		}
 	} else {
-        // Defer the showing logic slightly
-        setTimeout(() => {
+		// Defer the showing logic slightly
+		setTimeout(() => {
 			console.log(
 				"[updateNewChatUI from chat.js - setTimeout] SHOWING buttons."
 			);
-            if (quizButtonContainer) {
-                quizButtonContainer.classList.remove("hidden");
-                quizButtonContainer.style.display = ""; 
+			if (quizButtonContainer) {
+				quizButtonContainer.classList.remove("hidden");
+				quizButtonContainer.style.display = "";
 				console.log(
 					"[updateNewChatUI from chat.js - setTimeout] Quiz button hidden class removed. Hidden status:",
 					quizButtonContainer.classList.contains("hidden")
@@ -2215,10 +2237,10 @@ function updateNewChatUI(isNew) {
 					"[updateNewChatUI from chat.js - setTimeout] Quiz button style.display:",
 					quizButtonContainer.style.display
 				);
-            }
-            if (manageRagButton) {
-                manageRagButton.classList.remove("hidden");
-                manageRagButton.style.display = ""; 
+			}
+			if (manageRagButton) {
+				manageRagButton.classList.remove("hidden");
+				manageRagButton.style.display = "";
 				console.log(
 					"[updateNewChatUI from chat.js - setTimeout] RAG button hidden class removed. Hidden status:",
 					manageRagButton.classList.contains("hidden")
@@ -2227,8 +2249,8 @@ function updateNewChatUI(isNew) {
 					"[updateNewChatUI from chat.js - setTimeout] RAG button style.display:",
 					manageRagButton.style.display
 				);
-            }
-        }, 0); // Zero delay, just defers to next tick
+			}
+		}, 0); // Zero delay, just defers to next tick
 	}
 }
 

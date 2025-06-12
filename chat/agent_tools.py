@@ -18,7 +18,7 @@ import json
 load_dotenv(".env")
 
 # Initialize LLM
-llm = ChatGroq(model="llama3-70b-8192", temperature=0.3)
+llm = ChatGroq(model="deepseek-r1-distill-llama-70b", temperature=0.3)
 
 # Function to Download and Transcribe video and summarize text
 def summarize_video(url, filename="audio"):
@@ -211,7 +211,7 @@ def recommend_videos(user_query):
             
             try:
                 llm = ChatGroq(
-                    model="llama3-8b-8192",
+                    model="deepseek-r1-distill-llama-70b",
                     temperature=0.5,
                     max_retries=3 
                 )
