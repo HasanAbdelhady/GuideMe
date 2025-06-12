@@ -156,15 +156,15 @@
 }
 
 /* Input field */
-.chat-input {
+/* .chat-input {
 	background-color: rgba(64, 65, 79, 0.9);
 	border: 1px solid rgba(86, 88, 105, 1);
 	transition: all 0.2s ease;
-}
-.chat-input:focus {
+} */
+/* .chat-input:focus {
 	border-color: rgba(142, 142, 160, 1);
 	box-shadow: 0 0 0 1px rgba(142, 142, 160, 0.5);
-}
+} */
 
 .rename-chat-btn {
 	opacity: 0;
