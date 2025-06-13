@@ -51,11 +51,11 @@
 		<!-- Assistant message - left aligned -->
 		<div class="chat-container flex gap-4 md:gap-6">
 			<!-- Assistant icon - left side -->
-			<div class="flex-shrink-0 w-7 h-7">
+			<div class>
 				<div
-					class="cls w-10 h-7 p-1 rounded-sm bg-slate-100 flex items-center justify-center text-white">
+					class="w-16 flex items-center justify-center text-white">
 					<img src="{% static 'images/logo.png' %}" alt="Assistant icon"
-						class="h-5 w-7">
+						class="h-12 w-12 ">
 				</div>
 			</div>
 			<!-- Message content -->
@@ -75,12 +75,16 @@
 				<div class="youtube-recommendations-container space-y-3">
 					<p class="text-gray-200">{{ msg.text }}</p>
 					{% for video in msg.structured_content %}
-					<a href="{{ video.url }}" target="_blank" rel="noopener noreferrer" class="flex items-center bg-gray-800/50 hover:bg-gray-700/60 border border-gray-700 rounded-lg p-2 no-underline transition-all duration-200 group">
+					<a href="{{ video.url }}" target="_blank" rel="noopener noreferrer"
+						class="flex items-center bg-gray-800/50 hover:bg-gray-700/60 border border-gray-700 rounded-lg p-2 no-underline transition-all duration-200 group">
 						<div class="flex-shrink-0 w-32 h-18 mr-3">
-							<img src="{{ video.thumbnail }}" alt="Thumbnail for {{ video.title }}" class="w-full h-full object-cover rounded-md border border-gray-600">
+							<img src="{{ video.thumbnail }}" alt="Thumbnail for {{ video.title }}"
+								class="w-full h-full object-cover rounded-md border border-gray-600">
 						</div>
 						<div class="flex-1 min-w-0">
-							<p class="text-gray-100 font-medium text-sm truncate group-hover:text-white">{{ video.title }}</p>
+							<p
+								class="text-gray-100 font-medium text-sm truncate group-hover:text-white">{{
+								video.title }}</p>
 						</div>
 					</a>
 					{% endfor %}
@@ -103,7 +107,7 @@
 	<div id="initial-chat-placeholder"
 		class="flex flex-col items-center justify-center h-[calc(100vh-200px)] ">
 		<img src="{% static 'images/logo.png' %}" alt="Assistant icon"
-			class="h-14 w-24">
+			class="h-24 w-24">
 
 		<p class="text-gray-400 text-sm">How can I help you today?</p>
 	</div>
