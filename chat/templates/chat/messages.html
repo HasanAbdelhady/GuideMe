@@ -51,7 +51,7 @@
 		<!-- Assistant message - left aligned -->
 		<div class="chat-container flex gap-4 md:gap-6">
 			<!-- Assistant icon - left side -->
-			<div>
+			<div class>
 				<div
 					class="w-16 flex items-center justify-center text-white">
 					<img src="{% static 'images/logo.png' %}" alt="Assistant icon"
@@ -83,7 +83,8 @@
 						</div>
 						<div class="flex-1 min-w-0">
 							<p
-								class="text-gray-100 font-medium text-sm truncate group-hover:text-white">{{ video.title }}</p>
+								class="text-gray-100 font-medium text-sm truncate group-hover:text-white">{{
+								video.title }}</p>
 						</div>
 					</a>
 					{% endfor %}
@@ -107,6 +108,7 @@
 		class="flex flex-col items-center justify-center h-[calc(100vh-200px)] ">
 		<img src="{% static 'images/logo.png' %}" alt="Assistant icon"
 			class="h-24 w-24">
+
 		<p class="text-gray-400 text-sm">How can I help you today?</p>
 	</div>
 	{% endfor %}
