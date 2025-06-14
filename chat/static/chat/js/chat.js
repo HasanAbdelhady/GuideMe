@@ -312,7 +312,7 @@ document.addEventListener("DOMContentLoaded", function () {
 	window.appendMessage = function (
 		role,
 		content,
-		messageId = null,
+		messageId = data.messageId,
 		type = "text",
 		quizHtml = null
 	) {
