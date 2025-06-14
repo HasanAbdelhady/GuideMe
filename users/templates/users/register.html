@@ -66,18 +66,21 @@
 		</style>
 	</head>
 	<body
-		class="min-h-screen flex items-center justify-center p-0 bg-gradient-to-br from-[#0f172a] via-[#1e293b] to-black text-gray-100"
-	>
-		<div class="w-full max-w-2xl mx-auto my-8 rounded-2xl shadow-2xl bg-[#1e293b] border border-[#222c36]">
-			<div class="p-6 sm:p-10">
+		class="min-h-screen flex items-center justify-center p-0 bg-gradient-to-br from-[#0f172a] via-[#1e293b] to-black text-gray-100">
+		<div
+			class="w-full max-w-2xl mx-auto my-8 rounded-2xl shadow-2xl bg-[#1e293b] border border-[#222c36]">
+			<div class="p-6 sm:p-10 h-full">
 				<!-- Step Indicators -->
 				<div class="flex justify-center items-center mb-8">
 					<div class="flex items-center space-x-6">
-						<div class="step-indicator active w-12 h-12 rounded-full border-2 border-[#334155] flex items-center justify-center text-sm font-bold relative overflow-hidden transition-all duration-300 transform hover:scale-105 bg-[#222c36] text-white shadow-lg shadow-black/40">
+						<div
+							class="step-indicator active w-12 h-12 rounded-full border-2 border-[#334155] flex items-center justify-center text-sm font-bold relative overflow-hidden transition-all duration-300 transform hover:scale-105 bg-[#222c36] text-white shadow-lg shadow-black/40">
 							1
 						</div>
-						<div class="progress-line step-1 w-20 h-1 bg-[#334155] rounded-full relative overflow-hidden transition-all duration-500"></div>
-						<div class="step-indicator w-12 h-12 rounded-full border-2 border-[#334155] flex items-center justify-center text-sm font-bold relative overflow-hidden transition-all duration-300 transform hover:scale-105">
+						<div
+							class="progress-line step-1 w-20 h-1 bg-[#334155] rounded-full relative overflow-hidden transition-all duration-500"></div>
+						<div
+							class="step-indicator w-12 h-12 rounded-full border-2 border-[#334155] flex items-center justify-center text-sm font-bold relative overflow-hidden transition-all duration-300 transform hover:scale-105">
 							2
 						</div>
 					</div>
@@ -97,8 +100,7 @@
 				<div class="mb-6 space-y-2">
 					{% for message in messages %}
 					<div
-						class="p-4 rounded-lg {% if message.tags == 'success' %}bg-green-800 text-green-200{% else %}bg-red-800 text-red-200{% endif %}"
-					>
+						class="p-4 rounded-lg {% if message.tags == 'success' %}bg-green-800 text-green-200{% else %}bg-red-800 text-red-200{% endif %}">
 						{{ message }}
 					</div>
 					{% endfor %}
@@ -107,351 +109,358 @@
 
 				<form method="POST" enctype="multipart/form-data">
 					{% csrf_token %}
-					
-					<div class="form-container overflow-hidden relative w-full">
+
+					<div class="form-container overflow-hidden relative w-full ">
 						<div class="steps-container flex">
-						<!-- Step 1: Basic Information -->
-						<div class="step w-full flex-shrink-0 min-h-72" id="step-1">
-							<div class="w-full h-full px-2 box-border max-w-full">
-								<div class="space-y-6">
-								<div class="space-y-2 transition-all duration-300">
-									<label for="username" class="text-sm font-semibold text-gray-300 flex items-center gap-2">Username</label>
-									<div class="relative">
-										<input
-											type="text"
-											id="username"
-											name="username"
-											required
-											placeholder="Enter your username"
-											class="w-full pl-12 pr-4 py-3 bg-[#222c36] border {% if form.username.errors %}border-red-500{% else %}border-[#334155]{% endif %} rounded-lg focus:outline-none focus:ring-2 focus:ring-[#334155] text-gray-100 transition-all duration-300 hover:-translate-y-0.5 focus:-translate-y-0.5 focus:shadow-lg focus:shadow-black/20"
-										/>
-										<span class="absolute left-4 top-1/2 -translate-y-1/2 text-[#334155]">
-											<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
-											</svg>
-										</span>
-									</div>
-									{% if form.username.errors %}
-									<p class="text-sm text-red-400">{{ form.username.errors.0 }}</p>
-									{% endif %}
-								</div>
-
-								<div class="space-y-2 transition-all duration-300">
-									<label for="email" class="text-sm font-semibold text-gray-300 flex items-center gap-2">Email</label>
-									<div class="relative">
-										<input
-											type="email"
-											id="email"
-											name="email"
-											required
-											placeholder="Enter your email address"
-											class="w-full pl-12 pr-4 py-3 bg-[#222c36] border {% if form.email.errors %}border-red-500{% else %}border-[#334155]{% endif %} rounded-lg focus:outline-none focus:ring-2 focus:ring-[#334155] text-gray-100 transition-all duration-300 hover:-translate-y-0.5 focus:-translate-y-0.5 focus:shadow-lg focus:shadow-black/20"
-										/>
-										<span class="absolute left-4 top-1/2 -translate-y-1/2 text-[#334155]">
-											<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 4H8a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V6a2 2 0 00-2-2z" />
-												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M22 6l-10 7L2 6" />
-											</svg>
-										</span>
-									</div>
-									{% if form.email.errors %}
-									<p class="text-sm text-red-400">{{ form.email.errors.0 }}</p>
-									{% endif %}
-								</div>
-
-								<div class="space-y-2 transition-all duration-300">
-									<label for="password1" class="text-sm font-semibold text-gray-300 flex items-center gap-2">Password</label>
-									<div class="relative">
-										<input
-											type="password"
-											id="password1"
-											name="password1"
-											required
-											placeholder="Create a strong password"
-											class="w-full pl-12 pr-4 py-3 bg-[#222c36] border {% if form.password1.errors %}border-red-500{% else %}border-[#334155]{% endif %} rounded-lg focus:outline-none focus:ring-2 focus:ring-[#334155] text-gray-100 transition-all duration-300 hover:-translate-y-0.5 focus:-translate-y-0.5 focus:shadow-lg focus:shadow-black/20"
-										/>
-										<span class="absolute left-4 top-1/2 -translate-y-1/2 text-[#334155]">
-											<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
-											</svg>
-										</span>
-									</div>
-									{% if form.password1.errors %}
-									<p class="text-sm text-red-400">{{ form.password1.errors.0 }}</p>
-									{% endif %}
-								</div>
-
-								<div class="space-y-2 transition-all duration-300">
-									<label for="password2" class="text-sm font-semibold text-gray-300 flex items-center gap-2">Confirm Password</label>
-									<div class="relative">
-										<input
-											type="password"
-											id="password2"
-											name="password2"
-											required
-											placeholder="Confirm your password"
-											class="w-full pl-12 pr-4 py-3 bg-[#222c36] border {% if form.password2.errors %}border-red-500{% else %}border-[#334155]{% endif %} rounded-lg focus:outline-none focus:ring-2 focus:ring-[#334155] text-gray-100 transition-all duration-300 hover:-translate-y-0.5 focus:-translate-y-0.5 focus:shadow-lg focus:shadow-black/20"
-										/>
-										<span class="absolute left-4 top-1/2 -translate-y-1/2 text-[#334155]">
-											<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
-											</svg>
-										</span>
-									</div>
-									{% if form.password2.errors %}
-									<p class="text-sm text-red-400">{{ form.password2.errors.0 }}</p>
-									{% endif %}
-								</div>
-
-								<div class="space-y-2">
-									<label for="profile_image" class="text-sm font-medium text-gray-300">Profile Image (Optional)</label>
-									<div class="flex items-center justify-center w-full">
-										<label
-											for="profile_image"
-											class="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-600 border-dashed rounded-lg cursor-pointer bg-gray-700 hover:bg-gray-600 transition-all"
-										>
-											<div class="flex flex-col items-center justify-center pt-5 pb-6">
-												<svg
-													class="w-8 h-8 mb-4 text-gray-400"
-													aria-hidden="true"
-													xmlns="http://www.w3.org/2000/svg"
-													fill="none"
-													viewBox="0 0 20 16"
-												>
-													<path
-														stroke="currentColor"
-														stroke-linecap="round"
-														stroke-linejoin="round"
-														stroke-width="2"
-														d="M13 13h3a3 3 0 0 0 0-6h-.025A5.56 5.56 0 0 0 16 6.5 5.5 5.5 0 0 0 5.207 5.021C5.137 5.017 5.071 5 5 5a4 4 0 0 0 0 8h2.167M10 15V6m0 0L8 8m2-2 2 2"
-													/>
-												</svg>
-												<p class="mb-2 text-sm text-gray-400">
-													<span class="font-semibold">Click to upload</span> or drag and drop
-												</p>
-												<p class="text-xs text-gray-400">PNG, JPG or GIF (MAX. 800x400px)</p>
-											</div>
-											<input
-												id="profile_image"
-												name="profile_image"
-												type="file"
-												accept="image/*"
-												class="hidden"
-											/>
-										</label>
-									</div>
-								</div>
-							</div>
-						</div>
-						</div>
-
-						<!-- Step 2: Learning Preferences -->
-						<div class="step w-full flex-shrink-0 min-h-96" id="step-2">
-							<div class="w-full h-full px-2 box-border max-w-full">
-								<div class="space-y-6">
-								<div class="mb-6">
-									<h3 class="text-xl font-medium text-gray-300">Learning Preferences</h3>
-									<p class="text-sm text-gray-400 mt-2">Help us personalize your learning experience</p>
-								</div>
-
-								<!-- Learning Style Questions -->
-								<div class="space-y-4">
-									<div>
-										<label class="text-sm font-semibold text-gray-300 mb-3 block">How do you prefer to learn? (Select all that apply)</label>
-										<div class="mt-3 grid grid-cols-2 gap-3">
-											<div class="learning-style-toggle">
+							<!-- Step 1: Basic Information -->
+							<div class="step w-full flex-shrink-0 " id="step-1">
+								<div class="w-full h-full px-2 box-border max-w-full">
+									<div class="space-y-6">
+										<div class="space-y-2 transition-all duration-300">
+											<label for="username"
+												class="text-sm font-semibold text-gray-300 flex items-center gap-2">Username</label>
+											<div class="relative">
 												<input
-													type="checkbox"
-													id="visual"
-													name="learning_style_visual"
-													value="1"
-													class="hidden"
-												/>
+													type="text"
+													id="username"
+													name="username"
+													required
+													placeholder="Enter your username"
+													class="w-full pl-12 pr-4 py-3 bg-[#222c36] border {% if form.username.errors %}border-red-500{% else %}border-[#334155]{% endif %} rounded-lg focus:outline-none focus:ring-2 focus:ring-[#334155] text-gray-100 transition-all duration-300 hover:-translate-y-0.5 focus:-translate-y-0.5 focus:shadow-lg focus:shadow-black/20" />
+												<span
+													class="absolute left-4 top-1/2 -translate-y-1/2 text-[#334155]">
+													<svg class="w-5 h-5" fill="none" stroke="currentColor"
+														viewBox="0 0 24 24">
+														<path stroke-linecap="round" stroke-linejoin="round"
+															stroke-width="2"
+															d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+													</svg>
+												</span>
+											</div>
+											{% if form.username.errors %}
+											<p class="text-sm text-red-400">{{ form.username.errors.0 }}</p>
+											{% endif %}
+										</div>
+
+										<div class="space-y-2 transition-all duration-300">
+											<label for="email"
+												class="text-sm font-semibold text-gray-300 flex items-center gap-2">Email</label>
+											<div class="relative">
+												<input
+													type="email"
+													id="email"
+													name="email"
+													required
+													placeholder="Enter your email address"
+													class="w-full pl-12 pr-4 py-3 bg-[#222c36] border {% if form.email.errors %}border-red-500{% else %}border-[#334155]{% endif %} rounded-lg focus:outline-none focus:ring-2 focus:ring-[#334155] text-gray-100 transition-all duration-300 hover:-translate-y-0.5 focus:-translate-y-0.5 focus:shadow-lg focus:shadow-black/20" />
+												<span
+													class="absolute left-4 top-1/2 -translate-y-1/2 text-[#334155]">
+													<svg class="w-5 h-5" fill="none" stroke="currentColor"
+														viewBox="0 0 24 24">
+														<path stroke-linecap="round" stroke-linejoin="round"
+															stroke-width="2"
+															d="M16 4H8a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V6a2 2 0 00-2-2z" />
+														<path stroke-linecap="round" stroke-linejoin="round"
+															stroke-width="2" d="M22 6l-10 7L2 6" />
+													</svg>
+												</span>
+											</div>
+											{% if form.email.errors %}
+											<p class="text-sm text-red-400">{{ form.email.errors.0 }}</p>
+											{% endif %}
+										</div>
+
+										<div class="space-y-2 transition-all duration-300">
+											<label for="password1"
+												class="text-sm font-semibold text-gray-300 flex items-center gap-2">Password</label>
+											<div class="relative">
+												<input
+													type="password"
+													id="password1"
+													name="password1"
+													required
+													placeholder="Create a strong password"
+													class="w-full pl-12 pr-4 py-3 bg-[#222c36] border {% if form.password1.errors %}border-red-500{% else %}border-[#334155]{% endif %} rounded-lg focus:outline-none focus:ring-2 focus:ring-[#334155] text-gray-100 transition-all duration-300 hover:-translate-y-0.5 focus:-translate-y-0.5 focus:shadow-lg focus:shadow-black/20" />
+												<span
+													class="absolute left-4 top-1/2 -translate-y-1/2 text-[#334155]">
+													<svg class="w-5 h-5" fill="none" stroke="currentColor"
+														viewBox="0 0 24 24">
+														<path stroke-linecap="round" stroke-linejoin="round"
+															stroke-width="2"
+															d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+													</svg>
+												</span>
+											</div>
+											{% if form.password1.errors %}
+											<p class="text-sm text-red-400">{{ form.password1.errors.0 }}</p>
+											{% endif %}
+										</div>
+
+										<div class="space-y-2 transition-all duration-300">
+											<label for="password2"
+												class="text-sm font-semibold text-gray-300 flex items-center gap-2">Confirm
+												Password</label>
+											<div class="relative">
+												<input
+													type="password"
+													id="password2"
+													name="password2"
+													required
+													placeholder="Confirm your password"
+													class="w-full pl-12 pr-4 py-3 bg-[#222c36] border {% if form.password2.errors %}border-red-500{% else %}border-[#334155]{% endif %} rounded-lg focus:outline-none focus:ring-2 focus:ring-[#334155] text-gray-100 transition-all duration-300 hover:-translate-y-0.5 focus:-translate-y-0.5 focus:shadow-lg focus:shadow-black/20" />
+												<span
+													class="absolute left-4 top-1/2 -translate-y-1/2 text-[#334155]">
+													<svg class="w-5 h-5" fill="none" stroke="currentColor"
+														viewBox="0 0 24 24">
+														<path stroke-linecap="round" stroke-linejoin="round"
+															stroke-width="2"
+															d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+													</svg>
+												</span>
+											</div>
+											{% if form.password2.errors %}
+											<p class="text-sm text-red-400">{{ form.password2.errors.0 }}</p>
+											{% endif %}
+										</div>
+
+										<div class="space-y-2">
+											<label for="profile_image"
+												class="text-sm font-medium text-gray-300">Profile Image
+												(Optional)</label>
+											<div class="flex items-center justify-center w-full">
 												<label
-												for="visual"
-												class="learning-style-card block p-4 text-center rounded-xl border border-gray-600 cursor-pointer relative overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-black/25 bg-gray-700/50"
-											>
-												<svg
-													class="w-8 h-8 mx-auto mb-3 text-blue-400"
-													fill="none"
-													stroke="currentColor"
-													viewBox="0 0 24 24"
-												>
-													<path
-														stroke-linecap="round"
-														stroke-linejoin="round"
-														stroke-width="2"
-														d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
-													/>
-												</svg>
-												<span class="text-sm font-medium text-gray-300">Videos & Diagrams</span>
-											</label>
-										</div>
-										<div class="learning-style-toggle">
-											<input
-												type="checkbox"
-												id="auditory"
-												name="learning_style_auditory"
-												value="1"
-												class="hidden"
-											/>
-											<label
-												for="auditory"
-												class="learning-style-card block p-4 text-center rounded-xl border border-gray-600 cursor-pointer relative overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-black/25 bg-gray-700/50"
-											>
-												<svg
-													class="w-8 h-8 mx-auto mb-3 text-blue-400"
-													fill="none"
-													stroke="currentColor"
-													viewBox="0 0 24 24"
-												>
-													<path
-														stroke-linecap="round"
-														stroke-linejoin="round"
-														stroke-width="2"
-														d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"
-													/>
-												</svg>
-												<span class="text-sm font-medium text-gray-300">Listening & Discussion</span>
-											</label>
-										</div>
-										<div class="learning-style-toggle">
-											<input
-												type="checkbox"
-												id="kinesthetic"
-												name="learning_style_kinesthetic"
-												value="1"
-												class="hidden"
-											/>
-											<label
-												for="kinesthetic"
-												class="learning-style-card block p-4 text-center rounded-xl border border-gray-600 cursor-pointer relative overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-black/25 bg-gray-700/50"
-											>
-												<svg
-													class="w-8 h-8 mx-auto mb-3 text-blue-400"
-													fill="none"
-													stroke="currentColor"
-													viewBox="0 0 24 24"
-												>
-													<path
-														stroke-linecap="round"
-														stroke-linejoin="round"
-														stroke-width="2"
-														d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-													/>
-												</svg>
-												<span class="text-sm font-medium text-gray-300">Hands-on Practice</span>
-											</label>
-										</div>
-										<div class="learning-style-toggle">
-											<input
-												type="checkbox"
-												id="reading"
-												name="learning_style_reading"
-												value="1"
-												class="hidden"
-											/>
-											<label
-												for="reading"
-												class="learning-style-card block p-4 text-center rounded-xl border border-gray-600 cursor-pointer relative overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-black/25 bg-gray-700/50"
-											>
-												<svg
-													class="w-8 h-8 mx-auto mb-3 text-blue-400"
-													fill="none"
-													stroke="currentColor"
-													viewBox="0 0 24 24"
-												>
-													<path
-														stroke-linecap="round"
-														stroke-linejoin="round"
-														stroke-width="2"
-														d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
-													/>
-												</svg>
-												<span class="text-sm font-medium text-gray-300">Reading & Writing</span>
-											</label>
+													for="profile_image"
+													class="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-600 border-dashed rounded-lg cursor-pointer bg-gray-700 hover:bg-gray-600 transition-all">
+													<div class="flex flex-col items-center justify-center pt-5 pb-6">
+														<svg
+															class="w-8 h-8 mb-4 text-gray-400"
+															aria-hidden="true"
+															xmlns="http://www.w3.org/2000/svg"
+															fill="none"
+															viewBox="0 0 20 16">
+															<path
+																stroke="currentColor"
+																stroke-linecap="round"
+																stroke-linejoin="round"
+																stroke-width="2"
+																d="M13 13h3a3 3 0 0 0 0-6h-.025A5.56 5.56 0 0 0 16 6.5 5.5 5.5 0 0 0 5.207 5.021C5.137 5.017 5.071 5 5 5a4 4 0 0 0 0 8h2.167M10 15V6m0 0L8 8m2-2 2 2" />
+														</svg>
+														<p class="mb-2 text-sm text-gray-400">
+															<span class="font-semibold">Click to upload</span> or drag and
+															drop
+														</p>
+														<p class="text-xs text-gray-400">PNG, JPG or GIF (MAX.
+															800x400px)</p>
+													</div>
+													<input
+														id="profile_image"
+														name="profile_image"
+														type="file"
+														accept="image/*"
+														class="hidden" />
+												</label>
+											</div>
 										</div>
 									</div>
 								</div>
+							</div>
 
-								<!-- Study Time Preference -->
-								<div>
-									<label class="text-sm font-semibold text-gray-300">Preferred study session length:</label>
-									<div class="mt-3 flex gap-3">
-										<button
-											type="button"
-											data-value="short"
-											class="study-time-btn flex-1 p-3 text-center rounded-lg border border-gray-600 text-sm text-gray-300 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-black/20 hover:bg-gray-600 bg-gray-700/50"
-										>
-											Short bursts<br />(25-30 mins)
-										</button>
-										<button
-											type="button"
-											data-value="medium"
-											class="study-time-btn flex-1 p-3 text-center rounded-lg border border-gray-600 text-sm text-gray-300 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-black/20 hover:bg-gray-600 bg-gray-700/50"
-										>
-											Medium sessions<br />(30-60 mins)
-										</button>
-										<button
-											type="button"
-											data-value="long"
-											class="study-time-btn flex-1 p-3 text-center rounded-lg border border-gray-600 text-sm text-gray-300 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-black/20 hover:bg-gray-600 bg-gray-700/50"
-										>
-											Long sessions<br />(1-2 hours)
-										</button>
-										<input
-											type="hidden"
-											name="preferred_study_time"
-											id="preferred_study_time"
-										/>
-									</div>
-								</div>
+							<!-- Step 2: Learning Preferences -->
+							<div class="step w-full flex-shrink-0 min-h-96" id="step-2">
+								<div class="w-full h-full px-2 box-border max-w-full">
+									<div class="space-y-6">
+										<div class="mb-6">
+											<h3 class="text-xl font-medium text-gray-300">Learning
+												Preferences</h3>
+											<p class="text-sm text-gray-400 mt-2">Help us personalize your
+												learning experience</p>
+										</div>
 
-								<!-- Subject Interests -->
-								<div class="space-y-4">
-									<label class="text-sm font-medium text-gray-300">Fields you're interested in:</label>
-									<div class="relative">
-										<input
-											type="text"
-											id="interest-input"
-											placeholder="Type to search or add new interest..."
-											class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-100"
-										/>
-										<!-- Suggestions dropdown -->
-										<div
-											id="interest-suggestions"
-											class="hidden absolute z-10 w-full mt-1 py-1 bg-gray-700 border border-gray-600 rounded-lg shadow-lg max-h-48 overflow-y-auto"
-										></div>
-									</div>
-									<!-- Selected interests will appear here -->
-									<div id="selected-interests" class="flex flex-wrap gap-2"></div>
-								</div>
-
-								<!-- Quiz Preference -->
-								<div>
-									<label class="text-sm font-semibold text-gray-300">How helpful do you find interactive quizzes?</label>
-									<div class="mt-4">
-										<div class="relative flex items-center justify-between px-2">
-											<!-- Radio buttons -->
-											<div class="flex items-center justify-between w-full">
-												{% for i in "12345" %}
-												<div class="flex flex-col items-center">
-													<input type="radio" id="quiz_pref_{{ i }}"
-													name="quiz_preference" value="{{ i }}" class="sr-only
-													peer" {% if i == "3" %}checked{% endif %}>
-													<label
-														for="quiz_pref_{{ i }}"
-														class="w-7 h-7 rounded-full bg-gray-700 border-2 border-gray-600 cursor-pointer peer-checked:bg-gradient-to-r peer-checked:from-blue-600 peer-checked:to-blue-700 peer-checked:border-blue-500 peer-checked:shadow-lg peer-checked:shadow-blue-500/30 peer-checked:scale-125 transition-all duration-300 hover:scale-110"
-													></label>
-													<span
-														class="mt-2 text-xs text-gray-400 text-center opacity-0 transition-opacity duration-200"
-														data-rating="{{ i }}"
-													>
-														{% if i == "1" %} Very helpful {% elif i == "5" %} Not
-														helpful {% endif %}
-													</span>
+										<!-- Learning Style Questions -->
+										<div class="space-y-4">
+											<div>
+												<label class="text-sm font-semibold text-gray-300 mb-3 block">How do
+													you prefer to learn? (Select all that apply)</label>
+												<div class="mt-3 grid grid-cols-2 gap-3">
+													<div class="learning-style-toggle">
+														<input
+															type="checkbox"
+															id="visual"
+															name="learning_style_visual"
+															value="1"
+															class="hidden" />
+														<label
+															for="visual"
+															class="learning-style-card block p-4 text-center rounded-xl border border-gray-600 cursor-pointer relative overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-black/25 bg-gray-700/50">
+															<svg
+																class="w-8 h-8 mx-auto mb-3 text-blue-400"
+																fill="none"
+																stroke="currentColor"
+																viewBox="0 0 24 24">
+																<path
+																	stroke-linecap="round"
+																	stroke-linejoin="round"
+																	stroke-width="2"
+																	d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+															</svg>
+															<span class="text-sm font-medium text-gray-300">Videos &
+																Diagrams</span>
+														</label>
+													</div>
+													<div class="learning-style-toggle">
+														<input
+															type="checkbox"
+															id="auditory"
+															name="learning_style_auditory"
+															value="1"
+															class="hidden" />
+														<label
+															for="auditory"
+															class="learning-style-card block p-4 text-center rounded-xl border border-gray-600 cursor-pointer relative overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-black/25 bg-gray-700/50">
+															<svg
+																class="w-8 h-8 mx-auto mb-3 text-blue-400"
+																fill="none"
+																stroke="currentColor"
+																viewBox="0 0 24 24">
+																<path
+																	stroke-linecap="round"
+																	stroke-linejoin="round"
+																	stroke-width="2"
+																	d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+															</svg>
+															<span class="text-sm font-medium text-gray-300">Listening &
+																Discussion</span>
+														</label>
+													</div>
+													<div class="learning-style-toggle">
+														<input
+															type="checkbox"
+															id="kinesthetic"
+															name="learning_style_kinesthetic"
+															value="1"
+															class="hidden" />
+														<label
+															for="kinesthetic"
+															class="learning-style-card block p-4 text-center rounded-xl border border-gray-600 cursor-pointer relative overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-black/25 bg-gray-700/50">
+															<svg
+																class="w-8 h-8 mx-auto mb-3 text-blue-400"
+																fill="none"
+																stroke="currentColor"
+																viewBox="0 0 24 24">
+																<path
+																	stroke-linecap="round"
+																	stroke-linejoin="round"
+																	stroke-width="2"
+																	d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+															</svg>
+															<span class="text-sm font-medium text-gray-300">Hands-on
+																Practice</span>
+														</label>
+													</div>
+													<div class="learning-style-toggle">
+														<input
+															type="checkbox"
+															id="reading"
+															name="learning_style_reading"
+															value="1"
+															class="hidden" />
+														<label
+															for="reading"
+															class="learning-style-card block p-4 text-center rounded-xl border border-gray-600 cursor-pointer relative overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-black/25 bg-gray-700/50">
+															<svg
+																class="w-8 h-8 mx-auto mb-3 text-blue-400"
+																fill="none"
+																stroke="currentColor"
+																viewBox="0 0 24 24">
+																<path
+																	stroke-linecap="round"
+																	stroke-linejoin="round"
+																	stroke-width="2"
+																	d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+															</svg>
+															<span class="text-sm font-medium text-gray-300">Reading &
+																Writing</span>
+														</label>
+													</div>
 												</div>
-												{% endfor %}
+											</div>
+
+											<!-- Study Time Preference -->
+											<div>
+												<label class="text-sm font-semibold text-gray-300">Preferred study
+													session length:</label>
+												<div class="mt-3 flex gap-3">
+													<button
+														type="button"
+														data-value="short"
+														class="study-time-btn flex-1 p-3 text-center rounded-lg border border-gray-600 text-sm text-gray-300 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-black/20 hover:bg-gray-600 bg-gray-700/50">
+														Short bursts<br />(25-30 mins)
+													</button>
+													<button
+														type="button"
+														data-value="medium"
+														class="study-time-btn flex-1 p-3 text-center rounded-lg border border-gray-600 text-sm text-gray-300 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-black/20 hover:bg-gray-600 bg-gray-700/50">
+														Medium sessions<br />(30-60 mins)
+													</button>
+													<button
+														type="button"
+														data-value="long"
+														class="study-time-btn flex-1 p-3 text-center rounded-lg border border-gray-600 text-sm text-gray-300 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-black/20 hover:bg-gray-600 bg-gray-700/50">
+														Long sessions<br />(1-2 hours)
+													</button>
+													<input
+														type="hidden"
+														name="preferred_study_time"
+														id="preferred_study_time" />
+												</div>
+											</div>
+
+											<!-- Subject Interests -->
+											<div class="space-y-4">
+												<label class="text-sm font-medium text-gray-300">Fields you're
+													interested in:</label>
+												<div class="relative">
+													<input
+														type="text"
+														id="interest-input"
+														placeholder="Type to search or add new interest..."
+														class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-100" />
+													<!-- Suggestions dropdown -->
+													<div
+														id="interest-suggestions"
+														class="hidden absolute z-10 w-full mt-1 py-1 bg-gray-700 border border-gray-600 rounded-lg shadow-lg max-h-48 overflow-y-auto"></div>
+												</div>
+												<!-- Selected interests will appear here -->
+												<div id="selected-interests" class="flex flex-wrap gap-2"></div>
+											</div>
+
+											<!-- Quiz Preference -->
+											<div>
+												<label class="text-sm font-semibold text-gray-300">How helpful do
+													you find interactive quizzes?</label>
+												<div class="mt-4">
+													<div class="relative flex items-center justify-between px-2">
+														<!-- Radio buttons -->
+														<div class="flex items-center justify-between w-full">
+															{% for i in "12345" %}
+															<div class="flex flex-col items-center">
+																<input type="radio" id="quiz_pref_{{ i }}"
+																	name="quiz_preference" value="{{ i }}" class="sr-only
+													peer" {% if i == "3" %}checked{% endif %}>
+																<label
+																	for="quiz_pref_{{ i }}"
+																	class="w-7 h-7 rounded-full bg-gray-700 border-2 border-gray-600 cursor-pointer peer-checked:bg-gradient-to-r peer-checked:from-blue-600 peer-checked:to-blue-700 peer-checked:border-blue-500 peer-checked:shadow-lg peer-checked:shadow-blue-500/30 peer-checked:scale-125 transition-all duration-300 hover:scale-110"></label>
+																<span
+																	class="mt-2 text-xs text-gray-400 text-center opacity-0 transition-opacity duration-200"
+																	data-rating="{{ i }}">
+																	{% if i == "1" %} Very helpful {% elif i == "5" %} Not
+																	helpful {% endif %}
+																</span>
+															</div>
+															{% endfor %}
+														</div>
+													</div>
+												</div>
 											</div>
 										</div>
 									</div>
@@ -459,50 +468,45 @@
 							</div>
 						</div>
 					</div>
+
+					<!-- Navigation Buttons -->
+					<div class="flex justify-between mt-8">
+						<button
+							type="button"
+							id="prev-step"
+							class="px-6 py-3 text-gray-300 font-medium border border-gray-600 hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 rounded-lg transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg"
+							style="display: none;">
+							← Previous
+						</button>
+
+						<div class="flex-1"></div>
+
+						<button
+							type="button"
+							id="next-step"
+							class="px-8 py-3 text-white font-semibold bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-lg transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-blue-500/25 relative overflow-hidden">
+							Next →
+						</button>
+
+						<button
+							type="submit"
+							id="submit-btn"
+							class="px-8 py-3 text-white font-semibold bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 focus:outline-none focus:ring-2 focus:ring-green-500 rounded-lg transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-green-500/25 relative overflow-hidden"
+							style="display: none;">
+							Create Account
+						</button>
 					</div>
-				</div>
-				</div>
+				</form>
 
-				<!-- Navigation Buttons -->
-				<div class="flex justify-between mt-8">
-					<button
-						type="button"
-						id="prev-step"
-						class="px-6 py-3 text-gray-300 font-medium border border-gray-600 hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 rounded-lg transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg"
-						style="display: none;"
-					>
-						← Previous
-					</button>
-					
-					<div class="flex-1"></div>
-					
-					<button
-						type="button"
-						id="next-step"
-						class="px-8 py-3 text-white font-semibold bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-lg transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-blue-500/25 relative overflow-hidden"
-					>
-						Next →
-					</button>
-					
-					<button
-						type="submit"
-						id="submit-btn"
-						class="px-8 py-3 text-white font-semibold bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 focus:outline-none focus:ring-2 focus:ring-green-500 rounded-lg transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-green-500/25 relative overflow-hidden"
-						style="display: none;"
-					>
-						Create Account
-					</button>
-				</div>
-			</form>
+				<p class="mt-6 text-center text-gray-400">
+					Already have an account?
+					<a href="{% url 'login' %}" class="text-blue-400 hover:text-blue-300">Login
+						here</a>
+				</p>
+			</div>
 
-			<p class="mt-6 text-center text-gray-400">
-				Already have an account?
-				<a href="{% url 'login' %}" class="text-blue-400 hover:text-blue-300">Login here</a>
-			</p>
-		</div>
-
-		<script src="{% static 'users/js/registration.js' %}"></script>
-		<script>
+			<script src="{% static 'users/js/registration.js' %}"></script>
+			<script>
 			// Initialize with default quiz preference value (3)
 			document.addEventListener('DOMContentLoaded', () => {
 				document.querySelector('input[name="quiz_preference"][value="3"]').dispatchEvent(new Event('change'));
@@ -534,5 +538,5 @@
 				}
 			});
 		</script>
-	</body>
-</html>
+		</body>
+	</html>

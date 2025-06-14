@@ -100,9 +100,9 @@
 .cyberpunk-gradient {
 	background: linear-gradient(
 		110deg,
-		#35363f 0%,
-		#363a42 28.65%,
-		#181d26 75.52%
+		#1e293b 0%,
+		#182130 28.65%,
+		#151c29 75.52%
 	);
 }
 
@@ -273,15 +273,6 @@ body.code-canvas-backdrop-active::before {
 .user-message .edit-controls.active {
 	display: block; /* Show textarea and buttons when editing */
 }
-
-.user-message .edit-message-btn {
-	/* Styles mostly handled by Tailwind classes in messages.html */
-	/* opacity: 0; transition: opacity 0.2s; */ /* Now handled by group-hover */
-}
-
-/* .user-message:hover .edit-message-btn { */ /* Now handled by group-hover */
-/* opacity: 1; */
-/* } */
 
 .user-message .edited-indicator {
 	font-size: 0.7rem;

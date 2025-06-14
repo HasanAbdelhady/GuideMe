@@ -8,14 +8,10 @@
 		<div
 			class="chat-container flex flex-row-reverse gap-4 md:gap-6 justify-start">
 			<!-- User icon - right side -->
-			<div class="flex-shrink-0 w-7 h-7">
-				<div
-					class="w-7 h-7 rounded-sm bg-[#5436DA] flex items-center justify-center text-white text-xs font-semibold">U</div>
-			</div>
 			<!-- Message content -->
 			<div class="overflow-x-auto max-w-[75%]">
 				<div
-					class="user-message text-gray-100 bg-[#444654] p-3 rounded-lg message-text-container"
+					class="user-message text-gray-100 bg-[#334155] p-3 rounded-lg message-text-container"
 					data-message-id="{{ msg.id }}" data-created-at="{{ msg.created_at }}">
 					<p class="whitespace-pre-wrap message-content-text">{{ msg.text }}</p>
 					<div class="edit-controls hidden mt-2">
@@ -53,9 +49,9 @@
 			<!-- Assistant icon - left side -->
 			<div class>
 				<div
-					class="w-16 flex items-center justify-center text-white">
+					class="w-24 flex items-center justify-center text-white">
 					<img src="{% static 'images/logo.png' %}" alt="Assistant icon"
-						class="h-12 w-12 ">
+						class="h-20 w-20 ">
 				</div>
 			</div>
 			<!-- Message content -->
@@ -107,7 +103,7 @@
 	<div id="initial-chat-placeholder"
 		class="flex flex-col items-center justify-center h-[calc(100vh-200px)] ">
 		<img src="{% static 'images/logo.png' %}" alt="Assistant icon"
-			class="h-24 w-24">
+			class="h-36 w-36">
 
 		<p class="text-gray-400 text-sm">How can I help you today?</p>
 	</div>

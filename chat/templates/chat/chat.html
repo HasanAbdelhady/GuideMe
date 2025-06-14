@@ -20,7 +20,7 @@
 <!-- Sidebar toggle -->
 <button
   id="sidebar-toggle"
-  class="fixed left-4 top-4 z-50 p-2 bg-[#202123] rounded hover:bg-[#2A2B32] transition-colors md:block"
+  class="fixed left-4 top-4 z-50 p-2 bg-[#141c29] rounded hover:bg-[#0f151f] transition-colors md:block"
   aria-label="Toggle sidebar">
   <svg
     xmlns="http://www.w3.org/2000/svg"
@@ -38,7 +38,7 @@
 <!-- New chat button -->
 
 <div
-  class="fixed left-12 top-5 ml-2 z-50 rounded hover:bg-[#202123] transition-colors md:block">
+  class="fixed left-12 top-5 ml-2 z-50 rounded hover:bg-[#0f151f] transition-colors md:block">
   <a href="{% url 'new_chat' %}"
     class="flex items-cente text-sm p-1">
     <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"
@@ -55,12 +55,12 @@
 
   <!-- RAG Context Management Button -->
   <button id="manage-rag-context-btn"
-    title="Manage RAG Context"
-    class="fixed right-20 top-2 z-40 p-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 shadow-lg {% if is_new_chat %}hidden{% endif %}">
-    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none"
+    title="Manage Context Files"
+    class="fixed right-20 top-2 z-40 px-4 py-2 bg-gradient-to-br from-sky-600 to-sky-800 hover:from-sky-800 hover:to-sky-600  text-white rounded-md  duration-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 shadow-lg {% if is_new_chat %}hidden{% endif %}">
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none"
       viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
       <path stroke-linecap="round" stroke-linejoin="round"
-        d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4M4 7l8 4M12 11l8-4m-8 4v9m-8-5h16" />
+        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
     </svg>
   </button>
 
@@ -68,7 +68,7 @@
   <div id="flashcard-button-container"
     class="fixed right-40 top-2 mb-2 z-40 {% comment %}Adjust 'right-40' as needed for spacing{% endcomment %}">
     <a href="{% url 'flashcards_generator' %}"
-      class="px-4 py-2 bg-cyan-950/80 text-white rounded hover:bg-cyan-800 transition-colors font-semibold shadow-lg shadow-cyan-400/50 border border-cyan-400/50 hover:shadow-cyan-400 flex items-center duration-500">
+      class="px-4 py-2 bg-gradient-to-br from-sky-600 to-sky-800 hover:from-sky-800 hover:to-sky-600 text-white rounded  duration-500 font-semibold shadow-lg shadow-cyan-400/50 border border-cyan-400/50 hover:shadow-cyan-400 flex items-center duration-500">
       <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none"
         viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
         <path stroke-linecap="round" stroke-linejoin="round"
@@ -82,7 +82,7 @@
   <div id="quiz-button-container"
     class="fixed right-2 top-2 mb-2 z-40 {% if is_new_chat %}hidden{% endif %}">
     <button id="quiz-button"
-      class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors font-semibold shadow">
+      class="px-4 py-2 bg-gradient-to-br from-sky-600 to-sky-800 hover:from-sky-800 hover:to-sky-600 text-white rounded  transition-colors font-semibold shadow duration-500">
       Quiz
     </button>
   </div>
@@ -106,7 +106,7 @@
   <div id="rag-modal-content"
     class="rag-modal-content bg-gray-800 p-6 rounded-xl shadow-2xl w-full max-w-lg transform scale-95">
     <div class="flex justify-between items-center mb-4">
-      <h2 class="text-xl font-semibold text-gray-100">Manage RAG Context</h2>
+      <h2 class="text-xl font-semibold text-gray-100">Manage Context Files</h2>
       <button id="close-rag-modal-btn"
         class="p-1 text-gray-400 hover:text-gray-200 rounded-full">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none"
@@ -119,12 +119,12 @@
 
     <!-- Current RAG Files -->
     <div class="mb-6">
-      <h3 class="text-md font-medium text-gray-300 mb-2">Active RAG Files (<span
+      <h3 class="text-md font-medium text-gray-300 mb-2">Active Files (<span
           id="rag-file-count">0</span>/10):</h3>
       <div id="rag-files-list" class="space-y-2 max-h-48 overflow-y-auto pr-2">
         <!-- JS will populate this -->
         <p id="no-rag-files-message" class="text-gray-400 text-sm italic">No
-          files added to RAG context yet.</p>
+          files added to context yet.</p>
       </div>
     </div>
 
