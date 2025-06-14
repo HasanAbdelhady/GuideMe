@@ -250,10 +250,11 @@ document.addEventListener("DOMContentLoaded", function () {
 
 		typingDiv.innerHTML = `
 			<div class="chat-container flex gap-4 md:gap-6">
-				<div class="flex-shrink-0 w-7 h-7">
-					<div class="cls w-10 h-7 p-1 rounded-sm bg-slate-100 flex items-center justify-center text-white">
-						<img src="/static/images/logo.png" alt="Assistant icon" class="h-5 w-7">
-					</div>
+        <div>
+          <div
+					class="w-16 flex items-center justify-center text-white">
+					<img src="/static/images/logo.png" alt="Assistant icon"
+						class="h-12 w-12 ">
 				</div>
 				<div class="flex-1">
 					<div class="typing-indicator">
@@ -312,7 +313,7 @@ document.addEventListener("DOMContentLoaded", function () {
 	window.appendMessage = function (
 		role,
 		content,
-		messageId = data.messageId,
+		messageId = null,
 		type = "text",
 		quizHtml = null
 	) {
@@ -361,9 +362,12 @@ document.addEventListener("DOMContentLoaded", function () {
 			messageDiv.innerHTML = `
 				<div class="chat-container flex gap-4 md:gap-6">
 					<!-- Assistant icon - left side -->
-				<div class="flex-shrink-0 w-7 h-7">
-						<div class="cls w-10 h-7 p-1 rounded-sm bg-slate-100 flex items-center justify-center text-white">
-							<img src="/static/images/logo.png" alt="Assistant icon" class="h-5 w-7">
+			<div class="chat-container flex gap-4 md:gap-6">
+        <div>
+          <div
+					class="w-16 flex items-center justify-center text-white">
+					<img src="/static/images/logo.png" alt="Assistant icon"
+						class="h-12 w-12 ">
 				</div>
 					</div>
 					<!-- Message content -->
@@ -641,10 +645,12 @@ document.addEventListener("DOMContentLoaded", function () {
 
 							messageDiv.innerHTML = `
                                 <div class="chat-container flex gap-4 md:gap-6">
-                                    <div class="flex-shrink-0 w-7 h-7">
-                                        <div class="cls w-10 h-7 p-1 rounded-sm bg-slate-100 flex items-center justify-center text-white">
-                                            <img src="/static/images/logo.png" alt="Assistant icon" class="h-5 w-7">
-                                        </div>
+                                    <div>
+                                      <div
+                                        class="w-16 flex items-center justify-center text-white">
+                                        <img src="/static/images/logo.png" alt="Assistant icon"
+                                          class="h-12 w-12 ">
+                                      </div>
                                     </div>
                                     <div class="flex-1 overflow-x-auto min-w-0 max-w-[85%]" data-role="youtube-content-wrapper">
                                         <!-- YouTube recommendations will be rendered here -->
@@ -680,7 +686,7 @@ document.addEventListener("DOMContentLoaded", function () {
 		}
 	};
 
-	function appendUserMessage(content) {
+	function appendUserMessage(content, messageId = null) {
 		const messagesDiv = document.getElementById("chat-messages");
 		const placeholder = document.getElementById("initial-chat-placeholder");
 		if (placeholder) placeholder.remove();
@@ -692,8 +698,22 @@ document.addEventListener("DOMContentLoaded", function () {
 					<div class="w-7 h-7 rounded-sm bg-[#5436DA] flex items-center justify-center text-white text-xs font-semibold">U</div>
 				</div>
 				<div class="overflow-x-auto max-w-[75%]">
-					<div class="user-message text-gray-100 bg-[#444654] p-3 rounded-lg">
-						<p class="whitespace-pre-wrap">${content}</p>
+					<div class="user-message text-gray-100 bg-[#444654] p-3 rounded-lg message-text-container" data-message-id="${messageId || ""}" data-created-at="${new Date().toISOString()}">
+						<p class="whitespace-pre-wrap message-content-text">${content}</p>
+						<div class="edit-controls hidden mt-2">
+							<textarea class="edit-message-textarea w-full p-2 rounded bg-gray-700 border border-gray-600 text-gray-100 resize-none" rows="3"></textarea>
+							<div class="flex justify-end gap-2 mt-2">
+								<button class="cancel-edit-btn px-3 py-1 text-xs bg-gray-600 hover:bg-gray-500 rounded text-white">Cancel</button>
+								<button class="save-edit-btn px-3 py-1 text-xs bg-blue-600 hover:bg-blue-500 rounded text-white">Save</button>
+							</div>
+						</div>
+					</div>
+					<div class="flex justify-end mt-1 pr-1">
+						<button class="edit-message-btn p-1 text-gray-400 hover:text-gray-200 transition-opacity" data-message-id="${messageId || ""}" title="Edit message">
+							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+								<path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+							</svg>
+						</button>
 					</div>
 				</div>
 			</div>
@@ -879,11 +899,13 @@ document.addEventListener("DOMContentLoaded", function () {
 				messageDiv.className = "message-enter px-4 md:px-6 py-6";
 				messageDiv.innerHTML = `
 					<div class="chat-container flex gap-4 md:gap-6">
-						<div class="flex-shrink-0 w-7 h-7">
-							<div class="cls w-10 h-7 p-1 rounded-sm bg-slate-100 flex items-center justify-center text-white">
-								<img src="/static/images/logo.png" alt="Assistant icon" class="h-5 w-7">
-							</div>
-						</div>
+          <div>
+            <div
+              class="w-16 flex items-center justify-center text-white">
+              <img src="/static/images/logo.png" alt="Assistant icon"
+                class="h-12 w-12 ">
+            </div>
+          </div>
 						<div class="flex-1 overflow-x-auto min-w-0">
 							<p class="text-red-400">Error: ${error.message}</p>
 						</div>
@@ -1939,11 +1961,13 @@ document.addEventListener("DOMContentLoaded", function () {
 
 		messageDiv.innerHTML = `
 			<div class="chat-container flex gap-4 md:gap-6">
-				<div class="flex-shrink-0 w-7 h-7">
-					<div class="cls w-10 h-7 p-1 rounded-sm bg-slate-100 flex items-center justify-center text-white">
-						<img src="/static/images/logo.png" alt="Assistant icon" class="h-5 w-7">
-					</div>
-				</div>
+          <div>
+            <div
+              class="w-16 flex items-center justify-center text-white">
+              <img src="/static/images/logo.png" alt="Assistant icon"
+                class="h-12 w-12 ">
+            </div>
+          </div>
 				<div class="flex-1 overflow-x-auto min-w-0 max-w-[85%]">
 					<div class="diagram-message-container bg-gray-800/50 p-2 my-2 rounded-lg shadow-md flex flex-col justify-center items-center">
 						<img src="${imageUrl}" alt="${textContent || "Generated Diagram"}" 
