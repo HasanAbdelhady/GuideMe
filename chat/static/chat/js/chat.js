@@ -253,7 +253,7 @@ document.addEventListener("DOMContentLoaded", function () {
         <div>
           <div
 					class="w-16 flex items-center justify-center text-white">
-					<img src="{% static 'images/logo.png' %}" alt="Assistant icon"
+					<img src="/static/images/logo.png" alt="Assistant icon"
 						class="h-12 w-12 ">
 				</div>
       </div>
@@ -315,7 +315,7 @@ document.addEventListener("DOMContentLoaded", function () {
 	window.appendMessage = function (
 		role,
 		content,
-		messageId = data.messageId,
+		messageId = null,
 		type = "text",
 		quizHtml = null
 	) {
@@ -368,7 +368,7 @@ document.addEventListener("DOMContentLoaded", function () {
         <div>
           <div
 					class="w-16 flex items-center justify-center text-white">
-					<img src="{% static 'images/logo.png' %}" alt="Assistant icon"
+					<img src="/static/images/logo.png" alt="Assistant icon"
 						class="h-12 w-12 ">
 				</div>
       </div>
@@ -651,7 +651,7 @@ document.addEventListener("DOMContentLoaded", function () {
                                     <div>
                                       <div
                                         class="w-16 flex items-center justify-center text-white">
-                                        <img src="{% static 'images/logo.png' %}" alt="Assistant icon"
+                                        <img src="/static/images/logo.png" alt="Assistant icon"
                                           class="h-12 w-12 ">
                                       </div>
                                     </div>
@@ -724,7 +724,7 @@ document.addEventListener("DOMContentLoaded", function () {
 		messagesDiv.appendChild(messageDiv);
 		window.smoothScrollToBottom();
 	}
-	
+
 	form.addEventListener("submit", async function (e) {
 		e.preventDefault();
 		let promptText = textarea.value.trim();
@@ -905,7 +905,7 @@ document.addEventListener("DOMContentLoaded", function () {
           <div>
             <div
               class="w-16 flex items-center justify-center text-white">
-              <img src="{% static 'images/logo.png' %}" alt="Assistant icon"
+              <img src="/static/images/logo.png" alt="Assistant icon"
                 class="h-12 w-12 ">
             </div>
           </div>
@@ -1967,7 +1967,7 @@ document.addEventListener("DOMContentLoaded", function () {
           <div>
             <div
               class="w-16 flex items-center justify-center text-white">
-              <img src="{% static 'images/logo.png' %}" alt="Assistant icon"
+              <img src="/static/images/logo.png" alt="Assistant icon"
                 class="h-12 w-12 ">
             </div>
           </div>
