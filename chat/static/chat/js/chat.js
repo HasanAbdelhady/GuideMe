@@ -689,7 +689,7 @@ document.addEventListener("DOMContentLoaded", function () {
 		}
 	};
 
-	function appendUserMessage(content) {
+	function appendUserMessage(content, messageId = null) {
 		const messagesDiv = document.getElementById("chat-messages");
 		const placeholder = document.getElementById("initial-chat-placeholder");
 		if (placeholder) placeholder.remove();
@@ -701,8 +701,22 @@ document.addEventListener("DOMContentLoaded", function () {
 					<div class="w-7 h-7 rounded-sm bg-[#5436DA] flex items-center justify-center text-white text-xs font-semibold">U</div>
 				</div>
 				<div class="overflow-x-auto max-w-[75%]">
-					<div class="user-message text-gray-100 bg-[#444654] p-3 rounded-lg">
-						<p class="whitespace-pre-wrap">${content}</p>
+					<div class="user-message text-gray-100 bg-[#444654] p-3 rounded-lg message-text-container" data-message-id="${messageId || ""}" data-created-at="${new Date().toISOString()}">
+						<p class="whitespace-pre-wrap message-content-text">${content}</p>
+						<div class="edit-controls hidden mt-2">
+							<textarea class="edit-message-textarea w-full p-2 rounded bg-gray-700 border border-gray-600 text-gray-100 resize-none" rows="3"></textarea>
+							<div class="flex justify-end gap-2 mt-2">
+								<button class="cancel-edit-btn px-3 py-1 text-xs bg-gray-600 hover:bg-gray-500 rounded text-white">Cancel</button>
+								<button class="save-edit-btn px-3 py-1 text-xs bg-blue-600 hover:bg-blue-500 rounded text-white">Save</button>
+							</div>
+						</div>
+					</div>
+					<div class="flex justify-end mt-1 pr-1">
+						<button class="edit-message-btn p-1 text-gray-400 hover:text-gray-200 transition-opacity" data-message-id="${messageId || ""}" title="Edit message">
+							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+								<path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+							</svg>
+						</button>
 					</div>
 				</div>
 			</div>
@@ -710,7 +724,7 @@ document.addEventListener("DOMContentLoaded", function () {
 		messagesDiv.appendChild(messageDiv);
 		window.smoothScrollToBottom();
 	}
-
+	
 	form.addEventListener("submit", async function (e) {
 		e.preventDefault();
 		let promptText = textarea.value.trim();
