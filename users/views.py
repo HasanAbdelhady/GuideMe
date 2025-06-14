@@ -122,6 +122,7 @@ class UserProfileView(LoginRequiredMixin, View):
             'learning_style_choices': CustomUser.LEARNING_STYLE_CHOICES,
         }
         return render(request, 'users/profile.html', context)
+
     def handle_password_change(self, request):
         password_form = PasswordChangeForm(request.user, request.POST)
         if password_form.is_valid():
@@ -133,6 +134,7 @@ class UserProfileView(LoginRequiredMixin, View):
                 for error in errors:
                     messages.error(request, f'Password {field}: {error}')
         return redirect('profile')
+
     def post(self, request):
         action = request.POST.get('action')
         print(request.POST)
