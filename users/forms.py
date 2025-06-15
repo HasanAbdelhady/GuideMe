@@ -1,5 +1,5 @@
 from .models import CustomUser, Interest
-from django.contrib.auth.forms import UserChangeForm
+from django.contrib.auth.forms import UserChangeForm, PasswordChangeForm as DjangoPasswordChangeForm
 from django import forms
 from django.contrib.auth.forms import UserCreationForm, UserChangeForm
 from .models import CustomUser
@@ -133,7 +133,7 @@ class CustomUserChangeForm(UserChangeForm):
             'custom_interests', 'preferred_study_time', 'quiz_preference'
         )
 
-class PasswordChangeForm(forms.Form):
+class PasswordChangeForm(DjangoPasswordChangeForm):
     old_password = forms.CharField(
         widget=forms.PasswordInput(attrs={
             'class': 'w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-100'
@@ -149,13 +149,3 @@ class PasswordChangeForm(forms.Form):
             'class': 'w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-100'
         })
     )
-
-    def clean(self):
-        cleaned_data = super().clean()
-        new_password1 = cleaned_data.get('new_password1')
-        new_password2 = cleaned_data.get('new_password2')
-
-        if new_password1 and new_password2 and new_password1 != new_password2:
-            raise forms.ValidationError(
-                "The two password fields didn't match.")
-        return cleaned_data

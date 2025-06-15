@@ -109,7 +109,7 @@ class UserLoginView(View):
 class UserProfileView(LoginRequiredMixin, View):
     def get(self, request):
         user_form = CustomUserChangeForm(instance=request.user)
-        password_form = PasswordChangeForm()
+        password_form = PasswordChangeForm(user=request.user)
         interests = Interest.objects.all()
         user_interests = request.user.interests.all()
         context = {
