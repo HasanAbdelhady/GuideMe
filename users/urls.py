@@ -4,9 +4,8 @@ from .views import (
     UserProfileView,
     TokenObtainPairView,
     TokenRefreshView,
-    LogoutView,
     UserProfileView,
-
+    GoogleSignupPreferencesView,
 )
 from django.contrib.auth.views import LoginView
 
@@ -15,8 +14,8 @@ urlpatterns = [
         template_name='users/login.html',
         redirect_authenticated_user=True
     ), name='login'),
-    path('logout/', LogoutView.as_view(), name='logout'),
     path('register/', UserRegistrationView.as_view(), name='register'),
+    path('register-preferences/', GoogleSignupPreferencesView.as_view(), name='google_preferences'),
     path('profile/', UserProfileView.as_view(), name='profile'),
 
     # JWT Token endpoints
