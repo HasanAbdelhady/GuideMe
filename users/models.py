@@ -34,11 +34,11 @@ class CustomUser(AbstractUser):
     ]
 
     QUIZ_PREFERENCE_CHOICES = [
-        (1, 'Very helpful'),
-        (2, 'Somewhat helpful'),
+        (1, 'Not at all helpful'),
+        (2, 'Not very helpful'),
         (3, 'Neutral'),
-        (4, 'Not very helpful'),
-        (5, 'Not at all helpful'),
+        (4, 'Somewhat Helpful'),
+        (5, 'Very helpful'),
     ]
 
     # Survey fields

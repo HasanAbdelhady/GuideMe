@@ -424,9 +424,9 @@
 
                 <div class="bg-gray-800/30 rounded-xl p-6">
                   <div class="flex items-center justify-between mb-4">
-                    <span class="text-sm font-medium text-green-400">Very
-                      Helpful</span>
                     <span class="text-sm font-medium text-red-400">Not
+                      Helpful</span>
+                    <span class="text-sm font-medium text-green-400">Very
                       Helpful</span>
                   </div>
                   <div class="flex items-center justify-between px-2">
@@ -658,115 +658,6 @@
         this.classList.add("border-blue-500", "bg-blue-500/10", "shadow-lg", "shadow-blue-500/25");
         this.classList.remove("border-gray-600");
         document.getElementById("preferred_study_time").value = this.dataset.value;
-      });
-    });
-
-    // Interest management
-    const interestInput = document.getElementById('interest-input');
-    const suggestionsDiv = document.getElementById('interest-suggestions');
-    const addInterestForm = document.getElementById('add-interest-form');
-
-    // Interest data from Django template
-    const allInterests = [
-      {% for interest in interests %}{ id: {{ interest.id }}, name: "{{ interest.name|escapejs }}" }{% if not forloop.last %},{% endif %}
-      {% endfor %}
-    ];
-
-    const userInterests = [
-      {% for interest in user_interests %}{ id: {{ interest.id }}, name: "{{ interest.name|escapejs }}" }{% if not forloop.last %},{% endif %}
-      {% endfor %}
-    ];
-
-    // Show suggestions when typing
-    interestInput.addEventListener('input', function() {
-      const query = this.value.toLowerCase().trim();
-
-      if (query.length < 2) {
-        suggestionsDiv.classList.add('hidden');
-        return;
-      }
-
-      const filteredInterests = allInterests.filter(interest =>
-        interest.name.toLowerCase().includes(query) &&
-        !userInterests.some(ui => ui.id === interest.id)
-      );
-
-      if (filteredInterests.length > 0) {
-        suggestionsDiv.innerHTML = '';
-        filteredInterests.forEach(interest => {
-          const div = document.createElement('div');
-          div.className = 'px-4 py-3 hover:bg-gray-600/50 cursor-pointer transition-colors duration-200 flex items-center gap-3';
-          div.innerHTML = `
-            <div class="w-2 h-2 bg-blue-400 rounded-full"></div>
-            <span>${interest.name}</span>
-          `;
-          
-          div.addEventListener('click', function() {
-            interestInput.value = interest.name;
-            suggestionsDiv.classList.add('hidden');
-            addInterestForm.submit();
-          });
-
-          suggestionsDiv.appendChild(div);
-        });
-        suggestionsDiv.classList.remove('hidden');
-      } else {
-        suggestionsDiv.innerHTML = `
-          <div class="px-4 py-3 text-gray-300 flex items-center gap-3">
-            <div class="w-2 h-2 bg-green-400 rounded-full"></div>
-            <span>Press "Add Interest" to create "${query}"</span>
-          </div>
-        `;
-        suggestionsDiv.classList.remove('hidden');
-      }
-    });
-
-    // Hide suggestions when clicking outside
-    document.addEventListener('click', function(e) {
-      if (!interestInput.contains(e.target) && !suggestionsDiv.contains(e.target)) {
-        suggestionsDiv.classList.add('hidden');
-      }
-    });
-
-    // Submit form when pressing Enter
-    interestInput.addEventListener('keydown', function(e) {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        addInterestForm.submit();
-      }
-    });
-
-    // Toggle password change section
-    const togglePasswordBtn = document.getElementById('togglePasswordChange');
-    const cancelPasswordBtn = document.getElementById('cancelPasswordChange');
-    const passwordSection = document.getElementById('passwordChangeSection');
-
-    if (togglePasswordBtn && passwordSection) {
-      togglePasswordBtn.addEventListener('click', () => {
-        passwordSection.classList.remove('hidden');
-        togglePasswordBtn.style.display = 'none';
-      });
-
-      cancelPasswordBtn.addEventListener('click', () => {
-        passwordSection.classList.add('hidden');
-        togglePasswordBtn.style.display = 'flex';
-        passwordSection.querySelector('form').reset();
-      });
-    }
-
-    // Handle form submissions
-    document.querySelectorAll('form').forEach(form => {
-      form.addEventListener('submit', function(e) {
-        if (this.classList.contains('is-submitting')) {
-          e.preventDefault();
-          return;
-        }
-        this.classList.add('is-submitting');
-        const submitBtn = this.querySelector('button[type="submit"]');
-        if (submitBtn) {
-          submitBtn.disabled = true;
-          submitBtn.innerHTML = submitBtn.innerHTML.replace(/Update|Add|Change/, 'Processing...');
-        }
       });
     });
   </script>
