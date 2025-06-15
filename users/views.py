@@ -12,7 +12,7 @@ from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import update_session_auth_hash
-from django.contrib.auth.views import LogoutView as DjangoLogoutView
+# Removed DjangoLogoutView import - using allauth logout instead
 from django.urls import reverse_lazy
 from .models import Interest, CustomUser, UserInterest
 from django.db import transaction
@@ -104,6 +104,81 @@ class UserRegistrationView(View):
 class UserLoginView(View):
     def get(self, request):
         return render(request, 'users/login.html')
+
+
+class GoogleSignupPreferencesView(LoginRequiredMixin, View):
+    """
+    View to handle preferences setup for users who signed up with Google
+    """
+    def get(self, request):
+        # Allow access if user came from Google signup OR if they don't have preferences set
+        user = request.user
+        has_preferences = (
+            user.learning_style_visual or 
+            user.learning_style_auditory or 
+            user.learning_style_kinesthetic or 
+            user.learning_style_reading or
+            user.interests.exists()
+        )
+        
+        # If user has preferences already, redirect to chat
+        if has_preferences and not request.session.get('google_signup', False):
+            return redirect('chat')
+        
+        # Get available interests
+        interests = Interest.objects.all()
+        context = {
+            'interests': interests,
+            'study_time_choices': CustomUser.STUDY_TIME_CHOICES,
+            'quiz_preference_choices': CustomUser.QUIZ_PREFERENCE_CHOICES,
+            'is_google_signup': True,
+        }
+        return render(request, 'users/google_preferences.html', context)
+    
+    def post(self, request):
+        # Check if user came from Google signup
+        if not request.session.get('google_signup', False):
+            return redirect('profile')
+        
+        user = request.user
+        
+        # Update learning styles
+        learning_styles = {
+            'visual': request.POST.get('learning_style_visual') == "1",
+            'auditory': request.POST.get('learning_style_auditory') == "1",
+            'kinesthetic': request.POST.get('learning_style_kinesthetic') == "1",
+            'reading': request.POST.get('learning_style_reading') == "1",
+        }
+        for style, value in learning_styles.items():
+            setattr(user, f'learning_style_{style}', value)
+
+        # Update study time preference
+        study_time = request.POST.get('preferred_study_time')
+        if study_time in dict(CustomUser.STUDY_TIME_CHOICES):
+            user.preferred_study_time = study_time
+
+        # Update quiz preference
+        quiz_pref = request.POST.get('quiz_preference')
+        if quiz_pref and quiz_pref.isdigit():
+            quiz_pref_int = int(quiz_pref)
+            if quiz_pref_int in dict(CustomUser.QUIZ_PREFERENCE_CHOICES):
+                user.quiz_preference = quiz_pref_int
+
+        # Save user changes
+        user.save()
+
+        # Handle interests
+        interest_names = request.POST.getlist('interests')
+        for interest_name in interest_names:
+            interest, created = Interest.objects.get_or_create(name=interest_name)
+            UserInterest.objects.get_or_create(user=user, interest=interest)
+
+        # Clear session flags
+        request.session.pop('google_signup', None)
+        request.session.pop('needs_preferences', None)
+
+        messages.success(request, 'Welcome! Your preferences have been saved.')
+        return redirect('chat')
 
 
 class UserProfileView(LoginRequiredMixin, View):
@@ -287,12 +362,7 @@ class TokenRefreshView(APIView):
             return Response({'error': 'Invalid refresh token'}, status=400)
 
 
-class LogoutView(DjangoLogoutView):
-    next_page = reverse_lazy('login')
-
-    def post(self, request, *args, **kwargs):
-        logout(request)
-        return redirect(self.next_page)
+# LogoutView removed - using allauth's logout functionality instead
 
 
 # @login_required

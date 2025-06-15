@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+{%load static%}
+
+<html lang="en" class="dark">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <script src="https://cdn.tailwindcss.com"></script>
+        <script>
+			tailwind.config = { darkMode: "class" };
+		</script>
+        <link
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+            rel="stylesheet">
+        <title>Complete Your Profile</title>
+        <style>
+			body { font-family: 'Inter', sans-serif; }
+			
+			.learning-style-card::before {
+				content: '';
+				position: absolute;
+				top: 0;
+				left: -100%;
+				width: 100%;
+				height: 100%;
+				background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+				transition: left 0.5s;
+			}
+			.learning-style-card:hover::before {
+				left: 100%;
+			}
+		</style>
+    </head>
+    <body
+        class="min-h-screen flex items-center justify-center p-0 bg-gradient-to-br from-[#0f172a] via-[#1e293b] to-black text-gray-100">
+
+        <!-- Animated background elements -->
+        <div class="fixed inset-0 overflow-hidden pointer-events-none">
+            <div
+                class="absolute top-1/4 left-1/4 w-64 h-64 bg-blue-600/10 rounded-full blur-3xl animate-pulse"></div>
+            <div
+                class="absolute bottom-1/4 right-1/4 w-96 h-96 bg-indigo-600/10 rounded-full blur-3xl animate-pulse"
+                style="animation-delay: 2s;"></div>
+        </div>
+
+        <div
+            class="relative w-full max-w-2xl mx-auto my-8 rounded-2xl shadow-2xl bg-[#1e293b]/80 backdrop-blur-xl border border-[#334155]/50">
+            <div class="p-6 sm:p-10 h-full">
+                <!-- Header -->
+                <div class="text-center mb-8">
+                    <div
+                        class="w-16 h-16 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <svg class="w-8 h-8 text-white" fill="none"
+                            stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        </svg>
+                    </div>
+                    <h2 class="text-3xl font-bold text-white mb-2">Complete Your
+                        Profile</h2>
+                    <p class="text-gray-400">Help us personalize your learning
+                        experience</p>
+                </div>
+
+                {% if messages %}
+                <div class="mb-6 space-y-2">
+                    {% for message in messages %}
+                    <div
+                        class="p-4 rounded-lg backdrop-blur-sm {% if message.tags == 'success' %}bg-green-800/30 border border-green-500/30 text-green-200{% else %}bg-red-800/30 border border-red-500/30 text-red-200{% endif %}">
+                        {{ message }}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                <form method="POST" class="space-y-8">
+                    {% csrf_token %}
+
+                    <!-- Learning Style Questions -->
+                    <div class="space-y-6">
+                        <div>
+                            <label
+                                class="text-lg font-semibold text-white mb-4 block">How
+                                do you prefer to learn?</label>
+                            <p class="text-sm text-gray-400 mb-4">Select all
+                                that apply</p>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="learning-style-toggle">
+                                    <input type="checkbox" id="visual"
+                                        name="learning_style_visual" value="1"
+                                        class="hidden peer" />
+                                    <label for="visual"
+                                        class="learning-style-card group block p-6 text-center rounded-xl border-2 cursor-pointer relative overflow-hidden transition-all duration-300 hover:scale-105 peer-checked:border-blue-500 peer-checked:bg-blue-500/10 peer-checked:shadow-lg peer-checked:shadow-blue-500/25 border-gray-600 hover:border-gray-500 bg-gray-800/50 backdrop-blur-sm">
+                                        <div
+                                            class="w-12 h-12 mx-auto mb-3 rounded-full bg-gradient-to-r from-blue-500 to-blue-600 flex items-center justify-center">
+                                            <svg class="w-6 h-6 text-white"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                viewBox="0 0 24 24">
+                                                <path stroke-linecap="round"
+                                                    stroke-linejoin="round"
+                                                    stroke-width="2"
+                                                    d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                            </svg>
+                                        </div>
+                                        <span
+                                            class="text-sm font-medium text-gray-300 group-hover:text-white transition-colors">Videos
+                                            & Diagrams</span>
+                                    </label>
+                                </div>
+                                <div class="learning-style-toggle">
+                                    <input type="checkbox" id="auditory"
+                                        name="learning_style_auditory" value="1"
+                                        class="hidden peer" />
+                                    <label for="auditory"
+                                        class="learning-style-card group block p-6 text-center rounded-xl border-2 cursor-pointer relative overflow-hidden transition-all duration-300 hover:scale-105 peer-checked:border-blue-500 peer-checked:bg-blue-500/10 peer-checked:shadow-lg peer-checked:shadow-blue-500/25 border-gray-600 hover:border-gray-500 bg-gray-800/50 backdrop-blur-sm">
+                                        <div
+                                            class="w-12 h-12 mx-auto mb-3 rounded-full bg-gradient-to-r from-blue-500 to-indigo-600 flex items-center justify-center">
+                                            <svg class="w-6 h-6 text-white"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                viewBox="0 0 24 24">
+                                                <path stroke-linecap="round"
+                                                    stroke-linejoin="round"
+                                                    stroke-width="2"
+                                                    d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                                            </svg>
+                                        </div>
+                                        <span
+                                            class="text-sm font-medium text-gray-300 group-hover:text-white transition-colors">Listening
+                                            & Discussion</span>
+                                    </label>
+                                </div>
+                                <div class="learning-style-toggle">
+                                    <input type="checkbox" id="kinesthetic"
+                                        name="learning_style_kinesthetic"
+                                        value="1" class="hidden peer" />
+                                    <label for="kinesthetic"
+                                        class="learning-style-card group block p-6 text-center rounded-xl border-2 cursor-pointer relative overflow-hidden transition-all duration-300 hover:scale-105 peer-checked:border-blue-500 peer-checked:bg-blue-500/10 peer-checked:shadow-lg peer-checked:shadow-blue-500/25 border-gray-600 hover:border-gray-500 bg-gray-800/50 backdrop-blur-sm">
+                                        <div
+                                            class="w-12 h-12 mx-auto mb-3 rounded-full bg-gradient-to-r from-indigo-500 to-blue-600 flex items-center justify-center">
+                                            <svg class="w-6 h-6 text-white"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                viewBox="0 0 24 24">
+                                                <path stroke-linecap="round"
+                                                    stroke-linejoin="round"
+                                                    stroke-width="2"
+                                                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                                            </svg>
+                                        </div>
+                                        <span
+                                            class="text-sm font-medium text-gray-300 group-hover:text-white transition-colors">Hands-on
+                                            Practice</span>
+                                    </label>
+                                </div>
+                                <div class="learning-style-toggle">
+                                    <input type="checkbox" id="reading"
+                                        name="learning_style_reading" value="1"
+                                        class="hidden peer" />
+                                    <label for="reading"
+                                        class="learning-style-card group block p-6 text-center rounded-xl border-2 cursor-pointer relative overflow-hidden transition-all duration-300 hover:scale-105 peer-checked:border-blue-500 peer-checked:bg-blue-500/10 peer-checked:shadow-lg peer-checked:shadow-blue-500/25 border-gray-600 hover:border-gray-500 bg-gray-800/50 backdrop-blur-sm">
+                                        <div
+                                            class="w-12 h-12 mx-auto mb-3 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 flex items-center justify-center">
+                                            <svg class="w-6 h-6 text-white"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                viewBox="0 0 24 24">
+                                                <path stroke-linecap="round"
+                                                    stroke-linejoin="round"
+                                                    stroke-width="2"
+                                                    d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                                            </svg>
+                                        </div>
+                                        <span
+                                            class="text-sm font-medium text-gray-300 group-hover:text-white transition-colors">Reading
+                                            & Writing</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Study Time Preference -->
+                        <div>
+                            <label
+                                class="text-lg font-semibold text-white mb-4 block">Preferred
+                                study session length:</label>
+                            <div class="grid grid-cols-3 gap-4">
+                                <button type="button" data-value="short"
+                                    class="study-time-btn p-4 text-center rounded-xl border border-gray-600 text-sm text-gray-300 transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-black/20 hover:bg-gray-600 bg-gray-700/50 backdrop-blur-sm">
+                                    <div class="font-medium">Short bursts</div>
+                                    <div
+                                        class="text-xs text-gray-400 mt-1">25-30
+                                        mins</div>
+                                </button>
+                                <button type="button" data-value="medium"
+                                    class="study-time-btn p-4 text-center rounded-xl border border-gray-600 text-sm text-gray-300 transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-black/20 hover:bg-gray-600 bg-gray-700/50 backdrop-blur-sm">
+                                    <div class="font-medium">Medium
+                                        sessions</div>
+                                    <div
+                                        class="text-xs text-gray-400 mt-1">30-60
+                                        mins</div>
+                                </button>
+                                <button type="button" data-value="long"
+                                    class="study-time-btn p-4 text-center rounded-xl border border-gray-600 text-sm text-gray-300 transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-black/20 hover:bg-gray-600 bg-gray-700/50 backdrop-blur-sm">
+                                    <div class="font-medium">Long sessions</div>
+                                    <div class="text-xs text-gray-400 mt-1">1-2
+                                        hours</div>
+                                </button>
+                                <input type="hidden" name="preferred_study_time"
+                                    id="preferred_study_time" />
+                            </div>
+                        </div>
+
+                        <!-- Subject Interests -->
+                        <div class="space-y-4">
+                            <label
+                                class="text-lg font-semibold text-white">Fields
+                                you're interested in:</label>
+                            <div class="relative">
+                                <input type="text" id="interest-input"
+                                    placeholder="Type to search or add new interest..."
+                                    class="w-full px-4 py-3 bg-gray-700/50 backdrop-blur-sm border border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-100 transition-all duration-300" />
+                                <div id="interest-suggestions"
+                                    class="hidden absolute z-10 w-full mt-1 py-1 bg-gray-700/90 backdrop-blur-sm border border-gray-600 rounded-xl shadow-lg max-h-48 overflow-y-auto"></div>
+                            </div>
+                            <div id="selected-interests"
+                                class="flex flex-wrap gap-2"></div>
+                        </div>
+
+                        <!-- Quiz Preference -->
+                        <div>
+                            <label
+                                class="text-lg font-semibold text-white mb-4 block">How
+                                helpful do you find interactive quizzes?</label>
+                            <div class="mt-4">
+                                <div
+                                    class="relative flex items-center justify-between px-2">
+                                    <div
+                                        class="flex items-center justify-between w-full">
+                                        {% for i in "12345" %}
+                                        <div class="flex flex-col items-center">
+                                            <input type="radio"
+                                                id="quiz_pref_{{ i }}"
+                                                name="quiz_preference"
+                                                value="{{ i }}"
+                                                class="sr-only peer" {% if i == "3" %}checked{% endif %}>
+                                            <label for="quiz_pref_{{ i }}"
+                                                class="w-8 h-8 rounded-full bg-gray-700 border-2 border-gray-600 cursor-pointer peer-checked:bg-gradient-to-r peer-checked:from-blue-600 peer-checked:to-blue-700 peer-checked:border-blue-500 peer-checked:shadow-lg peer-checked:shadow-blue-500/30 peer-checked:scale-125 transition-all duration-300 hover:scale-110"></label>
+                                            <span
+                                                class="mt-2 text-xs text-gray-400 text-center opacity-0 transition-opacity duration-200"
+                                                data-rating="{{ i }}">
+                                                {% if i == "1" %} Not helpful {% elif i == "5" %} Very helpful {% endif %}
+                                            </span>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                <div
+                                    class="flex justify-between mt-2 text-xs text-gray-400">
+                                    <span>Not helpful</span>
+                                    <span>Very helpful</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <div class="flex justify-center pt-6">
+                        <button type="submit"
+                            class="px-8 py-4 text-white font-semibold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-xl transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-blue-500/25 relative overflow-hidden">
+                            <span class="relative z-10">Complete Setup</span>
+                            <div
+                                class="absolute inset-0 bg-gradient-to-r from-blue-700 to-indigo-700 opacity-0 hover:opacity-100 transition-opacity duration-300"></div>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <script>
+			// Study time selection
+			document.querySelectorAll('.study-time-btn').forEach(btn => {
+				btn.addEventListener('click', function() {
+					// Remove active class from all buttons
+					document.querySelectorAll('.study-time-btn').forEach(b => {
+						b.classList.remove('border-blue-500', 'bg-blue-500/10', 'text-blue-300');
+						b.classList.add('border-gray-600', 'text-gray-300');
+					});
+					
+					// Add active class to clicked button
+					this.classList.remove('border-gray-600', 'text-gray-300');
+					this.classList.add('border-blue-500', 'bg-blue-500/10', 'text-blue-300');
+					
+					// Set hidden input value
+					document.getElementById('preferred_study_time').value = this.dataset.value;
+				});
+			});
+
+			// Quiz preference labels
+			document.querySelectorAll('input[name="quiz_preference"]').forEach(radio => {
+				radio.addEventListener('change', function() {
+					// Hide all labels
+					document.querySelectorAll('[data-rating]').forEach(label => {
+						label.style.opacity = '0';
+					});
+					
+					// Show label for selected rating
+					const selectedLabel = document.querySelector(`[data-rating="${this.value}"]`);
+					if (selectedLabel) {
+						selectedLabel.style.opacity = '1';
+					}
+				});
+			});
+
+			// Interest management (simplified version)
+			const interestInput = document.getElementById('interest-input');
+			const selectedInterests = document.getElementById('selected-interests');
+			const availableInterests = [
+				"Machine Learning", "Deep Learning", "Natural Language Processing",
+				"Computer Vision", "Artificial Intelligence", "Data Science",
+				"Python Programming", "Data Structures & Algorithms", "Databases",
+				"Web Development", "Cloud Computing", "Cybersecurity",
+				"Robotics", "Data Engineering"
+			];
+
+			let selectedInterestsList = [];
+
+			interestInput.addEventListener('keypress', function(e) {
+				if (e.key === 'Enter') {
+					e.preventDefault();
+					const interest = this.value.trim();
+					if (interest && !selectedInterestsList.includes(interest)) {
+						addInterest(interest);
+						this.value = '';
+					}
+				}
+			});
+
+			function addInterest(interest) {
+				selectedInterestsList.push(interest);
+				
+				const interestTag = document.createElement('div');
+				interestTag.className = 'inline-flex items-center px-3 py-1 rounded-full text-sm bg-blue-600/20 text-blue-300 border border-blue-500/30';
+				interestTag.innerHTML = `
+					${interest}
+					<button type="button" class="ml-2 text-blue-400 hover:text-blue-200" onclick="removeInterest('${interest}', this.parentElement)">
+						<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+						</svg>
+					</button>
+					<input type="hidden" name="interests" value="${interest}">
+				`;
+				
+				selectedInterests.appendChild(interestTag);
+			}
+
+			function removeInterest(interest, element) {
+				selectedInterestsList = selectedInterestsList.filter(i => i !== interest);
+				element.remove();
+			}
+
+			// Initialize default study time
+			document.querySelector('.study-time-btn[data-value="medium"]').click();
+		</script>
+    </body>
+</html>

@@ -30,6 +30,15 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django.contrib.sites',  # Required for allauth
+    
+    # Third party apps
+    'allauth',
+    'allauth.account',
+    'allauth.socialaccount',
+    'allauth.socialaccount.providers.google',
+    
+    # Local apps
     'chat',
     'users'
 ]
@@ -42,7 +51,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-
+    'allauth.account.middleware.AccountMiddleware',  # Required for allauth
 ]
 
 ROOT_URLCONF = 'chatgpt.urls'
@@ -150,3 +159,51 @@ LOGOUT_REDIRECT_URL = 'login'  # Where to redirect after logout
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Django Allauth Configuration
+SITE_ID = 1
+
+AUTHENTICATION_BACKENDS = [
+    # Needed to login by username in Django admin, regardless of `allauth`
+    'django.contrib.auth.backends.ModelBackend',
+    # `allauth` specific authentication methods, such as login by email
+    'allauth.account.auth_backends.AuthenticationBackend',
+    # Custom backend to allow login with email or username
+    'users.backends.EmailOrUsernameModelBackend',
+]
+
+# Allauth settings (updated to new format)
+ACCOUNT_EMAIL_VERIFICATION = 'none'  # Change to 'mandatory' if you want email verification
+ACCOUNT_SIGNUP_FIELDS = ['email*', 'username*', 'password1*', 'password2*']  # Required signup fields
+ACCOUNT_LOGIN_METHODS = {'email'}  # Allow login with email
+ACCOUNT_SIGNUP_REDIRECT_URL = '/users/register-preferences/'  # Redirect to preferences after Google signup
+ACCOUNT_LOGOUT_ON_GET = True  # Allow logout via GET request (no confirmation)
+LOGIN_REDIRECT_URL = '/chat/new/'
+LOGOUT_REDIRECT_URL = '/users/login/'
+
+# Custom adapters
+ACCOUNT_ADAPTER = 'users.adapters.CustomAccountAdapter'
+SOCIALACCOUNT_ADAPTER = 'users.adapters.CustomSocialAccountAdapter'
+
+# Social account settings
+SOCIALACCOUNT_PROVIDERS = {
+    'google': {
+        'SCOPE': [
+            'profile',
+            'email',
+        ],
+        'AUTH_PARAMS': {
+            'access_type': 'online',
+        },
+        'OAUTH_PKCE_ENABLED': True,
+    }
+}
+
+# Google OAuth credentials (using admin interface instead of settings)
+# Commented out to avoid conflicts with admin-configured social applications
+# if os.getenv('GOOGLE_CLIENT_ID') and os.getenv('GOOGLE_CLIENT_SECRET'):
+#     SOCIALACCOUNT_PROVIDERS['google']['APP'] = {
+#         'client_id': os.getenv('GOOGLE_CLIENT_ID'),
+#         'secret': os.getenv('GOOGLE_CLIENT_SECRET'),
+#         'key': ''
+#     }
