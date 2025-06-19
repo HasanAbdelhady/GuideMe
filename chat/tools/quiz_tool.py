@@ -6,6 +6,7 @@ import logging
 from ..models import ChatQuestionBank
 from django.utils.html import strip_tags
 import json
+from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
 
@@ -101,7 +102,6 @@ class QuizTool(BaseTool):
             quiz_html = quiz_data.get('quiz_html', '')
             
             # Parse quiz HTML to extract individual questions
-            # This is a simplified approach - you might want to enhance this
             questions = self._extract_questions_from_html(quiz_html)
             
             for question_data in questions:
@@ -121,6 +121,7 @@ class QuizTool(BaseTool):
                             topic=self._extract_topic_from_message(user_message),
                             difficulty='medium'  # Default, could be enhanced
                         )
+                        logger.info(f"Saved question to bank: {question_data['text'][:50]}...")
                 except Exception as db_error:
                     # Database table might not exist yet (migration not run)
                     logger.warning(f"Question bank save skipped (table might not exist): {db_error}")
@@ -130,21 +131,32 @@ class QuizTool(BaseTool):
             logger.error(f"Error saving quiz to question bank: {e}", exc_info=True)
     
     def _extract_questions_from_html(self, quiz_html: str) -> List[Dict[str, Any]]:
-        """Extract individual questions from quiz HTML"""
-        # This is a simplified implementation
-        # You'll want to enhance this based on your exact quiz HTML structure
+        """Extract individual questions from quiz HTML using BeautifulSoup."""
         questions = []
-        
-        # For now, treat the entire quiz as one question
-        # In a real implementation, you'd parse the HTML properly
-        plain_text = strip_tags(quiz_html)
-        
-        questions.append({
-            'html': quiz_html,
-            'text': plain_text[:200] + "..." if len(plain_text) > 200 else plain_text,
-            'correct_answer': 'A'  # You'd extract this from the actual quiz
-        })
-        
+        try:
+            soup = BeautifulSoup(quiz_html, 'lxml')
+            question_divs = soup.find_all('div', class_='quiz-question')
+            
+            for i, div in enumerate(question_divs):
+                # Ensure each question has a unique name for its radio buttons
+                form = div.find('form')
+                if form:
+                    for radio in form.find_all('input', type='radio'):
+                        radio['name'] = f'q_{i}'
+
+                question_text_div = div.find('div', class_='font-semibold mb-1')
+                question_text = question_text_div.get_text(strip=True) if question_text_div else 'Unknown Question'
+                
+                correct_answer = div.get('data-correct', '').upper()
+                
+                questions.append({
+                    'html': str(div),
+                    'text': question_text,
+                    'correct_answer': correct_answer
+                })
+        except Exception as e:
+            logger.error(f"Error parsing quiz HTML with BeautifulSoup: {e}", exc_info=True)
+            
         return questions
     
     def _extract_topic_from_message(self, user_message: str) -> str:

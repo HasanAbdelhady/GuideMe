@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Study Hub for {{ chat.title }}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        'ocean-blue': '#0077be',
+                        'aqua-cyan': '#00ffff',
+                        'midnight-blue': '#003366',
+                        'card-dark': '#172a45',
+                        'text-dark-primary': '#e0f2f7',
+                        'text-dark-secondary': '#a0d2eb',
+                    },
+                    boxShadow: {
+                        'cyber-glow': '0 0 12px 3px rgba(0, 255, 255, 0.5), 0 0 18px 4px rgba(0, 119, 190, 0.3)',
+                        'cyber-glow-hover': '0 0 20px 5px rgba(0, 255, 255, 0.7), 0 0 30px 8px rgba(0, 119, 190, 0.5)',
+                    }
+                }
+            }
+        };
+    </script>
+    <style>
+        /* 3D flip setup with enhanced styling */
+        .flashcard {
+            perspective: 1000px;
+            width: 16rem;
+            height: 16rem;
+            cursor: pointer;
+            position: relative;
+            transition: all 0.3s ease;
+        }
+        .flashcard:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 0 20px 5px rgba(0, 255, 255, 0.3);
+        }
+        .flashcard-inner {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            transition: transform 0.6s ease-in-out;
+            transform-style: preserve-3d;
+        }
+        .flashcard.flipped .flashcard-inner {
+            transform: rotateY(180deg);
+        }
+        .flashcard-front,
+        .flashcard-back {
+            position: absolute;
+            top: 0; 
+            left: 0;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+            -webkit-backface-visibility: hidden;
+            -moz-backface-visibility: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+        }
+        .flashcard-front {
+            background: linear-gradient(135deg, #172a45 0%, #1e3a5f 100%);
+            color: #e0f2f7;
+            border: 2px solid #00ffff;
+            box-shadow: 0 0 12px 3px rgba(0, 255, 255, 0.5), 
+                        0 0 18px 4px rgba(0, 119, 190, 0.3),
+                        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            transform: rotateY(0deg);
+        }
+        .flashcard-back {
+            background: linear-gradient(135deg, #0a192f 0%, #172a45 100%);
+            color: #a0d2eb;
+            border: 2px solid #0077be;
+            box-shadow: 0 0 12px 3px rgba(0, 119, 190, 0.5), 
+                        0 0 18px 4px rgba(0, 255, 255, 0.3),
+                        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            transform: rotateY(180deg);
+        }
+
+        /* Center the flashcard container */
+        .flashcard-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 2rem;
+        }
+
+        /* Tabs */
+        .tab-button.active {
+            border-bottom: 2px solid #00ffff;
+            color: #00ffff;
+        }
+        .tab-button:hover {
+            color: #00ffff;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen">
+    <div class="p-4 md:p-6">
+        <a href="{% url 'chat_detail' chat.id %}" class="text-blue-400 hover:underline mb-4 inline-block">&larr; Back to Chat</a>
+        <h1 class="text-2xl font-bold mb-1">Study Hub</h1>
+        <p class="text-gray-400 mb-6">Review concepts from your chat: "{{ chat.title }}"</p>
+
+        <!-- Tabs -->
+        <div class="border-b border-gray-700 mb-6">
+            <nav class="-mb-px flex space-x-6">
+                <button id="tab-flashcards" class="tab-button whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm text-gray-400 hover:text-blue-400 active">
+                    Flashcards ({{ flashcards.count }})
+                </button>
+                <button id="tab-questions" class="tab-button whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm text-gray-400 hover:text-blue-400">
+                    Question Bank ({{ questions.count }})
+                </button>
+            </nav>
+        </div>
+
+        <!-- Flashcards -->
+        <div id="content-flashcards" class="tab-content">
+            {% if flashcards %}
+                <div class="flashcard-container">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-6 justify-items-center">
+                        {% for card in flashcards %}
+                        <div class="flashcard" onclick="this.classList.toggle('flipped')">
+                            <div class="flashcard-inner">
+                                <div class="flashcard-front">
+                                    <p class="text-xl font-semibold text-center">{{ card.term }}</p>
+                                </div>
+                                <div class="flashcard-back">
+                                    <p class="text-center">{{ card.definition }}</p>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            {% else %}
+                <p class="text-gray-500">No flashcards have been generated yet. Chat more to create some!</p>
+            {% endif %}
+        </div>
+
+        <!-- Question Bank -->
+        <div id="content-questions" class="tab-content hidden">
+            {% if questions %}
+                <div class="space-y-6">
+                    {% for question in questions %}
+                        <div class="quiz-message max-w-none text-gray-100 bg-gray-700/70 p-2 rounded-xl">
+                            {{ question.question_html|safe }}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p class="text-gray-500">No quiz questions yet. Generate a quiz to populate this list!</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // Tab logic
+        const tabFlash = document.getElementById('tab-flashcards');
+        const tabQues  = document.getElementById('tab-questions');
+        const contentF = document.getElementById('content-flashcards');
+        const contentQ = document.getElementById('content-questions');
+
+        tabFlash.addEventListener('click', () => {
+            tabFlash.classList.add('active');
+            tabQues.classList.remove('active');
+            contentF.classList.remove('hidden');
+            contentQ.classList.add('hidden');
+        });
+
+        tabQues.addEventListener('click', () => {
+            tabQues.classList.add('active');
+            tabFlash.classList.remove('active');
+            contentQ.classList.remove('hidden');
+            contentF.classList.add('hidden');
+        });
+
+        // Initialize quiz handlers for the question bank
+        const questionBank = document.getElementById('content-questions');
+        
+        function initializeQuizForms(parentElement) {
+            // Find all quiz forms within the provided element (e.g., a new message or the question bank)
+            const quizForms = parentElement.querySelectorAll(".quiz-question form");
+
+            quizForms.forEach((form) => {
+                // Check if this form has already been initialized to prevent duplicate listeners
+                if (form.dataset.initialized) {
+                    return;
+                }
+                form.dataset.initialized = "true";
+
+                form.addEventListener("submit", function (event) {
+                    event.preventDefault(); // Stop the default form submission!
+
+                    const questionDiv = form.closest(".quiz-question");
+                    const selectedOption = form.querySelector("input[type=radio]:checked");
+                    const feedbackDiv = questionDiv.querySelector(".quiz-feedback");
+
+                    if (!selectedOption) {
+                        feedbackDiv.textContent = "Please select an answer.";
+                        feedbackDiv.className = "quiz-feedback mt-1.5 text-yellow-400 text-xs";
+                        return;
+                    }
+
+                    const isCorrect = selectedOption.value === questionDiv.dataset.correct;
+
+                    if (isCorrect) {
+                        feedbackDiv.textContent = "Correct! Well done.";
+                        feedbackDiv.className = "quiz-feedback mt-1.5 text-green-400 font-bold";
+                    } else {
+                        feedbackDiv.textContent = `Not quite. The correct answer is ${questionDiv.dataset.correct}.`;
+                        feedbackDiv.className = "quiz-feedback mt-1.5 text-red-400";
+                    }
+                });
+            });
+        }
+
+        if (questionBank) {
+            initializeQuizForms(questionBank);
+        }
+    });
+    </script>
+</body>
+</html> 
