@@ -335,9 +335,6 @@ document.addEventListener("DOMContentLoaded", function () {
 			messageDiv.innerHTML = `
 				<div class="chat-container flex flex-row-reverse gap-4 md:gap-6 justify-start">
 					<!-- User icon - right side -->
-					<div class="flex-shrink-0 w-7 h-7">
-						<div class="w-7 h-7 rounded-sm bg-[#5436DA] flex items-center justify-center text-white text-xs font-semibold">U</div>
-					</div>
 					<!-- Message content -->
 					<div class="overflow-x-auto max-w-[75%]">
 						<div class="user-message text-gray-100 bg-[#444654] p-3 rounded-lg message-text-container" data-message-id="${
@@ -757,9 +754,6 @@ document.addEventListener("DOMContentLoaded", function () {
 		messageDiv.className = "message-enter px-4 md:px-6 py-6";
 		messageDiv.innerHTML = `
 			<div class="chat-container flex flex-row-reverse gap-4 md:gap-6 justify-start">
-				<div class="flex-shrink-0 w-7 h-7">
-					<div class="w-7 h-7 rounded-sm bg-[#5436DA] flex items-center justify-center text-white text-xs font-semibold">U</div>
-				</div>
 				<div class="overflow-x-auto max-w-[75%]">
 					<div class="user-message text-gray-100 bg-[#444654] p-3 rounded-lg message-text-container" data-message-id="${
 						messageId || ""
@@ -2274,6 +2268,8 @@ document.addEventListener("DOMContentLoaded", function () {
 function updateNewChatUI(isNew) {
 	const quizButtonContainer = document.getElementById("quiz-button-container");
 	const manageRagButton = document.getElementById("manage-rag-context-btn");
+	const hubButtonContainer = document.getElementById("hub-button-container");
+	const studyHubLink = document.getElementById("study-hub-link");
 
 	console.log("[updateNewChatUI from chat.js] Called with isNew:", isNew);
 
@@ -2315,6 +2311,14 @@ function updateNewChatUI(isNew) {
 					manageRagButton.style.display
 				);
 			}
+			if (hubButtonContainer) {
+				hubButtonContainer.classList.remove("hidden");
+				hubButtonContainer.style.display = "";
+			}
+			if (studyHubLink) {
+				studyHubLink.setAttribute('href', `/chat/${window.currentChatId}/study/`);
+			}
+			console.log("[updateNewChatUI from chat.js - setTimeout] Buttons shown.");
 		}, 0); // Zero delay, just defers to next tick
 	}
 }
