@@ -18,7 +18,7 @@ import json
 load_dotenv(".env")
 
 # Initialize LLM
-llm = ChatGroq(model="deepseek-r1-distill-llama-70b", temperature=0.3)
+llm = ChatGroq(model="llama3-8b-8192", temperature=0.3)
 
 # Function to Download and Transcribe video and summarize text
 def summarize_video(url, filename="audio"):
@@ -70,11 +70,20 @@ def summarize_video(url, filename="audio"):
                 return "Error: No text was extracted from the video"
 
             text_splitter = RecursiveCharacterTextSplitter(
-                chunk_size=1000, chunk_overlap=50, separators=[" ", ",", "\n"]
+                chunk_size=1000, chunk_overlap=50, separators=[" ", ",", "\\n"]
             )
             texts = text_splitter.split_text(text)
             docs = [Document(page_content=t) for t in texts]
-            chain = load_summarize_chain(llm, chain_type="stuff")
+
+            # Create a more direct prompt to avoid conversational filler
+            prompt_template = """Summrize the following video transcript (don't say it's a video transcript)
+
+"{text}"
+
+SUMMARY:"""
+            summary_prompt = PromptTemplate(template=prompt_template, input_variables=["text"])
+            
+            chain = load_summarize_chain(llm, chain_type="stuff", prompt=summary_prompt)
             summary = chain.run(docs)
             return textwrap.fill(summary, width=1000)
         except Exception as e:
@@ -112,18 +121,11 @@ def get_video_details(video_id):
         
         data = {
             'title': video['snippet']['title'],
-            'description': video['snippet']['description'],
             'url': f"https://www.youtube.com/watch?v={video_id}",
             'thumbnail': f"https://i.ytimg.com/vi/{video_id}/mqdefault.jpg",
-            'views': int(video['statistics'].get('viewCount', 0)),
-            'likes': int(video['statistics'].get('likeCount', 0)),
-            'duration': video['contentDetails']['duration']
         } 
-        data['duration'] = isodate.parse_duration(data['duration']).total_seconds()
-        if data['duration'] >= 300:
-            return data
-        else:
-            return None
+        # We are removing duration and other stats to keep it simple as requested.
+        return data
     except Exception as e:
         print(f"Error getting video details: {str(e)}")
         return None
@@ -132,7 +134,8 @@ def get_video_details(video_id):
 def formate_videos_metadata(videos):
     metadata = ""
     for idx, vid in enumerate(videos, start = 1):
-        metadata += f"{idx}. Title: {vid['title']}\nDescription: {vid['description']}\n Link: {vid['url']}\n\n"
+        # Removed description from here
+        metadata += f"{idx}. Title: {vid['title']}\n Link: {vid['url']}\n\n"
     
     return metadata
 
@@ -164,22 +167,28 @@ def prompt(user_query, video_metadata_list):
    
     return prompt_template
                 
-def recommend_videos(user_query):
+def recommend_videos(user_query, chat_history):
     try:
+        # Create a combined text of previous messages for context
+        history_text = "\n".join([f"{msg['role']}: {msg['content']}" for msg in chat_history])
+        
+        # The agent should search based on the full context
+        search_query = f"{history_text}\n\nUser Query: {user_query}"
+
         youtube = build("youtube", "v3", developerKey=youtube_api, cache_discovery=False)
         response = youtube.search().list(
-            q=user_query,
+            q=user_query, # We still use the user_query for the keyword search on youtube
             part="snippet",
-            maxResults=MAX_RESULTS * 2,
-            type=["video", "playlist"],
+            maxResults=MAX_RESULTS, # Reduced from * 2
+            type="video", # Only search for videos
         ).execute()
 
         videos = []
         video_map = {}
         for item in response.get("items", []):
             if item["id"]["kind"] == "youtube#video":
-                id = item["id"]["videoId"]
-                video_data = get_video_details(id)
+                video_id = item["id"]["videoId"]
+                video_data = get_video_details(video_id)
                 if video_data:
                     videos.append(video_data)
                     video_map[video_data['title']] = video_data
@@ -189,20 +198,19 @@ def recommend_videos(user_query):
             formatted_list = formate_videos_metadata(videos)
             
             prompt_text = f"""
-                You are an intelligent assistant helping users find the best YouTube videos.
+                You are an intelligent assistant helping users find the best YouTube videos based on their conversation.
 
-                User message: "{user_query}"
+                This is the conversation history:
+                {history_text}
 
-                From the following videos, recommend the top 3 that are most relevant and useful, and most likely to be watched by the user.
-                Provide your answer as a JSON object containing a key "recommendations" which is a list of video titles.
+                The user's latest message is: "{user_query}"
+
+                From the following numbered list of videos, recommend the top 3 that are most relevant to the user's request in the context of the conversation.
+                Provide your answer as a JSON object containing a key "recommendations" which is a list of the integer INDEXES of the videos.
                 
                 Example:
                 {{
-                    "recommendations": [
-                        "Deep Learning | What is Deep Learning? | Deep Learning Tutorial For Beginners | 2023 | Simplilearn",
-                        "But what is a neural network? | Deep learning chapter 1",
-                        "Deep Learning Crash Course for Beginners"
-                    ]
+                    "recommendations": [1, 3, 5]
                 }}
 
                 Here is the list of videos to choose from:
@@ -211,7 +219,7 @@ def recommend_videos(user_query):
             
             try:
                 llm = ChatGroq(
-                    model="deepseek-r1-distill-llama-70b",
+                    model="llama3-8b-8192",
                     temperature=0.5,
                     max_retries=3 
                 )
@@ -236,11 +244,15 @@ def recommend_videos(user_query):
                             json_string = json_string[:-3].strip()
                         
                         response_data = json.loads(json_string)
-                        recommended_titles = response_data.get("recommendations", [])
+                        recommended_indices = response_data.get("recommendations", [])
                         
-                        # Create the final list of video objects from the titles
-                        recommended_videos = [video_map[title] for title in recommended_titles if title in video_map]
-                        
+                        # Create the final list of video objects from the indices
+                        # Note: The prompt gives 1-based indices, so we subtract 1 for 0-based list access.
+                        recommended_videos = []
+                        for index in recommended_indices:
+                            if isinstance(index, int) and 1 <= index <= len(videos):
+                                recommended_videos.append(videos[index - 1])
+
                         # Return as a JSON string for the agent/service layer
                         return json.dumps(recommended_videos)
                     else:

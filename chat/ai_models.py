@@ -1,4 +1,30 @@
 from groq import Groq
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+class AIService:
+    """Service for AI interactions used by the agent system"""
+    
+    def __init__(self):
+        self.client = Groq()
+        self.default_model = "llama3-8b-8192"
+    
+    async def get_ai_response(self, messages, max_tokens=1000, temperature=0.7, model=None):
+        """Get AI response for agent system"""
+        try:
+            response = self.client.chat.completions.create(
+                model=model or self.default_model,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                stream=False
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            logger.error(f"AIService error: {e}", exc_info=True)
+            raise AIModelException(f"Error getting AI response: {str(e)}")
 
 
 class AIModelManager:

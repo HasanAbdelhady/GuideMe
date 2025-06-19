@@ -5,6 +5,12 @@ from .views import (
     chat_quiz,
     generate_flashcards_view,
     serve_diagram_image,
+    get_quiz_html,
+    edit_message,
+    ChatRAGFilesView,
+    create_chat,
+    update_chat_title,
+    clear_chat,
 )
 from . import views
 
@@ -24,5 +30,6 @@ urlpatterns = [
     path('<uuid:chat_id>/message/<int:message_id>/edit/', views.edit_message, name='edit_message'),
     path('flashcards/', generate_flashcards_view, name='flashcards_generator'),
     path('diagram_image/<uuid:diagram_id>/', serve_diagram_image, name='serve_diagram_image'),
+    path('quiz_html/<int:message_id>/', get_quiz_html, name='get_quiz_html'),
 ]
 

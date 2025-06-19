@@ -16,7 +16,6 @@ from asgiref.sync import sync_to_async
 import traceback # Added for error logging in retry logic
 import sys
 import locale
-from typing import List, Dict, Any
 
 # --- LangChain Imports ---
 from langchain_community.document_loaders import TextLoader
@@ -159,11 +158,11 @@ class LangChainRAG:
             return_source_documents=True
         )
 
-    def retrieve_docs(self, query: str) -> List[Document]:
-        """Retrieves relevant documents from the vector store."""
-        if not self.retriever:
-            return []
-        return self.retriever.get_relevant_documents(query)
+    def retrieve(self, query):
+        if not self.qa_chain:
+            return ""
+        result = self.qa_chain({"query": query})
+        return result["result"]
 
 
 class ChatService:
@@ -171,7 +170,7 @@ class ChatService:
         self.logger = logging.getLogger(__name__)
         self.rag_cache = {}  # Cache RAG instances by chat_id (for Part 2 - Manage RAG Context)
 
-    async def get_youtube_agent_response(self, query: str, chat_history: List[Dict[str, str]]):
+    async def get_youtube_agent_response(self, query: str):
         """
         Runs the YouTube agent for a given query and returns the result.
         This is an async wrapper around the synchronous agent execution.
@@ -179,7 +178,7 @@ class ChatService:
         self.logger.info(f"Passing query to YouTube agent: {query}")
         try:
             # Use sync_to_async to run the synchronous agent function in an async context
-            response = await sync_to_async(run_youtube_agent, thread_sensitive=False)(query, chat_history)
+            response = await sync_to_async(run_youtube_agent, thread_sensitive=False)(query)
             return response
         except Exception as e:
             self.logger.error(f"Error calling YouTube agent via sync_to_async: {e}", exc_info=True)
@@ -399,7 +398,7 @@ class ChatService:
                 model="llama3-8b-8192",
                 messages=llm_messages,
                 temperature=temperature,
-                max_tokens=max_tokens,
+                max_completion_tokens=1024,
                 stream=False,
             )
             return completion.choices[0].message.content
@@ -412,7 +411,7 @@ class ChatService:
             # Assuming files_rag.retrieve is CPU bound or already async; if sync I/O, wrap it
             # For now, let's assume it's okay or needs to be made async separately if it blocks.
             # retrieved_context_val = await sync_to_async(files_rag.retrieve)(query) # Example if it needed wrapping
-            retrieved_context_val = files_rag.retrieve_docs(query) # Original
+            retrieved_context_val = files_rag.retrieve(query) # Original
             rag_output = retrieved_context_val
             self.logger.info(f"RAG output HERE!!!!!!!!!!! {str(rag_output)[:500]}...")
             if retrieved_context_val:
@@ -434,7 +433,7 @@ class ChatService:
             model="llama3-8b-8192",
             messages=trimmed_messages,
             temperature=temperature,
-            max_tokens=max_tokens,
+            max_completion_tokens=1024,
             stream=False,
         )
         # Logic for RAG output vs LLM completion seems to have an issue here.
@@ -458,47 +457,45 @@ class ChatService:
                 model="llama3-8b-8192",
                 messages=llm_messages,
                 temperature=0.7,
-                max_tokens=max_tokens,
+                max_completion_tokens=1024,
                 stream=True,
             )
 
         current_messages_copy = [msg.copy() for msg in messages] # Work with a copy
-        
+        context_str = ""
+        raggyy = "" # Original name from user's code was raggyy
+
         if files_rag and query:
-            # Create a history string for better retrieval context
-            history_str = "\n".join([f"{m['role']}: {m['content']}" for m in current_messages_copy[:-1]])
-            # Combine history with the current query for a more informed search
-            full_query_for_retrieval = f"Conversation_history: {history_str}\n\nQuestion: {query}"
-            
-            # 1. Retrieve documents
-            retrieved_docs = await sync_to_async(files_rag.retrieve_docs)(full_query_for_retrieval)
-            
-            if retrieved_docs:
-                # 2. Augment the prompt
-                context_str = "\n\n".join([doc.page_content for doc in retrieved_docs])
-                rag_info_source = f" from {attached_file_name}" if attached_file_name else " from uploaded RAG documents"
-                
-                if current_messages_copy and current_messages_copy[-1]["role"] == "user":
-                    original_user_content = current_messages_copy[-1]["content"]
-                    # Create the augmented prompt
-                    context_preamble = (
-                        f"Use the following context from your uploaded documents ({rag_info_source}) to answer the question.\n\n"
-                        f"--- CONTEXT ---\n{context_str}\n--- END CONTEXT ---\n\n"
-                        f"Based on the context, answer this question: {original_user_content}"
-                    )
-                    current_messages_copy[-1]["content"] = context_preamble
-                    self.logger.info("Augmented the user prompt with RAG context.")
+            # retrieved_context_val = await sync_to_async(files_rag.retrieve)(query) # Example if needed
+            retrieved_context_val = files_rag.retrieve(query) # Original
+            raggyy = retrieved_context_val
+            if retrieved_context_val:
+                 context_str += str(retrieved_context_val)
+        
+        if context_str.strip():
+            rag_info_source = f" from {attached_file_name}" if attached_file_name else " from uploaded RAG documents"
+            if current_messages_copy and current_messages_copy[-1]["role"] == "user":
+                original_user_content = current_messages_copy[-1]["content"]
+                context_preamble = f"Relevant context from your uploaded documents ({rag_info_source}):\n\"\"\"{context_str}\"\"\"\n---\nOriginal query follows:\n"
+                current_messages_copy[-1]["content"] = context_preamble + original_user_content
+            else:
+                self.logger.warning("Could not find user message to prepend RAG context in stream_completion.")
 
         trimmed_messages = self.enforce_token_limit(current_messages_copy, max_tokens=max_tokens)
         
-        # 3. Generate the streaming response
-        return groq_client_local.chat.completions.create(
-            model="llama3-8b-8192",
-            messages=trimmed_messages,
-            temperature=0.7,
-            max_tokens=max_tokens,
-            stream=True,
-        )
+        # This logic for raggyy returning early seems to bypass LLM streaming. Review if this is intended.
+        if raggyy: # If RAG produced direct output, return it (not a stream)
+            self.logger.info(f"Returning direct RAG output (raggyy) in stream_completion context.")
+            return raggyy 
+        else:
+            # This returns a synchronous generator from the Groq SDK
+            return groq_client_local.chat.completions.create(
+                model="llama3-8b-8192",
+                messages=trimmed_messages,
+                temperature=0.7,
+                max_completion_tokens=1024,
+                stream=True,
+            )
 
     def save_file(self, chat_id, uploaded_file):
         if uploaded_file:
@@ -771,130 +768,6 @@ class ChatService:
         except Exception as e_render_async_call:
             self.logger.error(f"Error during top-level call for Graphviz rendering: {type(e_render_async_call).__name__} - {e_render_async_call}", exc_info=True)
             return None
-
-    async def generate_quiz_from_query(self, chat_history_messages: List[Dict[str, str]], user_query: str, chat_id: str, **kwargs) -> Dict[str, Any]:
-        """
-        Generates a quiz based on the conversation history, with a focus on the user's specific query.
-        (Used by the QuizTool agent)
-        """
-        self.logger.info(f"Starting query-focused quiz generation for chat {chat_id} on topic: '{user_query}'")
-
-        # Add the user's specific query to the history to ensure it's part of the context
-        history_with_query = chat_history_messages + [{"role": "user", "content": user_query}]
-        content_text = "\n".join(
-            [msg['content'] for msg in history_with_query if msg.get('content')]
-        )
-        
-        if len(content_text) < 100:
-            self.logger.warning("Not enough conversation content to generate a quiz.")
-            return {"error": "Not enough conversation content to generate a quiz."}
-
-        focus_instruction = f"The user has specifically asked to be quizzed on: '{user_query}'. Please create questions that are primarily focused on this topic, using the provided conversation as context to find relevant information."
-
-        prompt = f"""
-        You are a helpful assistant that creates quizzes.
-        {focus_instruction}
-        
-        Create at least 2 multiple-choice quizzes (4 options per question) based on the following conversation.
-        For each question, use this HTML structure:
-        <div class="quiz-question" data-correct="B">
-          <div class="font-semibold mb-1">What is 2+2?</div>
-          <form>
-            <label><input type="radio" name="q1" value="A"> 3</label><br>
-            <label><input type="radio" name="q1" value="B"> 4</label><br>
-            <label><input type="radio" name="q1" value="C"> 5</label><br>
-            <label><input type="radio" name="q1" value="D"> 6</label><br>
-            <button type="submit" class="mt-1.5 px-2 py-1 bg-blue-600 text-white rounded">Check Answer</button>
-          </form>
-          <div class="quiz-feedback mt-1.5"></div>
-        </div>
-        Replace the question, answers, and correct value as appropriate.
-        **Output ONLY the HTML for the quiz. Do NOT include any explanations, answers, or text outside the HTML.**
-        
-        Conversation for Context:
-        {content_text}
-        """
-
-        try:
-            quiz_html_response = await self.get_completion(
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=2000
-            )
-            
-            match = re.search(r'(<div class="quiz-question".*)', quiz_html_response, re.DOTALL)
-            if match:
-                processed_quiz_html = match.group(1)
-            else:
-                self.logger.warning(f"Could not find specific quiz HTML structure in LLM response. Using raw response: {quiz_html_response}")
-                processed_quiz_html = quiz_html_response
-
-            return {"quiz_html": processed_quiz_html}
-
-        except Exception as e:
-            self.logger.error(f"Query-focused quiz generation call failed: {e}", exc_info=True)
-            return {"error": f"Quiz generation failed: {str(e)}"}
-
-    async def generate_quiz(self, chat_history_messages: List[Dict[str, str]], chat_id: str, **kwargs) -> Dict[str, Any]:
-        """
-        Generates a general quiz based on the conversation history.
-        (Used by the manual 'Generate Quiz' button)
-        """
-        self.logger.info(f"Starting general quiz generation for chat {chat_id}")
-        
-        # Combine conversation history into a single text block
-        content_text = "\n".join(
-            [msg['content'] for msg in chat_history_messages if msg.get('content')]
-        )
-        
-        # Ensure there is enough content to generate a meaningful quiz
-        if len(content_text) < 200:
-            self.logger.warning("Not enough conversation content to generate a quiz.")
-            return {"error": "Not enough conversation content to generate a quiz."}
-
-        # Define the prompt for the AI model
-        prompt = f"""
-        Create at least 2 multiple-choice quizzes (4 options per question) based on the following conversation's relevant scientific information only, related to the learning.
-        For each question, use this HTML structure:
-        <div class="quiz-question" data-correct="B">
-          <div class="font-semibold mb-1">What is 2+2?</div>
-          <form>
-            <label><input type="radio" name="q1" value="A"> 3</label><br>
-            <label><input type="radio" name="q1" value="B"> 4</label><br>
-            <label><input type="radio" name="q1" value="C"> 5</label><br>
-            <label><input type="radio" name="q1" value="D"> 6</label><br>
-            <button type="submit" class="mt-1.5 px-2 py-1 bg-blue-600 text-white rounded">Check Answer</button>
-          </form>
-          <div class="quiz-feedback mt-1.5"></div>
-        </div>
-        Replace the question, answers, and correct value as appropriate.
-        **Output ONLY the HTML for the quiz. Do NOT include any explanations, answers, or text outside the HTML.**
-        Conversation:
-
-        {content_text}
-        ** DON'T TELL THE USER ANYTHING AFTER THE QUIZ IS GENERATED.**
-        ** DON'T SAY WHAT THE CORRECT ANSWER IS**
-        """
-
-        try:
-            # Call the AI model to get the quiz HTML
-            quiz_html_response = await self.get_completion(
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=2000
-            )
-            
-            # Extract only the HTML part to prevent unwanted text
-            match = re.search(r'(<div class="quiz-question".*)', quiz_html_response, re.DOTALL)
-            if match:
-                processed_quiz_html = match.group(1)
-            else:
-                self.logger.warning(f"Could not find specific quiz HTML structure in LLM response. Using raw response: {quiz_html_response}")
-                processed_quiz_html = quiz_html_response
-
-            return {"quiz_html": processed_quiz_html}
-
-        except Exception as e:
-            self.logger.error(f"Quiz generation call failed: {e}", exc_info=True)
-            return {"error": f"Quiz generation failed: {str(e)}"}
 
     def get_system_encoding(self):
         """Get the system's preferred encoding, defaulting to UTF-8 if not available."""

@@ -20,3 +20,7 @@ sentence_transformers==2.2.2
 django-allauth
 psycopg2
 google.generativeai
+django-sslserver==0.22
+uvicorn==0.23.2
+beautifulsoup4==4.12.2
+lxml==5.2.1
