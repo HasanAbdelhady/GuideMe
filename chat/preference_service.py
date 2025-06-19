@@ -59,8 +59,8 @@ class PreferenceService:
 
         # Quiz preference interpretations
         quiz_strategies = {
-            True: 'Incorporate frequent knowledge checks, interactive quizzes, and self-assessment opportunities throughout the learning process',
-            False: 'Include occasional summary questions and gentle comprehension checks to reinforce key concepts'
+            True: 'Be ready to use interactive quiz tools when requested by the user, but do not generate quiz questions in regular explanations',
+            False: 'Focus on clear explanations without emphasizing self-assessment features'
         }
 
         # Get active learning styles and their strategies
@@ -76,14 +76,16 @@ class PreferenceService:
         # Compile learning strategies
         style_strategies = []
         for style in active_styles:
-            style_strategies.extend(learning_style_prompts[style]['strategies'])
+            style_strategies.extend(
+                learning_style_prompts[style]['strategies'])
 
         # Get study time preference with fallback
         study_time = user.preferred_study_time if user.preferred_study_time else 'medium'
         time_guide = study_time_guidelines[study_time]
 
         # Determine quiz approach
-        quiz_preference = bool(user.quiz_preference and int(user.quiz_preference) <= 3)
+        quiz_preference = bool(
+            user.quiz_preference and int(user.quiz_preference) <= 3)
 
         # Get interests through the UserInterest model
         interests = [i.name for i in user.get_user_interests()]
@@ -116,11 +118,13 @@ class PreferenceService:
             "- Summarize key points at regular intervals\n"
             "- Encourage active participation and critical thinking\n"
             "- You may receive additional context from user-uploaded documents prepended to the user's query. If so, use any relevant information from this context to enhance your answer. Integrate this information seamlessly and naturally. CRITICALLY: DO NOT mention the context, its source, or your process of using it unless the user explicitly asks about how you obtained certain information.\n"
-            "- Offer additional resources for deeper learning"
+            "- Offer additional resources for deeper learning\n"
+            "- IMPORTANT: Never generate quiz questions, diagrams, or video recommendations in your responses - specialized tools handle these tasks when needed"
         )
 
         return prompt
-    
+
+
 # First prompt: Explanation generation with RAG context
 prompt_description = """
     You are an expert explainer, tasked with generating a clear, structured, and technically accurate description of a given topic for transformation into a Graphviz diagram.
@@ -137,7 +141,7 @@ prompt_description = """
     """
 
 # Second prompt: Code generation based on the description
-prompt_code_graphviz ="""
+prompt_code_graphviz = """
     You are an expert technical diagram assistant. Your task is to generate ONLY Python code using the Graphviz library to create an educational diagram based on the user-provided description of a complex technical topic.
 
     The Python script should:
@@ -202,7 +206,7 @@ digraph {
 }
     """
 
-# Prompt for fixing erroneous code    
+# Prompt for fixing erroneous code
 prompt_fix_code = """
     You are an expert Python and Graphviz debugging assistant. Your task is to fix errors in a Python script that uses the Graphviz library to generate a diagram.
 
@@ -238,4 +242,3 @@ prompt_fix_code = """
 
     **Output**: The corrected Python code using the `graphviz` library, wrapped in a markdown code block.
     """
-

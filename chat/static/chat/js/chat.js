@@ -44,8 +44,29 @@ function openImageModal(imgSrc) {
 			"fixed inset-0 bg-black bg-opacity-80 z-50 flex items-center justify-center opacity-0 pointer-events-none transition-opacity duration-300";
 		modalOverlay.innerHTML = `
 			<div class="relative max-w-full max-h-full p-4 m-4">
-				<img id="modal-image" src="" alt="Enlarged diagram" class="max-w-full max-h-[90vh] rounded-lg shadow-xl transform scale-95 transition-transform duration-300">
-				<button id="close-image-modal" class="absolute top-0 right-0 -mt-4 -mr-4 bg-red-600 text-white rounded-full p-2 hover:bg-red-700 focus:outline-none">
+				<div id="image-container" class="relative overflow-hidden rounded-lg shadow-xl bg-gray-900 max-w-[90vw] max-h-[90vh]">
+					<img id="modal-image" src="" alt="Enlarged diagram" 
+						 class="transition-transform duration-200 cursor-zoom-in" 
+						 style="transform-origin: center;">
+					<div id="zoom-controls" class="absolute top-4 left-4 flex flex-col gap-2">
+						<button id="zoom-in-btn" class="bg-gray-800 hover:bg-gray-700 text-white rounded-full p-2 shadow-lg transition-colors">
+							<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7"></path>
+							</svg>
+						</button>
+						<button id="zoom-out-btn" class="bg-gray-800 hover:bg-gray-700 text-white rounded-full p-2 shadow-lg transition-colors">
+							<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM7 10h6"></path>
+							</svg>
+						</button>
+						<button id="zoom-reset-btn" class="bg-gray-800 hover:bg-gray-700 text-white rounded-full p-2 shadow-lg transition-colors" title="Reset zoom">
+							<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+							</svg>
+						</button>
+					</div>
+				</div>
+				<button id="close-image-modal" class="absolute top-0 right-0 -mt-4 -mr-4 bg-red-600 text-white rounded-full p-2 hover:bg-red-700 focus:outline-none transition-colors">
 					<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor">
 						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
 					</svg>
@@ -53,6 +74,9 @@ function openImageModal(imgSrc) {
 			</div>
 		`;
 		document.body.appendChild(modalOverlay);
+
+		// Initialize zoom functionality
+		initializeImageZoom();
 
 		// Add event listener to close when clicked outside or on close button
 		modalOverlay.addEventListener("click", (e) => {
@@ -63,29 +87,182 @@ function openImageModal(imgSrc) {
 		document
 			.getElementById("close-image-modal")
 			.addEventListener("click", closeImageModal);
+
+		// Add keyboard controls
+		document.addEventListener("keydown", handleImageModalKeydown);
 	}
 
 	// Set the image source and show the modal
 	const modalImage = document.getElementById("modal-image");
 	modalImage.src = imgSrc;
 
+	// Reset zoom when opening new image
+	resetImageZoom();
+
 	// Show the modal with animation
 	modalOverlay.classList.remove("opacity-0", "pointer-events-none");
 	setTimeout(() => {
-		document.getElementById("modal-image").classList.remove("scale-95");
-		document.getElementById("modal-image").classList.add("scale-100");
+		const container = document.getElementById("image-container");
+		container.style.transform = "scale(1)";
 	}, 10);
 }
 
 function closeImageModal() {
 	const modalOverlay = document.getElementById("image-modal-overlay");
 	if (modalOverlay) {
-		document.getElementById("modal-image").classList.remove("scale-100");
-		document.getElementById("modal-image").classList.add("scale-95");
+		const container = document.getElementById("image-container");
+		container.style.transform = "scale(0.95)";
 		modalOverlay.classList.add("opacity-0");
 		setTimeout(() => {
 			modalOverlay.classList.add("pointer-events-none");
 		}, 300);
+
+		// Remove keyboard listener
+		document.removeEventListener("keydown", handleImageModalKeydown);
+	}
+}
+
+function initializeImageZoom() {
+	const modalImage = document.getElementById("modal-image");
+	const imageContainer = document.getElementById("image-container");
+	const zoomInBtn = document.getElementById("zoom-in-btn");
+	const zoomOutBtn = document.getElementById("zoom-out-btn");
+	const zoomResetBtn = document.getElementById("zoom-reset-btn");
+
+	let currentScale = 1;
+	let isDragging = false;
+	let startX = 0;
+	let startY = 0;
+	let translateX = 0;
+	let translateY = 0;
+
+	const minScale = 0.5;
+	const maxScale = 5;
+	const scaleStep = 0.2;
+
+	// Update cursor based on zoom level
+	function updateCursor() {
+		if (currentScale > 1) {
+			modalImage.style.cursor = isDragging ? "grabbing" : "grab";
+		} else {
+			modalImage.style.cursor = "zoom-in";
+		}
+	}
+
+	// Apply transform to image
+	function applyTransform() {
+		modalImage.style.transform = `scale(${currentScale}) translate(${translateX}px, ${translateY}px)`;
+		updateCursor();
+
+		// Update button states
+		zoomInBtn.disabled = currentScale >= maxScale;
+		zoomOutBtn.disabled = currentScale <= minScale;
+		zoomInBtn.style.opacity = currentScale >= maxScale ? "0.5" : "1";
+		zoomOutBtn.style.opacity = currentScale <= minScale ? "0.5" : "1";
+	}
+
+	// Zoom in
+	function zoomIn() {
+		if (currentScale < maxScale) {
+			currentScale = Math.min(currentScale + scaleStep, maxScale);
+			applyTransform();
+		}
+	}
+
+	// Zoom out
+	function zoomOut() {
+		if (currentScale > minScale) {
+			currentScale = Math.max(currentScale - scaleStep, minScale);
+			// Reset position when zooming out to fit
+			if (currentScale <= 1) {
+				translateX = 0;
+				translateY = 0;
+			}
+			applyTransform();
+		}
+	}
+
+	// Reset zoom
+	window.resetImageZoom = function () {
+		currentScale = 1;
+		translateX = 0;
+		translateY = 0;
+		applyTransform();
+	};
+
+	// Button event listeners
+	zoomInBtn.addEventListener("click", zoomIn);
+	zoomOutBtn.addEventListener("click", zoomOut);
+	zoomResetBtn.addEventListener("click", resetImageZoom);
+
+	// Mouse wheel zoom
+	imageContainer.addEventListener("wheel", (e) => {
+		e.preventDefault();
+		const rect = imageContainer.getBoundingClientRect();
+		const x = e.clientX - rect.left;
+		const y = e.clientY - rect.top;
+
+		if (e.deltaY < 0) {
+			zoomIn();
+		} else {
+			zoomOut();
+		}
+	});
+
+	// Click to zoom
+	modalImage.addEventListener("click", (e) => {
+		if (currentScale === 1) {
+			e.stopPropagation();
+			zoomIn();
+		}
+	});
+
+	// Mouse drag when zoomed
+	modalImage.addEventListener("mousedown", (e) => {
+		if (currentScale > 1) {
+			e.preventDefault();
+			isDragging = true;
+			startX = e.clientX - translateX;
+			startY = e.clientY - translateY;
+			modalImage.style.cursor = "grabbing";
+		}
+	});
+
+	document.addEventListener("mousemove", (e) => {
+		if (isDragging && currentScale > 1) {
+			e.preventDefault();
+			translateX = e.clientX - startX;
+			translateY = e.clientY - startY;
+			applyTransform();
+		}
+	});
+
+	document.addEventListener("mouseup", () => {
+		if (isDragging) {
+			isDragging = false;
+			updateCursor();
+		}
+	});
+
+	// Initialize
+	applyTransform();
+}
+
+function handleImageModalKeydown(e) {
+	switch (e.key) {
+		case "Escape":
+			closeImageModal();
+			break;
+		case "+":
+		case "=":
+			document.getElementById("zoom-in-btn").click();
+			break;
+		case "-":
+			document.getElementById("zoom-out-btn").click();
+			break;
+		case "0":
+			document.getElementById("zoom-reset-btn").click();
+			break;
 	}
 }
 
@@ -260,7 +437,7 @@ document.addEventListener("DOMContentLoaded", function () {
 			<div class="chat-container flex gap-4 md:gap-6">
         <div>
           <div
-					class="w-16 flex items-center justify-center text-white">
+					class="w-30 flex items-center justify-center text-white">
 					<img src="/static/images/logo.png" alt="Assistant icon"
 						class="h-12 w-12 ">
 				</div>
@@ -279,9 +456,9 @@ document.addEventListener("DOMContentLoaded", function () {
 	};
 
 	window.removeTypingIndicator = function () {
-		const typingIndicator = document.getElementById("typing-indicator");
-		if (typingIndicator) {
-			typingIndicator.remove();
+		const indicator = document.querySelector(".typing-indicator");
+		if (indicator) {
+			indicator.remove();
 		}
 	};
 
@@ -364,22 +541,30 @@ document.addEventListener("DOMContentLoaded", function () {
 			`;
 		} else {
 			// Assistant message - left aligned
-			let assistantContentHtml = '';
-			if (type === 'quiz') {
+			let assistantContentHtml = "";
+			if (type === "quiz") {
 				if (content) {
-					assistantContentHtml += `<div class="max-w-none markdown-content text-gray-100">${marked.parse(content)}</div>`;
+					assistantContentHtml += `<div class="max-w-none markdown-content text-gray-100">${marked.parse(
+						content
+					)}</div>`;
 				}
 				if (quizHtml) {
 					assistantContentHtml += `<div class="quiz-message max-w-none text-gray-100 bg-gray-700/70 p-2 rounded-xl mt-2">${quizHtml}</div>`;
 				}
-			} else if (type === 'diagram') {
+			} else if (type === "diagram") {
 				assistantContentHtml = `
 					<div class="diagram-message-container bg-gray-800/50 p-2 my-2 rounded-lg shadow-md flex flex-col justify-center items-center">
 						<img src="${content}" alt="Generated Diagram" class="max-w-full h-auto rounded-md mb-1 cursor-pointer hover:opacity-90 transition-opacity" onclick="openImageModal('${content}')">
-						${messageId ? `<p class="text-xs text-gray-400 italic mt-1 text-center">${messageId}</p>`: ""}
+						${
+							messageId
+								? `<p class="text-xs text-gray-400 italic mt-1 text-center">${messageId}</p>`
+								: ""
+						}
 					</div>`;
 			} else {
-				assistantContentHtml = `<div class="max-w-none markdown-content text-gray-100">${marked.parse(content)}</div>`;
+				assistantContentHtml = `<div class="max-w-none markdown-content text-gray-100">${marked.parse(
+					content
+				)}</div>`;
 			}
 
 			messageDiv.innerHTML = `
@@ -388,7 +573,7 @@ document.addEventListener("DOMContentLoaded", function () {
 			<div class="chat-container flex gap-4 md:gap-6">
         <div>
           <div
-					class="w-16 flex items-center justify-center text-white">
+					class="w-30 flex items-center justify-center text-white">
 					<img src="/static/images/logo.png" alt="Assistant icon"
 						class="h-12 w-12 ">
 				</div>
@@ -402,11 +587,12 @@ document.addEventListener("DOMContentLoaded", function () {
 
 			if (type === "text") {
 				// For assistant text messages, we want to return the actual content div for streaming updates
-				const markdownContentDiv = messageDiv.querySelector(".markdown-content");
+				const markdownContentDiv =
+					messageDiv.querySelector(".markdown-content");
 				if (markdownContentDiv) {
 					contentElementToReturn = markdownContentDiv;
 					// Initialize raw text buffer for streaming
-					markdownContentDiv.dataset.rawTextBuffer = content; 
+					markdownContentDiv.dataset.rawTextBuffer = content;
 					// Initial parse is already done when setting assistantContentHtml
 					if (typeof hljs !== "undefined") {
 						markdownContentDiv.querySelectorAll("pre code").forEach((block) => {
@@ -429,9 +615,11 @@ document.addEventListener("DOMContentLoaded", function () {
 						initializeQuizForms(quizMessageElement);
 					}
 				}, 0);
-				contentElementToReturn = messageDiv.querySelector(".quiz-message") || messageDiv;
+				contentElementToReturn =
+					messageDiv.querySelector(".quiz-message") || messageDiv;
 			} else if (type === "diagram") {
-				contentElementToReturn = messageDiv.querySelector(".diagram-message-container") || messageDiv;
+				contentElementToReturn =
+					messageDiv.querySelector(".diagram-message-container") || messageDiv;
 			}
 		}
 
@@ -450,7 +638,9 @@ document.addEventListener("DOMContentLoaded", function () {
 
 		let assistantContentHtml = "";
 		if (quizData.content) {
-			assistantContentHtml += `<div class="max-w-none markdown-content text-gray-100">${marked.parse(quizData.content)}</div>`;
+			assistantContentHtml += `<div class="max-w-none markdown-content text-gray-100">${marked.parse(
+				quizData.content
+			)}</div>`;
 		}
 		if (quizData.quiz_html) {
 			assistantContentHtml += `<div class="quiz-message max-w-none text-gray-100 bg-gray-700/70 p-2 rounded-xl mt-2">${quizData.quiz_html}</div>`;
@@ -461,7 +651,7 @@ document.addEventListener("DOMContentLoaded", function () {
 				<!-- Assistant icon - left side -->
 				<div class="chat-container flex gap-4 md:gap-6">
 					<div>
-						<div class="w-16 flex items-center justify-center text-white">
+						<div class="w-30 flex items-center justify-center text-white">
 							<img src="/static/images/logo.png" alt="Assistant icon" class="h-12 w-12 ">
 						</div>
 					</div>
@@ -605,6 +795,9 @@ document.addEventListener("DOMContentLoaded", function () {
 		let buffer = "";
 		let currentMessageContainer = null; // This will hold the .markdown-content div for the current assistant message
 		let isFirstTextChunk = true;
+		let isMixedContentMessage = false; // Track if we're building a mixed content message
+		let mixedContentElements = []; // Store elements for mixed content
+		let toolResultCount = 0; // Track how many tool results we've received
 
 		try {
 			while (true) {
@@ -619,23 +812,30 @@ document.addEventListener("DOMContentLoaded", function () {
 					if (line.startsWith("data: ")) {
 						const data = JSON.parse(line.slice(6));
 
-						if (data.type === 'trigger_quiz_render') {
+						if (data.type === "trigger_quiz_render") {
 							const messageId = data.message_id;
 							if (messageId) {
 								fetch(`/chat/quiz_html/${messageId}/`)
-									.then(response => response.json())
-									.then(quizData => {
+									.then((response) => response.json())
+									.then((quizData) => {
 										if (quizData.quiz_html) {
 											renderAndAppendQuiz(quizData);
 										}
 									})
-									.catch(error => {
-										console.error("Error fetching agent-generated quiz:", error);
-										appendSystemNotification(`Error rendering quiz: ${error.message}`, "error");
+									.catch((error) => {
+										console.error(
+											"Error fetching agent-generated quiz:",
+											error
+										);
+										appendSystemNotification(
+											`Error rendering quiz: ${error.message}`,
+											"error"
+										);
 									});
 							}
 							isFirstTextChunk = true;
 							currentMessageContainer = null;
+							toolResultCount = 0;
 						} else if (data.type === "quiz") {
 							// A quiz is a self-contained message. It doesn't use the streaming text container.
 							appendMessage(
@@ -648,8 +848,37 @@ document.addEventListener("DOMContentLoaded", function () {
 							// Reset streaming state for any subsequent messages in this response
 							currentMessageContainer = null;
 							isFirstTextChunk = true;
+							toolResultCount = 0;
+						} else if (data.type === "quiz_html") {
+							toolResultCount++;
+							// Auto-detect mixed content if we have other elements or text content
+							if (
+								!isMixedContentMessage &&
+								(mixedContentElements.length > 0 || currentMessageContainer)
+							) {
+								isMixedContentMessage = true;
+							}
+
+							if (isMixedContentMessage) {
+								const quizElement = createQuizElement(data.quiz_html);
+								mixedContentElements.push(quizElement);
+							} else {
+								// Standalone quiz
+								renderAndAppendQuiz({ quiz_html: data.quiz_html });
+							}
+						} else if (data.type === "mixed_content_start") {
+							// Signal that we're starting a mixed content message
+							isMixedContentMessage = true;
+							mixedContentElements = [];
+							toolResultCount = 0;
 						} else if (data.type === "content") {
 							const messagesDiv = document.getElementById("chat-messages");
+
+							// Check if we should enter mixed content mode based on previous elements
+							if (!isMixedContentMessage && mixedContentElements.length > 0) {
+								isMixedContentMessage = true;
+							}
+
 							if (isFirstTextChunk) {
 								// Create the initial message container and get the .markdown-content div
 								currentMessageContainer = appendMessage(
@@ -664,30 +893,43 @@ document.addEventListener("DOMContentLoaded", function () {
 								// For this test, we let that happen for the first chunk.
 							} else {
 								// **RESTORED: Call updateAssistantMessage for subsequent chunks**
-								// if (messagesDiv && data.content) { // Old diagnostic code
-								// 	const newChunkParagraph = document.createElement('p');
-								// 	newChunkParagraph.textContent = "CHUNK: " + data.content; // Prefix to make it obvious
-								// 	newChunkParagraph.style.color = "cyan"; // Make it stand out
-								// 	messagesDiv.appendChild(newChunkParagraph);
-								// 	smoothScrollToBottom();
-								// }
 								updateAssistantMessage(currentMessageContainer, data.content);
 							}
 						} else if (data.type === "error") {
 							appendSystemNotification(data.content, "error");
 						} else if (data.type === "diagram_image") {
+							toolResultCount++;
 							// Handle diagram image data
 							console.log("Received diagram image data:", data);
 							if (data.diagram_image_id) {
 								const imageUrl = `/chat/diagram_image/${data.diagram_image_id}/`; // Construct URL
-								appendDiagramMessage(
-									imageUrl,
-									data.text_content || "Generated Diagram",
-									data.message_id
-								);
-								// After a diagram is handled, reset state for the next message component
-								currentMessageContainer = null;
-								isFirstTextChunk = true;
+
+								// Auto-detect mixed content if we have other elements or text content
+								if (
+									!isMixedContentMessage &&
+									(mixedContentElements.length > 0 || currentMessageContainer)
+								) {
+									isMixedContentMessage = true;
+								}
+
+								if (isMixedContentMessage) {
+									// Add to mixed content elements
+									const diagramElement = createDiagramElement(
+										imageUrl,
+										data.text_content || "Generated Diagram"
+									);
+									mixedContentElements.push(diagramElement);
+								} else {
+									// Standalone diagram
+									appendDiagramMessage(
+										imageUrl,
+										data.text_content || "Generated Diagram",
+										data.message_id
+									);
+									// After a diagram is handled, reset state for the next message component
+									currentMessageContainer = null;
+									isFirstTextChunk = true;
+								}
 							} else {
 								appendSystemNotification(
 									"Error: Received diagram response without diagram_image_id",
@@ -695,53 +937,80 @@ document.addEventListener("DOMContentLoaded", function () {
 								);
 							}
 						} else if (data.type === "done") {
+							// If we have mixed content elements OR multiple tool results, combine them into a single message
+							if (
+								(isMixedContentMessage && mixedContentElements.length > 0) ||
+								toolResultCount > 1
+							) {
+								createMixedContentMessage(
+									mixedContentElements,
+									currentMessageContainer
+								);
+								// Reset state
+								isMixedContentMessage = false;
+								mixedContentElements = [];
+								currentMessageContainer = null;
+								isFirstTextChunk = true;
+								toolResultCount = 0;
+							}
 							window.removeTypingIndicator();
 						} else if (data.type === "youtube_recommendations") {
-							// This is a new message, so create the container for it
-							const messagesContainer =
-								document.getElementById("chat-messages");
-							const messageDiv = document.createElement("div");
-							messageDiv.className = "message-enter px-4 md:px-6 py-6";
-
-							messageDiv.innerHTML = `
-                                <div class="chat-container flex gap-4 md:gap-6">
-                                    <div>
-                                      <div
-                                        class="w-16 flex items-center justify-center text-white">
-                                        <img src="/static/images/logo.png" alt="Assistant icon"
-                                          class="h-12 w-12 ">
-                                      </div>
-                                    </div>
-                                    <div class="flex-1 overflow-x-auto min-w-0 max-w-[85%]" data-role="youtube-content-wrapper">
-                                        <!-- YouTube recommendations will be rendered here -->
-                                    </div>
-                                </div>
-                            `;
-							messagesContainer.appendChild(messageDiv);
-							const youtubeWrapper = messageDiv.querySelector(
-								'[data-role="youtube-content-wrapper"]'
-							);
-
-							if (window.YoutubeHandler && youtubeWrapper) {
-								window.YoutubeHandler.renderRecommendations(
-									youtubeWrapper,
-									data.data
-								);
+							toolResultCount++;
+							// Auto-detect mixed content if we have other elements or text content
+							if (
+								!isMixedContentMessage &&
+								(mixedContentElements.length > 0 || currentMessageContainer)
+							) {
+								isMixedContentMessage = true;
 							}
-							window.smoothScrollToBottom();
-							currentMessageContainer = null;
-							isFirstTextChunk = true;
+
+							if (isMixedContentMessage) {
+								// Add to mixed content elements
+								const youtubeElement = createYoutubeElement(data.data);
+								mixedContentElements.push(youtubeElement);
+							} else {
+								// Standalone YouTube recommendations (existing behavior)
+								// This is a new message, so create the container for it
+								const messagesContainer =
+									document.getElementById("chat-messages");
+								const messageDiv = document.createElement("div");
+								messageDiv.className = "message-enter px-4 md:px-6 py-6";
+
+								messageDiv.innerHTML = `
+	                                <div class="chat-container flex gap-4 md:gap-6">
+	                                    <div>
+	                                      <div
+	                                        class="w-30 flex items-center justify-center text-white">
+	                                        <img src="/static/images/logo.png" alt="Assistant icon"
+	                                          class="h-12 w-12 ">
+	                                      </div>
+	                                    </div>
+	                                    <div class="flex-1 overflow-x-auto min-w-0 max-w-[85%]" data-role="youtube-content-wrapper">
+	                                        <!-- YouTube recommendations will be rendered here -->
+	                                    </div>
+	                                </div>
+	                            `;
+								messagesContainer.appendChild(messageDiv);
+								const youtubeWrapper = messageDiv.querySelector(
+									'[data-role="youtube-content-wrapper"]'
+								);
+
+								if (window.YoutubeHandler && youtubeWrapper) {
+									window.YoutubeHandler.renderRecommendations(
+										youtubeWrapper,
+										data.data
+									);
+								}
+								// Reset streaming state
+								currentMessageContainer = null;
+								isFirstTextChunk = true;
+							}
 						}
 					}
 				}
 			}
 		} catch (error) {
-			console.error("Error processing stream:", error);
-			appendSystemNotification(
-				"An error occurred while processing the response.",
-				"error"
-			);
-		} finally {
+			console.error("Error in handleStreamResponse:", error);
 			window.removeTypingIndicator();
 		}
 	};
@@ -962,7 +1231,7 @@ document.addEventListener("DOMContentLoaded", function () {
 					<div class="chat-container flex gap-4 md:gap-6">
           <div>
             <div
-              class="w-16 flex items-center justify-center text-white">
+              class="w-30 flex items-center justify-center text-white">
               <img src="/static/images/logo.png" alt="Assistant icon"
                 class="h-12 w-12 ">
             </div>
@@ -2024,7 +2293,7 @@ document.addEventListener("DOMContentLoaded", function () {
 			<div class="chat-container flex gap-4 md:gap-6">
           <div>
             <div
-              class="w-16 flex items-center justify-center text-white">
+              class="w-30 flex items-center justify-center text-white">
               <img src="/static/images/logo.png" alt="Assistant icon"
                 class="h-12 w-12 ">
             </div>
@@ -2263,6 +2532,165 @@ document.addEventListener("DOMContentLoaded", function () {
 			container.appendChild(recommendationsContainer);
 		}
 	};
+
+	// Helper functions for mixed content messages
+	function createDiagramElement(imageUrl, textContent) {
+		const diagramDiv = document.createElement("div");
+		diagramDiv.className = "diagram-component mb-4";
+		diagramDiv.innerHTML = `
+			<div class="diagram-content">
+				<p class="text-sm text-gray-600 mb-2">${textContent}</p>
+				<div class="diagram-image-container">
+					<img src="${imageUrl}" alt="Generated Diagram" 
+						 class="diagram-image cursor-pointer max-w-full h-auto rounded-lg shadow-lg"
+						 onclick="openImageModal('${imageUrl}')">
+				</div>
+			</div>
+		`;
+		return diagramDiv;
+	}
+
+	function createYoutubeElement(videos) {
+		const youtubeDiv = document.createElement("div");
+		youtubeDiv.className = "youtube-component mb-4";
+		youtubeDiv.innerHTML =
+			'<div class="youtube-content" data-role="youtube-content-wrapper"></div>';
+
+		const youtubeWrapper = youtubeDiv.querySelector(
+			'[data-role="youtube-content-wrapper"]'
+		);
+		if (window.YoutubeHandler && youtubeWrapper) {
+			window.YoutubeHandler.renderRecommendations(youtubeWrapper, videos);
+		}
+
+		return youtubeDiv;
+	}
+
+	function createQuizElement(quizHtml) {
+		const quizDiv = document.createElement("div");
+		quizDiv.className =
+			"quiz-message max-w-none text-gray-100 bg-gray-700/70 p-2 rounded-xl";
+		quizDiv.innerHTML = `
+			<div class="quiz-content">
+				<div class="quiz-message">${quizHtml}</div>
+			</div>
+		`;
+
+		// Apply quiz fixes and initialize forms
+		const quizMessage = quizDiv.querySelector(".quiz-message");
+		if (quizMessage) {
+			unwrapQuizMessageCodeBlocks(quizMessage);
+			fixEscapedQuizMessages(quizMessage);
+			fixFirstLineQuizPreCode(quizMessage);
+			initializeQuizForms(quizMessage);
+		}
+
+		return quizDiv;
+	}
+
+	function createMixedContentMessage(mixedElements, textContainer) {
+		const messagesContainer = document.getElementById("chat-messages");
+		const messageDiv = document.createElement("div");
+		messageDiv.className = "message-enter px-4 md:px-6 py-6";
+
+		messageDiv.innerHTML = `
+			<div class="chat-container flex gap-4 md:gap-6">
+				<div>
+					<div class="w-30 flex items-center justify-center text-white">
+						<img src="/static/images/logo.png" alt="Assistant icon" class="h-12 w-12">
+					</div>
+				</div>
+				<div class="flex-1 overflow-x-auto min-w-0 max-w-[85%]" data-role="mixed-content-wrapper">
+					<!-- Mixed content will be rendered here -->
+				</div>
+			</div>
+		`;
+
+		const contentWrapper = messageDiv.querySelector(
+			'[data-role="mixed-content-wrapper"]'
+		);
+
+		// Add text content first if it exists
+		if (
+			textContainer &&
+			textContainer.dataset &&
+			textContainer.dataset.rawTextBuffer
+		) {
+			const textDiv = document.createElement("div");
+			textDiv.className = "text-component markdown-content mb-4";
+
+			// Copy the processed content from the text container
+			if (typeof marked !== "undefined" && typeof hljs !== "undefined") {
+				marked.setOptions({
+					breaks: false,
+					gfm: true
+				});
+				const parsedHtml = marked.parse(textContainer.dataset.rawTextBuffer);
+				textDiv.innerHTML = parsedHtml;
+
+				// Re-apply syntax highlighting
+				textDiv.querySelectorAll("pre code").forEach((block) => {
+					hljs.highlightElement(block);
+				});
+				initializeCodeBlockFeatures(textDiv);
+			} else {
+				textDiv.textContent = textContainer.dataset.rawTextBuffer;
+			}
+
+			contentWrapper.appendChild(textDiv);
+		}
+
+		// Add all mixed content elements
+		mixedElements.forEach((element) => {
+			contentWrapper.appendChild(element);
+		});
+
+		messagesContainer.appendChild(messageDiv);
+		applyConsistentChatElementStyling(messageDiv);
+		window.smoothScrollToBottom();
+
+		// Remove the temporary text container if it exists
+		if (textContainer && textContainer.parentNode) {
+			textContainer.parentNode.parentNode.remove();
+		}
+	}
+
+	function appendUserMessage(content, messageId = null) {
+		const messagesDiv = document.getElementById("chat-messages");
+		const placeholder = document.getElementById("initial-chat-placeholder");
+		if (placeholder) placeholder.remove();
+		const messageDiv = document.createElement("div");
+		messageDiv.className = "message-enter px-4 md:px-6 py-6";
+		messageDiv.innerHTML = `
+			<div class="chat-container flex flex-row-reverse gap-4 md:gap-6 justify-start">
+				<div class="overflow-x-auto max-w-[75%]">
+					<div class="user-message text-gray-100 bg-[#444654] p-3 rounded-lg message-text-container" data-message-id="${
+						messageId || ""
+					}" data-created-at="${new Date().toISOString()}">
+						<p class="whitespace-pre-wrap message-content-text">${content}</p>
+						<div class="edit-controls hidden mt-2">
+							<textarea class="edit-message-textarea w-full p-2 rounded bg-gray-700 border border-gray-600 text-gray-100 resize-none" rows="3"></textarea>
+							<div class="flex justify-end gap-2 mt-2">
+								<button class="cancel-edit-btn px-3 py-1 text-xs bg-gray-600 hover:bg-gray-500 rounded text-white">Cancel</button>
+								<button class="save-edit-btn px-3 py-1 text-xs bg-blue-600 hover:bg-blue-500 rounded text-white">Save</button>
+							</div>
+						</div>
+					</div>
+					<div class="flex justify-end mt-1 pr-1">
+						<button class="edit-message-btn p-1 text-gray-400 hover:text-gray-200 transition-opacity" data-message-id="${
+							messageId || ""
+						}" title="Edit message">
+							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+								<path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+							</svg>
+						</button>
+					</div>
+				</div>
+			</div>
+		`;
+		messagesDiv.appendChild(messageDiv);
+		window.smoothScrollToBottom();
+	}
 });
 
 function updateNewChatUI(isNew) {
@@ -2316,7 +2744,10 @@ function updateNewChatUI(isNew) {
 				hubButtonContainer.style.display = "";
 			}
 			if (studyHubLink) {
-				studyHubLink.setAttribute('href', `/chat/${window.currentChatId}/study/`);
+				studyHubLink.setAttribute(
+					"href",
+					`/chat/${window.currentChatId}/study/`
+				);
 			}
 			console.log("[updateNewChatUI from chat.js - setTimeout] Buttons shown.");
 		}, 0); // Zero delay, just defers to next tick

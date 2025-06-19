@@ -128,7 +128,7 @@ document.addEventListener("DOMContentLoaded", function () {
 						<img src="/static/images/logo.png" alt="Assistant icon" class="h-5 w-7">
 					</div>
 				</div>
-				<div class="flex-1">
+				<div class="flex">
 					<div class="typing-indicator">
 						<span></span>
 						<span></span>
