@@ -18,6 +18,8 @@ import os
 import json
 from .services import ChatService, LangChainRAG
 from .preference_service import PreferenceService
+from .agent_system import ChatAgentSystem
+from .ai_models import AIService
 from django.views.decorators.http import require_POST
 import re
 from django.utils import timezone
@@ -30,6 +32,8 @@ import google.generativeai as genai
 from django.db import close_old_connections
 
 chat_service = ChatService()
+ai_service = AIService()
+agent_system = ChatAgentSystem(chat_service, ai_service)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -110,15 +114,12 @@ class ChatView(View):
                     elif msg_obj.type == 'youtube':
                         msg_dict['text'] = msg_obj.content
                         msg_dict['structured_content'] = msg_obj.structured_content
-                    elif msg_obj.role == 'assistant' and msg_obj.type == 'quiz':
-                        # This is a quiz message
-                        if msg_obj.quiz_html:
-                            msg_dict['html'] = msg_obj.quiz_html
-                        else:
-                            msg_dict['text'] = msg_obj.content or ''
                     else:
-                        # Regular text message
+                        # Default handler for text, and the base for quizzes
                         msg_dict['text'] = msg_obj.content
+                        # If it's a quiz, also add the HTML
+                        if msg_obj.type == 'quiz' and msg_obj.quiz_html:
+                            msg_dict['html'] = msg_obj.quiz_html
                     
                     conversation.append(msg_dict)
 
@@ -283,19 +284,19 @@ class ChatStreamView(View):
                 diagram_mode_active=diagram_mode_active, # Pass diagram_mode_active
                 user_id_for_diagram=user.id if diagram_mode_active else None, # Pass user_id for diagram path
                 youtube_mode_active=youtube_mode_active,
-                query_for_youtube_agent=user_typed_prompt if youtube_mode_active else None
+                query_for_youtube_agent=user_typed_prompt if youtube_mode_active else None,
+                rag_mode_active=rag_mode_active  # Add this parameter
             )
 
         except Exception as e:
             logger.error(f"Exception in ChatStreamView.post: {str(e)}", exc_info=True)
             return JsonResponse({'error': str(e)}, status=500)
 
-    async def stream_response(self, chat, messages_for_llm, query_for_rag=None, files_rag_instance=None, is_new_chat=False, current_user_prompt_for_saving=None, attached_file_name_for_rag=None, file_info_for_truncation_warning=None, diagram_mode_active=False, user_id_for_diagram=None, youtube_mode_active=False, query_for_youtube_agent=None):
+    async def stream_response(self, chat, messages_for_llm, query_for_rag=None, files_rag_instance=None, is_new_chat=False, current_user_prompt_for_saving=None, attached_file_name_for_rag=None, file_info_for_truncation_warning=None, diagram_mode_active=False, user_id_for_diagram=None, youtube_mode_active=False, query_for_youtube_agent=None, rag_mode_active=False):
         async def event_stream_async():
             user_message_saved = False
             try:
                 logger.info("stream_response.event_stream_async started.")
-                accumulated_response = ""
 
                 if file_info_for_truncation_warning and file_info_for_truncation_warning['was_truncated']:
                     warning_msg = (
@@ -316,113 +317,21 @@ class ChatStreamView(View):
                     user_message_saved = True
                     logger.info(f"User message '{current_user_prompt_for_saving[:50]}...' saved (Normal stream mode).")
 
-                if youtube_mode_active:
-                    logger.info(f"YouTube mode active in event_stream. Query: {query_for_youtube_agent}")
-                    agent_response = await chat_service.get_youtube_agent_response(query_for_youtube_agent)
-                    
-                    # Try to parse the response as JSON for video recommendations
-                    try:
-                        video_data = json.loads(agent_response)
-                        if isinstance(video_data, list):
-                            # It's a list of videos, save as structured message
-                            await sync_to_async(close_old_connections)()
-                            await sync_to_async(Message.objects.create)(
-                                chat=chat, 
-                                role='assistant', 
-                                content="Here are some videos I found for you:", # Fallback/summary text
-                                type='youtube',
-                                structured_content=video_data
-                            )
-                            logger.info(f"YouTube agent video recommendations saved to DB.")
-                            yield f"data: {json.dumps({'type': 'youtube_recommendations', 'data': video_data})}\n\n"
-                        else:
-                            raise ValueError("JSON is not a list")
-                    except (json.JSONDecodeError, ValueError):
-                        # It's a regular text response (e.g., summary or error)
-                        await sync_to_async(close_old_connections)()
-                        await sync_to_async(Message.objects.create)(chat=chat, role='assistant', content=agent_response)
-                        logger.info(f"YouTube agent text response saved to DB: {agent_response[:100]}...")
-                        yield f"data: {json.dumps({'type': 'content', 'content': agent_response})}\n\n"
-
-                    yield f"data: {json.dumps({'type': 'done'})}\n\n"
-                    return
-
-                if diagram_mode_active:
-                    logger.info(f"Diagram mode active in event_stream. User query for diagram: {messages_for_llm[-1]['content'][:100]}...") # messages_for_llm[-1] is the current user prompt
-                    
-                    # For diagram history, we use messages_for_llm which includes system prompt and history
-                    # The user_query for generate_diagram_image should be the specific diagram request part
-                    # current_user_prompt_for_saving is the raw user input.
-                    # llm_query_content (which is in messages_for_llm[-1]['content']) might include file augmentations.
-                    # We need to decide if file augmentations go into the 'topic' for diagram.
-                    # Using current_user_prompt_for_saving as the 'topic' seems most direct for what the user asked to diagram.
-                    
-                    diagram_topic_query = current_user_prompt_for_saving if current_user_prompt_for_saving else messages_for_llm[-1]['content']
-
-                    # generate_diagram_image now returns the ID of the DiagramImage record
-                    diagram_image_record_id = await chat_service.generate_diagram_image(
-                        chat_history_messages=messages_for_llm[:-1], 
-                        user_query=diagram_topic_query, 
+                # --- Mode-based routing: RAG vs Agent ---
+                if rag_mode_active:
+                    # RAG mode is on, stream directly from documents
+                    logger.info("RAG mode is active. Bypassing agent and calling stream_completion directly.")
+                    stream = await chat_service.stream_completion(
+                        messages=messages_for_llm, 
+                        query=query_for_rag,
+                        files_rag=files_rag_instance,
+                        max_tokens=max_tokens_for_llm,
                         chat_id=chat.id,
-                        user_id=user_id_for_diagram
+                        is_new_chat=is_new_chat,
+                        attached_file_name=attached_file_name_for_rag
                     )
-
-                    if diagram_image_record_id:
-                        # Create a more concise diagram message text (prevent nesting)
-                        diagram_message_content = f"Diagram for: {diagram_topic_query[:100]}"
-                        
-                        # Save the Message linking to the DiagramImage
-                        await sync_to_async(close_old_connections)()
-                        new_diagram_message = await sync_to_async(Message.objects.create)(
-                            chat=chat, 
-                            role='assistant', 
-                            content=diagram_message_content,  # Simple text description 
-                            type='diagram',
-                            diagram_image_id=diagram_image_record_id # Link to the DiagramImage record
-                        )
-                        logger.info(f"Diagram message saved with ID {new_diagram_message.id}. Linked to DiagramImage ID: {diagram_image_record_id}")
-                        
-                        # Stream the diagram_image_id and message_id to the client
-                        # The client will construct the URL to fetch the image via serve_diagram_image view
-                        yield f"data: {json.dumps({
-                            'type': 'diagram_image', 
-                            'diagram_image_id': str(diagram_image_record_id), # Ensure UUID is string
-                            'message_id': new_diagram_message.id, 
-                            'text_content': diagram_message_content
-                        })}\n\n"
-                    else:
-                        logger.error("Diagram generation failed (diagram_image_record_id is None).")
-                        yield f"data: {json.dumps({'type': 'error', 'content': 'Failed to generate the diagram for your request.'})}\n\n"
                     
-                    # Always end the stream properly for diagrams
-                    yield f"data: {json.dumps({'type': 'done'})}\n\n"
-                    return # Diagram mode concludes here
-
-                # --- Regular streaming / RAG mode ---
-                stream = await chat_service.stream_completion(
-                    messages=messages_for_llm, 
-                    query=query_for_rag,
-                    files_rag=files_rag_instance,
-                    max_tokens=max_tokens_for_llm,
-                    chat_id=chat.id,
-                    is_new_chat=is_new_chat,
-                    attached_file_name=attached_file_name_for_rag
-                )
-                
-                if type(stream) == str: 
-                    await sync_to_async(close_old_connections)()
-                    await sync_to_async(Message.objects.create)(chat=chat, role='assistant', content=stream)
-                    logger.info(f"Direct RAG output saved as assistant message: {stream[:100]}...")
-                    yield f"data: {json.dumps({'type': 'content', 'content': stream})}\n\n"
-                    yield f"data: {json.dumps({'type': 'done'})}\n\n"
-                    if files_rag_instance:
-                         rag_stats = {
-                            'file_chunks_used': len(files_rag_instance.chunks) if files_rag_instance and hasattr(files_rag_instance, 'chunks') else 0,
-                         }
-                         yield f"data: {json.dumps({'type': 'metadata', 'content': rag_stats})}\n\n"
-                    return 
-                else:
-                    logger.info("Got stream from chat_service.stream_completion.")
+                    logger.info("Got stream from chat_service.stream_completion (RAG mode).")
                     accumulated_response_for_db = "" # For DB saving
                     frontend_buffer = ""             # Buffer for sending to frontend
                     BUFFER_LENGTH_THRESHOLD_CHARS = 50
@@ -437,25 +346,116 @@ class ChatStreamView(View):
                                 yield f"data: {json.dumps({'type': 'content', 'content': frontend_buffer})}\n\n"
                                 frontend_buffer = "" # Reset buffer
                     
-                    # After the loop, send any remaining content in the buffer
                     if frontend_buffer:
                         yield f"data: {json.dumps({'type': 'content', 'content': frontend_buffer})}\n\n"
-                        frontend_buffer = "" # Clear buffer
 
-                    # The full response is in accumulated_response_for_db for saving
                     if accumulated_response_for_db:
                         await sync_to_async(close_old_connections)()
                         await sync_to_async(Message.objects.create)(chat=chat, role='assistant', content=accumulated_response_for_db)
-                        logger.info("Assistant message created from accumulated stream (buffered).")
+                        logger.info("Assistant message created from accumulated RAG stream.")
                     
-                    yield f"data: {json.dumps({'type': 'done'})}\\n\\n" # Signal completion
+                    yield f"data: {json.dumps({'type': 'done'})}\n\n"
                     
                     if files_rag_instance:
                         rag_stats = {
                             'file_chunks_used': len(files_rag_instance.chunks) if files_rag_instance and hasattr(files_rag_instance, 'chunks') else 0,
                         }
-                        yield f"data: {json.dumps({'type': 'metadata', 'content': rag_stats})}\\n\\n"
-                    return # Explicitly return to end the generator
+                        yield f"data: {json.dumps({'type': 'metadata', 'content': rag_stats})}\n\n"
+                    return # End stream for RAG mode
+
+                # --- Agent System Integration (if not in RAG mode) ---
+                logger.info("RAG mode is inactive. Using agent system.")
+                user = await sync_to_async(lambda: chat.user)()
+                chat_context = {
+                    'chat': chat,
+                    'user': user,
+                    'messages_for_llm': messages_for_llm[:-1],
+                    'chat_service': chat_service,
+                    'files_rag_instance': files_rag_instance,
+                }
+                
+                active_modes = {
+                    'rag': rag_mode_active,
+                    'diagram': diagram_mode_active,
+                    'youtube': youtube_mode_active
+                }
+                
+                user_message = current_user_prompt_for_saving if current_user_prompt_for_saving else messages_for_llm[-1]['content']
+                
+                ai_response, tool_results = await agent_system.process_message(
+                    user_message=user_message,
+                    chat_context=chat_context,
+                    active_modes=active_modes
+                )
+                
+                # Handle tool results
+                for tool_result in tool_results:
+                    if not tool_result.success:
+                        logger.warning(f"Tool failed: {tool_result.error}")
+                        continue
+                        
+                    if tool_result.message_type == "diagram":
+                        diagram_image_id = tool_result.structured_data.get('diagram_image_id')
+                        if diagram_image_id:
+                            await sync_to_async(close_old_connections)()
+                            new_diagram_message = await sync_to_async(Message.objects.create)(
+                                chat=chat, role='assistant', content=tool_result.content,
+                                type='diagram', diagram_image_id=diagram_image_id
+                            )
+                            yield f"data: {json.dumps({'type': 'diagram_image', 'diagram_image_id': str(diagram_image_id), 'message_id': new_diagram_message.id, 'text_content': tool_result.content})}\n\n"
+                    
+                    elif tool_result.message_type == "youtube":
+                        # This tool can return two types of content:
+                        # 1. A list of videos for recommendation (structured_data is present)
+                        # 2. A text summary (structured_data is None)
+                        if tool_result.structured_data and 'videos' in tool_result.structured_data:
+                            # Handle video recommendations
+                            video_list = tool_result.structured_data.get('videos', [])
+                            await sync_to_async(close_old_connections)()
+                            await sync_to_async(Message.objects.create)(
+                                chat=chat, role='assistant', content=tool_result.content,
+                                type='youtube', structured_content=video_list
+                            )
+                            yield f"data: {json.dumps({'type': 'youtube_recommendations', 'data': video_list})}\n\n"
+                        else:
+                            # Handle text summary
+                            await sync_to_async(close_old_connections)()
+                            await sync_to_async(Message.objects.create)(
+                                chat=chat, role='assistant', content=tool_result.content,
+                                type='text'  # Save as a standard text message
+                            )
+                            # Stream as a standard content message
+                            yield f"data: {json.dumps({'type': 'content', 'content': tool_result.content})}\n\n"
+                    
+                    elif tool_result.message_type == "quiz":
+                        quiz_html = tool_result.structured_data.get('quiz_html', '')
+                        await sync_to_async(close_old_connections)()
+                        new_quiz_message = await sync_to_async(Message.objects.create)(
+                            chat=chat, role='assistant', content=tool_result.content,
+                            type='quiz', quiz_html=quiz_html
+                        )
+                        # Instead of sending the whole quiz, just notify the client to fetch it.
+                        yield f"data: {json.dumps({'type': 'trigger_quiz_render', 'message_id': new_quiz_message.id})}\n\n"
+                    
+                    elif tool_result.message_type == "background_process":
+                        if tool_result.content:
+                            yield f"data: {json.dumps({'type': 'notification', 'content': tool_result.content})}\n\n"
+                
+                if ai_response:
+                    await sync_to_async(close_old_connections)()
+                    await sync_to_async(Message.objects.create)(
+                        chat=chat, role='assistant', content=ai_response
+                    )
+                    yield f"data: {json.dumps({'type': 'content', 'content': ai_response})}\n\n"
+                
+                # If tools were used or AI response was provided, just send done signal
+                primary_tools_used = [r for r in tool_results if r.message_type not in ["background_process"] and r.success]
+                if primary_tools_used or ai_response:
+                    yield f"data: {json.dumps({'type': 'done'})}\n\n"
+                    return
+                
+                # Fallback for if agent system fails silently
+                yield f"data: {json.dumps({'type': 'done', 'message': 'No action taken.'})}\n\n"
 
             except APIStatusError as e:
                 logger.error(f"Groq APIStatusError in stream_response.event_stream_async: Status {e.status_code}, Response: {e.response.text if e.response else 'No response body'}", exc_info=True)
@@ -591,59 +591,28 @@ def clear_chat(request, chat_id):
 @require_POST
 def chat_quiz(request, chat_id):
     chat = get_object_or_404(Chat, id=chat_id, user=request.user)
-    messages = chat.messages.filter(
-        role__in=['user', 'assistant']).order_by('created_at')
-    content_text = "\n".join(m.content for m in messages if m.content)
     
-    user_messages_count = messages.filter(role='user').count()
-    assistant_messages_count = messages.filter(role='assistant').count()
-
-    # Previous threshold, adjust if needed, e.g. messages.count() < 5 or len(content_text) < 500
-    if user_messages_count < 2 or assistant_messages_count < 1 or len(content_text) < 200: 
-        return JsonResponse({'error': 'Not enough diverse conversation content in this chat to generate a meaningful quiz. Please continue the conversation further.'}, status=400)
-
-    prompt = f"""
-Create at least 2 multiple-choice quizzes (4 options per question) based on the following conversation's relevant scientific information only, related to the learning.
-For each question, use this HTML structure:
-<div class="quiz-question" data-correct="B">
-  <div class="font-semibold mb-1">What is 2+2?</div>
-  <form>
-    <label><input type="radio" name="q1" value="A"> 3</label><br>
-    <label><input type="radio" name="q1" value="B"> 4</label><br>
-    <label><input type="radio" name="q1" value="C"> 5</label><br>
-    <label><input type="radio" name="q1" value="D"> 6</label><br>
-    <button type="submit" class="mt-1.5 px-2 py-1 bg-blue-600 text-white rounded">Check Answer</button>
-  </form>
-  <div class="quiz-feedback mt-1.5"></div>
-</div>
-Replace the question, answers, and correct value as appropriate.
-**Output ONLY the HTML for the quiz. DON'T MENTION "QUIZ NUMBER" in the HTML. Do NOT include any explanations, answers, or text outside the HTML.**
-Conversation:
-
-{content_text}
-** DON'T TELL THE USER ANYTHING AFTER THE QUIZ IS GENERATED.**
-** DON'T SAY WHAT THE CORRECT ANSWER IS**
-
-"""
+    # We can still check for a minimum number of messages here before calling the service
+    if chat.messages.count() < 3: # Example check
+        return JsonResponse({'error': 'Not enough conversation content in this chat to generate a meaningful quiz. Please continue the conversation further.'}, status=400)
 
     try:
-        quiz_html_response = async_to_sync(chat_service.get_completion)(
-            messages=[{"role": "user", "content": prompt}],
-            query=prompt, 
-            max_tokens=1500, # Was 1024, can be 1500 for potentially larger HTML
-            chat_id=chat.id,
-            is_new_chat=False
-        )
+        # Get chat history in the format the service expects
+        history_messages = [
+            {"role": msg.role, "content": msg.content}
+            for msg in chat.messages.all().order_by('created_at')
+        ]
         
-        # Extract only the HTML part, assuming LLM might still add extra text
-        # This regex looks for the starting div of a quiz question.
-        match = re.search(r'(<div class="quiz-question".*)', quiz_html_response, re.DOTALL)
-        if match:
-            processed_quiz_html = match.group(1)
-        else:
-            # If no specific quiz structure found, take the whole response, but log a warning.
-            logger.warning(f"Could not find specific quiz HTML structure in LLM response. Using raw response: {quiz_html_response}")
-            processed_quiz_html = quiz_html_response 
+        # Call the refactored service function
+        quiz_data = async_to_sync(chat_service.generate_quiz)(
+            chat_history_messages=history_messages,
+            chat_id=chat.id
+        )
+
+        if quiz_data.get("error"):
+            return JsonResponse({'error': quiz_data["error"]}, status=400)
+            
+        processed_quiz_html = quiz_data.get("quiz_html", "")
 
     except Exception as e:
         logger.error(f"Quiz generation call failed: {str(e)}", exc_info=True)
@@ -655,11 +624,24 @@ Conversation:
         role='assistant',
         type='quiz',
         quiz_html=processed_quiz_html, # Storing HTML string here
-        content=''
+        content='Here is your quiz:' # Add some default content for consistency
     )
 
     # Return the HTML string to the client
     return JsonResponse({'quiz_html': processed_quiz_html, 'message_id': quiz_msg.id})
+
+
+@login_required
+def get_quiz_html(request, message_id):
+    """
+    An endpoint to fetch the HTML for a specific quiz message.
+    """
+    message = get_object_or_404(Message, id=message_id, chat__user=request.user, type='quiz')
+    return JsonResponse({
+        'quiz_html': message.quiz_html,
+        'message_id': message.id,
+        'content': message.content
+    })
 
 
 @login_required

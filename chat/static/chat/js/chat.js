@@ -359,6 +359,24 @@ document.addEventListener("DOMContentLoaded", function () {
 			`;
 		} else {
 			// Assistant message - left aligned
+			let assistantContentHtml = '';
+			if (type === 'quiz') {
+				if (content) {
+					assistantContentHtml += `<div class="max-w-none markdown-content text-gray-100">${marked.parse(content)}</div>`;
+				}
+				if (quizHtml) {
+					assistantContentHtml += `<div class="quiz-message max-w-none text-gray-100 bg-gray-700/70 p-2 rounded-xl mt-2">${quizHtml}</div>`;
+				}
+			} else if (type === 'diagram') {
+				assistantContentHtml = `
+					<div class="diagram-message-container bg-gray-800/50 p-2 my-2 rounded-lg shadow-md flex flex-col justify-center items-center">
+						<img src="${content}" alt="Generated Diagram" class="max-w-full h-auto rounded-md mb-1 cursor-pointer hover:opacity-90 transition-opacity" onclick="openImageModal('${content}')">
+						${messageId ? `<p class="text-xs text-gray-400 italic mt-1 text-center">${messageId}</p>`: ""}
+					</div>`;
+			} else {
+				assistantContentHtml = `<div class="max-w-none markdown-content text-gray-100">${marked.parse(content)}</div>`;
+			}
+
 			messageDiv.innerHTML = `
 				<div class="chat-container flex gap-4 md:gap-6">
 					<!-- Assistant icon - left side -->
@@ -372,48 +390,25 @@ document.addEventListener("DOMContentLoaded", function () {
 					</div>
 					<!-- Message content -->
 					<div class="flex-1 overflow-x-auto min-w-0 max-w-[85%]" data-role="assistant-content-wrapper">
-						${
-							type === "quiz"
-								? `<div class="quiz-message max-w-none text-gray-100 bg-gray-700/70 p-2 rounded-xl">${quizHtml}</div>`
-								: type === "diagram"
-								? `<div class="diagram-message-container bg-gray-800/50 p-2 my-2 rounded-lg shadow-md flex flex-col justify-center items-center">
-								<img src="${content}" alt="Generated Diagram" class="max-w-full h-auto rounded-md mb-1 cursor-pointer hover:opacity-90 transition-opacity" onclick="openImageModal('${content}')">
-								${
-									messageId
-										? `<p class="text-xs text-gray-400 italic mt-1 text-center">${messageId}</p>`
-										: ""
-								}
-							</div>`
-								: `<div class="max-w-none markdown-content text-gray-100">${content}</div>`
-						}
+						${assistantContentHtml}
+					</div>
 				</div>
-			</div>
-		`;
+			`;
 
 			if (type === "text") {
 				// For assistant text messages, we want to return the actual content div for streaming updates
-				const markdownContentDiv =
-					messageDiv.querySelector(".markdown-content");
+				const markdownContentDiv = messageDiv.querySelector(".markdown-content");
 				if (markdownContentDiv) {
 					contentElementToReturn = markdownContentDiv;
-					// Initialize raw text buffer for streaming, NO LONGER sanitize initial content
-					// const sanitizedInitialContent = content.replace(/\n/g, ' '); // REMOVED
-					markdownContentDiv.dataset.rawTextBuffer = content; // Use content directly
-					// Initial parse
-					if (typeof marked !== "undefined") {
-						marked.setOptions({ breaks: false, gfm: true });
-						markdownContentDiv.innerHTML = marked.parse(content); // Use content directly
-						if (typeof hljs !== "undefined") {
-							markdownContentDiv
-								.querySelectorAll("pre code")
-								.forEach((block) => {
-									hljs.highlightElement(block);
-								});
-						}
-						initializeCodeBlockFeatures(markdownContentDiv);
-					} else {
-						markdownContentDiv.textContent = content; // Fallback if no marked
+					// Initialize raw text buffer for streaming
+					markdownContentDiv.dataset.rawTextBuffer = content; 
+					// Initial parse is already done when setting assistantContentHtml
+					if (typeof hljs !== "undefined") {
+						markdownContentDiv.querySelectorAll("pre code").forEach((block) => {
+							hljs.highlightElement(block);
+						});
 					}
+					initializeCodeBlockFeatures(markdownContentDiv);
 				}
 			} else if (type === "quiz") {
 				// If this is a quiz message, initialize it immediately
@@ -429,11 +424,9 @@ document.addEventListener("DOMContentLoaded", function () {
 						initializeQuizForms(quizMessageElement);
 					}
 				}, 0);
-				contentElementToReturn =
-					messageDiv.querySelector(".quiz-message") || messageDiv;
+				contentElementToReturn = messageDiv.querySelector(".quiz-message") || messageDiv;
 			} else if (type === "diagram") {
-				contentElementToReturn =
-					messageDiv.querySelector(".diagram-message-container") || messageDiv;
+				contentElementToReturn = messageDiv.querySelector(".diagram-message-container") || messageDiv;
 			}
 		}
 
@@ -441,6 +434,53 @@ document.addEventListener("DOMContentLoaded", function () {
 		window.smoothScrollToBottom();
 		return contentElementToReturn; // Return the appropriate element
 	};
+
+	function renderAndAppendQuiz(quizData) {
+		const messagesDiv = document.getElementById("chat-messages");
+		const messageDiv = document.createElement("div");
+		messageDiv.className = "message-enter px-4 md:px-6 py-6";
+		if (quizData.message_id) {
+			messageDiv.dataset.messageId = quizData.message_id;
+		}
+
+		let assistantContentHtml = "";
+		if (quizData.content) {
+			assistantContentHtml += `<div class="max-w-none markdown-content text-gray-100">${marked.parse(quizData.content)}</div>`;
+		}
+		if (quizData.quiz_html) {
+			assistantContentHtml += `<div class="quiz-message max-w-none text-gray-100 bg-gray-700/70 p-2 rounded-xl mt-2">${quizData.quiz_html}</div>`;
+		}
+
+		messageDiv.innerHTML = `
+			<div class="chat-container flex gap-4 md:gap-6">
+				<!-- Assistant icon - left side -->
+				<div class="chat-container flex gap-4 md:gap-6">
+					<div>
+						<div class="w-16 flex items-center justify-center text-white">
+							<img src="/static/images/logo.png" alt="Assistant icon" class="h-12 w-12 ">
+						</div>
+					</div>
+					<!-- Message content -->
+					<div class="flex-1 overflow-x-auto min-w-0 max-w-[85%]" data-role="assistant-content-wrapper">
+						${assistantContentHtml}
+					</div>
+				</div>
+			</div>
+		`;
+
+		messagesDiv.appendChild(messageDiv);
+
+		// Process the quiz content that was just added
+		const quizMessageElement = messageDiv.querySelector(".quiz-message");
+		if (quizMessageElement) {
+			unwrapQuizMessageCodeBlocks(quizMessageElement);
+			fixEscapedQuizMessages(quizMessageElement);
+			fixFirstLineQuizPreCode(quizMessageElement);
+			initializeQuizForms(quizMessageElement);
+		}
+
+		window.smoothScrollToBottom();
+	}
 
 	// New function to append system notifications
 	function appendSystemNotification(message, level = "info") {
@@ -574,20 +614,35 @@ document.addEventListener("DOMContentLoaded", function () {
 					if (line.startsWith("data: ")) {
 						const data = JSON.parse(line.slice(6));
 
-						if (data.type === "quiz") {
-							// For now, let's assume quizzes are sent whole and handled by appendMessage
-							if (isFirstTextChunk) {
-								// Use isFirstTextChunk to ensure only one main message container is made
-								appendMessage(
-									"assistant",
-									"", // Content is in quizHtml
-									data.message_id,
-									"quiz",
-									data.quiz_html
-								);
-								currentMessageContainer = null; // Reset after quiz handling
-								isFirstTextChunk = true;
+						if (data.type === 'trigger_quiz_render') {
+							const messageId = data.message_id;
+							if (messageId) {
+								fetch(`/chat/quiz_html/${messageId}/`)
+									.then(response => response.json())
+									.then(quizData => {
+										if (quizData.quiz_html) {
+											renderAndAppendQuiz(quizData);
+										}
+									})
+									.catch(error => {
+										console.error("Error fetching agent-generated quiz:", error);
+										appendSystemNotification(`Error rendering quiz: ${error.message}`, "error");
+									});
 							}
+							isFirstTextChunk = true;
+							currentMessageContainer = null;
+						} else if (data.type === "quiz") {
+							// A quiz is a self-contained message. It doesn't use the streaming text container.
+							appendMessage(
+								"assistant",
+								data.content || "Here is your quiz:", // Fallback content
+								data.message_id,
+								"quiz",
+								data.quiz_html
+							);
+							// Reset streaming state for any subsequent messages in this response
+							currentMessageContainer = null;
+							isFirstTextChunk = true;
 						} else if (data.type === "content") {
 							const messagesDiv = document.getElementById("chat-messages");
 							if (isFirstTextChunk) {
@@ -1901,7 +1956,7 @@ document.addEventListener("DOMContentLoaded", function () {
 				}
 				if (isDiagramModeActive) {
 					isDiagramModeActive = false;
-					setDiagramInactiveStyles();
+					updateDiagramModeToggleButtonStyle();
 					localStorage.setItem(
 						"diagramModeActive",
 						JSON.stringify(isDiagramModeActive)
@@ -2075,33 +2130,7 @@ document.addEventListener("DOMContentLoaded", function () {
 					if (response.ok) {
 						const data = await response.json();
 						if (data.quiz_html) {
-							const messagesDiv = document.getElementById("chat-messages");
-							const messageDiv = document.createElement("div");
-							messageDiv.className = "message-enter px-4 md:px-6 py-6";
-
-							const iconHtml = `<div class="cls w-10 h-7 p-1 rounded-sm bg-slate-100 flex items-center justify-center text-white"><img src="/static/images/logo.png" alt="Assistant icon" class="h-5 w-7"></div>`;
-							const actualContentHtml = `<div class="quiz-message max-w-none text-gray-100 bg-gray-700/70 p-2 rounded-xl">${data.quiz_html}</div>`;
-
-							messageDiv.innerHTML = `
-								<div class="chat-container flex gap-4 md:gap-6">
-									<div class="flex-shrink-0 w-7 h-7">${iconHtml}</div>
-									<div class="flex-1 overflow-x-auto min-w-0 max-w-[85%]">${actualContentHtml}</div>
-								</div>`;
-							messagesDiv.appendChild(messageDiv);
-
-							// Process the quiz content that was just added
-							const quizMessageElement =
-								messageDiv.querySelector(".quiz-message");
-							if (quizMessageElement) {
-								unwrapQuizMessageCodeBlocks(quizMessageElement);
-								fixEscapedQuizMessages(quizMessageElement);
-								fixFirstLineQuizPreCode(quizMessageElement);
-
-								// Set up form handlers for the quiz using the new function
-								initializeQuizForms(quizMessageElement);
-							}
-
-							window.smoothScrollToBottom();
+							renderAndAppendQuiz(data);
 						} else if (data.error) {
 							appendSystemNotification(
 								`Error generating quiz: ${data.error}`,

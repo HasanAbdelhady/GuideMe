@@ -43,7 +43,14 @@ class Message(models.Model):
     role = models.CharField(max_length=10, choices=[('user', 'User'), ('assistant', 'Assistant')])
     content = models.TextField(blank=True)  # For normal text
     type = models.CharField(
-        max_length=20, default='text', choices=[('text', 'Text'), ('quiz', 'Quiz'), ('diagram', 'Diagram'), ('youtube', 'YouTube')])
+        max_length=20, default='text', choices=[
+            ('text', 'Text'), 
+            ('quiz', 'Quiz'), 
+            ('diagram', 'Diagram'), 
+            ('youtube', 'YouTube'),
+            ('flashcard_update', 'Flashcard Update'),
+            ('background_process', 'Background Process')
+        ])
     structured_content = models.JSONField(null=True, blank=True) # For structured data like YouTube links
     quiz_html = models.TextField(blank=True, null=True)  # For quiz HTML
     diagram_image = models.ForeignKey(
@@ -99,3 +106,56 @@ class ChatRAGFile(models.Model):
         if self.file:
             self.file.delete(save=False) # save=False to prevent saving the model again after file deletion
         super().delete(*args, **kwargs)
+
+
+class ChatFlashcard(models.Model):
+    """Store flashcards for each chat"""
+    chat = models.ForeignKey(Chat, on_delete=models.CASCADE, related_name='flashcards')
+    term = models.CharField(max_length=200)
+    definition = models.TextField()
+    context = models.TextField(blank=True)  # Context from conversation
+    auto_generated = models.BooleanField(default=False)  # AI-generated vs user-created
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_reviewed = models.DateTimeField(null=True, blank=True)
+    review_count = models.IntegerField(default=0)
+    confidence_level = models.IntegerField(default=0)  # 0-5 scale for spaced repetition
+    
+    class Meta:
+        unique_together = ['chat', 'term']
+        ordering = ['-created_at']
+        verbose_name = "Chat Flashcard"
+        verbose_name_plural = "Chat Flashcards"
+    
+    def __str__(self):
+        return f"{self.term} - {self.chat.title[:30]}"
+
+
+class ChatQuestionBank(models.Model):
+    """Store quiz questions from each chat"""
+    chat = models.ForeignKey(Chat, on_delete=models.CASCADE, related_name='question_bank')
+    question_html = models.TextField()  # The full quiz HTML
+    question_text = models.TextField()  # Extracted question text for search
+    correct_answer = models.CharField(max_length=10)  # A, B, C, D
+    topic = models.CharField(max_length=300, blank=True)  # Topic/subject
+    difficulty = models.CharField(max_length=20, default='medium', choices=[
+        ('easy', 'Easy'),
+        ('medium', 'Medium'),
+        ('hard', 'Hard')
+    ])
+    times_answered = models.IntegerField(default=0)
+    times_correct = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = "Chat Question Bank"
+        verbose_name_plural = "Chat Question Banks"
+    
+    def __str__(self):
+        return f"Q: {self.question_text[:50]}... - {self.chat.title[:30]}"
+    
+    @property
+    def success_rate(self):
+        if self.times_answered == 0:
+            return 0
+        return (self.times_correct / self.times_answered) * 100
