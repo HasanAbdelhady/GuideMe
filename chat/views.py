@@ -47,8 +47,10 @@ FLASHCARD_API_KEY = os.environ.get("FLASHCARD")
 genai.configure(api_key=FLASHCARD_API_KEY)
 flashcard_model = genai.GenerativeModel("gemini-2.5-flash-preview-04-17")
 
+
 def custom_404_view(request, exception):
     return redirect("new_chat")
+
 
 @method_decorator(login_required, name='dispatch')
 class ChatView(View):
@@ -85,9 +87,10 @@ class ChatView(View):
         if chat_id:
             try:
                 chat = Chat.objects.get(id=chat_id, user=request.user)
-                db_messages = chat.messages.all().order_by('created_at') # Renamed to db_messages
+                db_messages = chat.messages.all().order_by(
+                    'created_at')  # Renamed to db_messages
                 conversation = []
-                for msg_obj in db_messages: # Iterate over actual model instances
+                for msg_obj in db_messages:  # Iterate over actual model instances
                     msg_dict = {
                         'role': msg_obj.role,
                         'id': msg_obj.id,
@@ -96,21 +99,48 @@ class ChatView(View):
                         'is_edited': msg_obj.is_edited,
                         'edited_at': msg_obj.edited_at.isoformat() if msg_obj.edited_at else None,
                         'text': None,        # Default to None
-                        'html': None,        # Default to None (used for quiz HTML by current template)
-                        'diagram_image_url': None, # Initialize diagram_image_url
-                        'diagram_image_id_for_template': None, # ADD THIS
-                        'structured_content': None
+                        # Default to None (used for quiz HTML by current template)
+                        'html': None,
+                        'diagram_image_url': None,  # Initialize diagram_image_url
+                        'diagram_image_id_for_template': None,  # ADD THIS
+                        'structured_content': None,
+                        'is_mixed_content': msg_obj.is_mixed_content() if hasattr(msg_obj, 'is_mixed_content') else False,  # New field
+                        'mixed_content_data': None,  # Mixed content structure
                     }
 
                     # Handle different message types properly
-                    if msg_obj.type == 'diagram' and msg_obj.diagram_image_id:
+                    if msg_obj.type == 'mixed':
+                        # This is a mixed content message - handle all components
+                        msg_dict['text'] = msg_obj.content
+                        # Only YouTube data
+                        msg_dict['structured_content'] = msg_obj.structured_content
+                        # Mixed content structure
+                        msg_dict['mixed_content_data'] = msg_obj.mixed_content_data
+
+                        # Set individual flags for frontend rendering
+                        if hasattr(msg_obj, 'has_diagram') and msg_obj.has_diagram and msg_obj.diagram_image_id:
+                            msg_dict['diagram_image_url'] = f"/chat/diagram_image/{msg_obj.diagram_image_id}/"
+                            msg_dict['diagram_image_id_for_template'] = str(
+                                msg_obj.diagram_image_id)
+
+                        if hasattr(msg_obj, 'has_quiz') and msg_obj.has_quiz and msg_obj.quiz_html:
+                            msg_dict['html'] = msg_obj.quiz_html
+
+                        logger.info(
+                            f"Loaded mixed content message with components: {msg_dict['mixed_content_data']}")
+
+                    elif msg_obj.type == 'diagram' and msg_obj.diagram_image_id:
                         # This is a diagram message
                         # Construct URL to the new serving view
                         msg_dict['diagram_image_url'] = f"/chat/diagram_image/{msg_obj.diagram_image_id}/"
-                        msg_dict['text'] = msg_obj.content  # Use the content as description text
-                        msg_dict['diagram_image_id_for_template'] = str(msg_obj.diagram_image_id) # ADD THIS
-                        logger.info(f"Loaded diagram message. URL: {msg_dict['diagram_image_url']}, ID for template: {msg_dict['diagram_image_id_for_template']}")
-                        logger.info(f"[ChatView.get] Preparing diagram msg_dict: {msg_dict}")
+                        # Use the content as description text
+                        msg_dict['text'] = msg_obj.content
+                        msg_dict['diagram_image_id_for_template'] = str(
+                            msg_obj.diagram_image_id)  # ADD THIS
+                        logger.info(
+                            f"Loaded diagram message. URL: {msg_dict['diagram_image_url']}, ID for template: {msg_dict['diagram_image_id_for_template']}")
+                        logger.info(
+                            f"[ChatView.get] Preparing diagram msg_dict: {msg_dict}")
                     elif msg_obj.type == 'youtube':
                         msg_dict['text'] = msg_obj.content
                         msg_dict['structured_content'] = msg_obj.structured_content
@@ -120,7 +150,7 @@ class ChatView(View):
                         # If it's a quiz, also add the HTML
                         if msg_obj.type == 'quiz' and msg_obj.quiz_html:
                             msg_dict['html'] = msg_obj.quiz_html
-                    
+
                     conversation.append(msg_dict)
 
                 return render(request, self.template_name, {
@@ -145,17 +175,19 @@ class ChatStreamView(View):
             if not user.is_authenticated:
                 return JsonResponse({'error': 'Authentication required'}, status=401)
 
-            logger.info(f"ChatStreamView.post called for chat_id={chat_id} by user {user.id}")
-            
+            logger.info(
+                f"ChatStreamView.post called for chat_id={chat_id} by user {user.id}")
+
             # Use the pre-loaded 'user' object for DB queries
             try:
                 chat = await sync_to_async(Chat.objects.select_related('user').get)(id=chat_id, user=user)
             except Chat.DoesNotExist:
-                logger.error(f"Chat with id={chat_id} not found for user {user.id}.")
+                logger.error(
+                    f"Chat with id={chat_id} not found for user {user.id}.")
                 # This should be an async-safe way to raise Http404, but for simplicity
                 # we return a JsonResponse which is clear for an API view.
                 return JsonResponse({'error': 'Chat not found.'}, status=404)
-                
+
             logger.info(f"Got chat: {chat} with pre-fetched user: {chat.user}")
 
             user_typed_prompt = request.POST.get('prompt', '').strip()
@@ -169,33 +201,39 @@ class ChatStreamView(View):
             llm_query_content = user_typed_prompt
 
             if uploaded_file:
-                file_info_for_llm = chat_service.extract_text_from_uploaded_file(uploaded_file)
+                file_info_for_llm = chat_service.extract_text_from_uploaded_file(
+                    uploaded_file)
                 llm_query_content = (
                     f"{user_typed_prompt}\n\n"
                     f"[Content from uploaded file '{file_info_for_llm['filename']}':]\n"
                     f"{file_info_for_llm['text_content']}\n"
-                    if user_typed_prompt 
+                    if user_typed_prompt
                     else f"[Content from uploaded file '{file_info_for_llm['filename']}':]\n{file_info_for_llm['text_content']}\n"
                 )
-                logger.info(f"LLM query content augmented with file text from: {file_info_for_llm['filename']}")
+                logger.info(
+                    f"LLM query content augmented with file text from: {file_info_for_llm['filename']}")
                 if file_info_for_llm['was_truncated']:
-                    logger.info(f"File {file_info_for_llm['filename']} was truncated. Original: {file_info_for_llm['original_char_count']} chars, Final: {file_info_for_llm['final_char_count']} chars.")
+                    logger.info(
+                        f"File {file_info_for_llm['filename']} was truncated. Original: {file_info_for_llm['original_char_count']} chars, Final: {file_info_for_llm['final_char_count']} chars.")
 
             rag_mode_active_str = request.POST.get('rag_mode_active', 'false')
             rag_mode_active = rag_mode_active_str.lower() == 'true'
 
-            diagram_mode_active_str = request.POST.get('diagram_mode_active', 'false') # Get diagram_mode_active
+            diagram_mode_active_str = request.POST.get(
+                'diagram_mode_active', 'false')  # Get diagram_mode_active
             diagram_mode_active = diagram_mode_active_str.lower() == 'true'
             logger.info(f"Diagram mode active: {diagram_mode_active}")
 
-            youtube_mode_active_str = request.POST.get('youtube_mode_active', 'false')
+            youtube_mode_active_str = request.POST.get(
+                'youtube_mode_active', 'false')
             youtube_mode_active = youtube_mode_active_str.lower() == 'true'
             logger.info(f"YouTube mode active: {youtube_mode_active}")
 
-            files_rag_instance = None   
+            files_rag_instance = None
             attached_file_names_for_rag_context = []
             if rag_mode_active:
-                logger.info("RAG mode is ACTIVE. Attempting to build RAG index from persisted files.")
+                logger.info(
+                    "RAG mode is ACTIVE. Attempting to build RAG index from persisted files.")
                 active_rag_files_qs = await sync_to_async(list)(chat.rag_files.filter(user=user).all().order_by('-uploaded_at'))
                 active_rag_files = active_rag_files_qs
 
@@ -203,59 +241,74 @@ class ChatStreamView(View):
                     file_paths_and_types_for_rag = []
                     for rag_file_entry in active_rag_files:
                         file_path = rag_file_entry.file.path
-                        _, file_ext = os.path.splitext(rag_file_entry.original_filename)
+                        _, file_ext = os.path.splitext(
+                            rag_file_entry.original_filename)
                         file_type = file_ext.lower().strip('.')
                         if file_type in ['pdf', 'txt']:
-                            file_paths_and_types_for_rag.append((file_path, file_type))
-                            attached_file_names_for_rag_context.append(rag_file_entry.original_filename)
+                            file_paths_and_types_for_rag.append(
+                                (file_path, file_type))
+                            attached_file_names_for_rag_context.append(
+                                rag_file_entry.original_filename)
                         else:
-                            logger.warning(f"Skipping RAG file {rag_file_entry.original_filename} due to unsupported type: {file_type}")
-                    
+                            logger.warning(
+                                f"Skipping RAG file {rag_file_entry.original_filename} due to unsupported type: {file_type}")
+
                     if file_paths_and_types_for_rag:
-                        logger.info(f"Building RAG index from persisted files: {attached_file_names_for_rag_context}")
+                        logger.info(
+                            f"Building RAG index from persisted files: {attached_file_names_for_rag_context}")
                         files_rag_instance = LangChainRAG()
                         try:
                             await sync_to_async(files_rag_instance.build_index)(file_paths_and_types_for_rag)
-                            logger.info(f"Successfully built RAG index from {len(file_paths_and_types_for_rag)} persisted files.")
+                            logger.info(
+                                f"Successfully built RAG index from {len(file_paths_and_types_for_rag)} persisted files.")
                         except Exception as e:
-                            logger.error(f"Failed to build RAG index from persisted files: {e}", exc_info=True)
+                            logger.error(
+                                f"Failed to build RAG index from persisted files: {e}", exc_info=True)
             else:
                 logger.info("RAG mode is INACTIVE. Skipping RAG index build.")
 
             # Diagram mode takes precedence if active
             if diagram_mode_active:
-                logger.info("Diagram mode is ACTIVE. RAG mode will be ignored for this turn if it was also active.")
-                rag_mode_active = False # Ensure RAG is off if diagram is on for this turn
-            
+                logger.info(
+                    "Diagram mode is ACTIVE. RAG mode will be ignored for this turn if it was also active.")
+                rag_mode_active = False  # Ensure RAG is off if diagram is on for this turn
+
             if youtube_mode_active:
-                logger.info("YouTube mode is ACTIVE. RAG and Diagram modes will be ignored for this turn.")
+                logger.info(
+                    "YouTube mode is ACTIVE. RAG and Diagram modes will be ignored for this turn.")
                 rag_mode_active = False
                 diagram_mode_active = False
 
-            is_reprompt_after_edit = request.POST.get("is_reprompt_after_edit") == "true"
-            
+            is_reprompt_after_edit = request.POST.get(
+                "is_reprompt_after_edit") == "true"
+
             current_message_count = await sync_to_async(chat.messages.count)()
-            is_handling_continuation_of_new_chat = (current_message_count == 1 and 
-                                                  (await sync_to_async(lambda: chat.messages.first().content)()) == user_typed_prompt)
+            is_handling_continuation_of_new_chat = (current_message_count == 1 and
+                                                    (await sync_to_async(lambda: chat.messages.first().content)()) == user_typed_prompt)
 
             if not is_handling_continuation_of_new_chat and not is_reprompt_after_edit:
-                logger.info("User message will be saved in stream_response upon successful LLM interaction.")
+                logger.info(
+                    "User message will be saved in stream_response upon successful LLM interaction.")
             elif is_reprompt_after_edit:
-                logger.info("Skipping user message save as this is a re-prompt after an edit (no new user message to save).")
+                logger.info(
+                    "Skipping user message save as this is a re-prompt after an edit (no new user message to save).")
             else:
-                logger.info("Skipping user message save in ChatStreamView as create_chat already handled the initial user message.")
+                logger.info(
+                    "Skipping user message save in ChatStreamView as create_chat already handled the initial user message.")
 
             if chat.title == "New Chat" and user_typed_prompt and not is_reprompt_after_edit:
                 await sync_to_async(chat_service.update_chat_title)(chat, user_typed_prompt)
                 logger.info("Chat title updated.")
 
             system_prompt_text = await sync_to_async(PreferenceService.get_system_prompt)(user)
-            messages_for_llm = [{"role": "system", "content": system_prompt_text}]
-            
+            messages_for_llm = [
+                {"role": "system", "content": system_prompt_text}]
+
             chat_history_db = await sync_to_async(chat_service.get_chat_history)(chat)
 
             if is_handling_continuation_of_new_chat:
-                logger.info("First turn of new chat: LLM history will start with system prompt, current query will be added next.")
+                logger.info(
+                    "First turn of new chat: LLM history will start with system prompt, current query will be added next.")
             else:
                 # For diagram generation, we might want the full history for context.
                 # For regular chat, it's already limited by get_chat_history.
@@ -263,18 +316,23 @@ class ChatStreamView(View):
                     # Don't include previous diagram placeholder texts or image URLs in LLM history for new diagram
                     if diagram_mode_active and msg_data.type == 'diagram':
                         if msg_data.content and not msg_data.content.startswith("[Diagram generated"):
-                             messages_for_llm.append({"role": msg_data.role, "content": msg_data.content})
+                            messages_for_llm.append(
+                                {"role": msg_data.role, "content": msg_data.content})
                         # else skip diagram placeholders for new diagram generation context
                     else:
-                        messages_for_llm.append({"role": msg_data.role, "content": msg_data.content})
+                        messages_for_llm.append(
+                            {"role": msg_data.role, "content": msg_data.content})
 
-                logger.info(f"Ongoing chat or re-prompt: Added {len(messages_for_llm) -1} messages from DB to LLM context (excluding system prompt).")
-            
+                logger.info(
+                    f"Ongoing chat or re-prompt: Added {len(messages_for_llm) - 1} messages from DB to LLM context (excluding system prompt).")
+
             # Add the current user query that might be for a diagram or regular chat
             # llm_query_content already contains augmented file text if any
-            messages_for_llm.append({"role": "user", "content": llm_query_content}) 
-            
-            logger.info(f"Message history prepared with {len(messages_for_llm)} messages for LLM. Last user message for LLM: {llm_query_content[:200]}...")
+            messages_for_llm.append(
+                {"role": "user", "content": llm_query_content})
+
+            logger.info(
+                f"Message history prepared with {len(messages_for_llm)} messages for LLM. Last user message for LLM: {llm_query_content[:200]}...")
 
             current_message_count_final = await sync_to_async(chat.messages.count)()
             is_new_chat_bool = current_message_count_final <= 1
@@ -285,18 +343,22 @@ class ChatStreamView(View):
                 query_for_rag=user_typed_prompt if rag_mode_active else None,
                 files_rag_instance=files_rag_instance if rag_mode_active else None,
                 is_new_chat=is_new_chat_bool,
-                current_user_prompt_for_saving = user_typed_prompt if not (is_handling_continuation_of_new_chat or is_reprompt_after_edit) else None,
-                attached_file_name_for_rag=", ".join(attached_file_names_for_rag_context) if rag_mode_active and attached_file_names_for_rag_context else None,
+                current_user_prompt_for_saving=user_typed_prompt if not (
+                    is_handling_continuation_of_new_chat or is_reprompt_after_edit) else None,
+                attached_file_name_for_rag=", ".join(
+                    attached_file_names_for_rag_context) if rag_mode_active and attached_file_names_for_rag_context else None,
                 file_info_for_truncation_warning=file_info_for_llm,
-                diagram_mode_active=diagram_mode_active, # Pass diagram_mode_active
-                user_id_for_diagram=user.id if diagram_mode_active else None, # Pass user_id for diagram path
+                diagram_mode_active=diagram_mode_active,  # Pass diagram_mode_active
+                # Pass user_id for diagram path
+                user_id_for_diagram=user.id if diagram_mode_active else None,
                 youtube_mode_active=youtube_mode_active,
                 query_for_youtube_agent=user_typed_prompt if youtube_mode_active else None,
                 rag_mode_active=rag_mode_active  # Add this parameter
             )
 
         except Exception as e:
-            logger.error(f"Exception in ChatStreamView.post: {str(e)}", exc_info=True)
+            logger.error(
+                f"Exception in ChatStreamView.post: {str(e)}", exc_info=True)
             return JsonResponse({'error': str(e)}, status=500)
 
     async def stream_response(self, chat, messages_for_llm, query_for_rag=None, files_rag_instance=None, is_new_chat=False, current_user_prompt_for_saving=None, attached_file_name_for_rag=None, file_info_for_truncation_warning=None, diagram_mode_active=False, user_id_for_diagram=None, youtube_mode_active=False, query_for_youtube_agent=None, rag_mode_active=False):
@@ -312,24 +374,28 @@ class ChatStreamView(View):
                         f"because it was too long for direct processing with your message. "
                         f"For full document analysis, please use the 'Manage RAG Context' feature."
                     )
-                    logger.info(f"Sending truncation warning to client: {warning_msg}")
+                    logger.info(
+                        f"Sending truncation warning to client: {warning_msg}")
                     yield f"data: {json.dumps({'type': 'file_info', 'status': 'truncated', 'message': warning_msg})}\n\n"
 
                 max_tokens_for_llm = 7000
-                logger.info(f"[ChatStreamView.stream_response] Max tokens for LLM: {max_tokens_for_llm}")
+                logger.info(
+                    f"[ChatStreamView.stream_response] Max tokens for LLM: {max_tokens_for_llm}")
 
                 if not user_message_saved and current_user_prompt_for_saving:
                     await sync_to_async(close_old_connections)()
                     await sync_to_async(Message.objects.create)(chat=chat, role='user', content=current_user_prompt_for_saving)
                     user_message_saved = True
-                    logger.info(f"User message '{current_user_prompt_for_saving[:50]}...' saved (Normal stream mode).")
+                    logger.info(
+                        f"User message '{current_user_prompt_for_saving[:50]}...' saved (Normal stream mode).")
 
                 # --- Mode-based routing: RAG vs Agent ---
                 if rag_mode_active:
                     # RAG mode is on, stream directly from documents
-                    logger.info("RAG mode is active. Bypassing agent and calling stream_completion directly.")
+                    logger.info(
+                        "RAG mode is active. Bypassing agent and calling stream_completion directly.")
                     stream = await chat_service.stream_completion(
-                        messages=messages_for_llm, 
+                        messages=messages_for_llm,
                         query=query_for_rag,
                         files_rag=files_rag_instance,
                         max_tokens=max_tokens_for_llm,
@@ -337,38 +403,41 @@ class ChatStreamView(View):
                         is_new_chat=is_new_chat,
                         attached_file_name=attached_file_name_for_rag
                     )
-                    
-                    logger.info("Got stream from chat_service.stream_completion (RAG mode).")
-                    accumulated_response_for_db = "" # For DB saving
+
+                    logger.info(
+                        "Got stream from chat_service.stream_completion (RAG mode).")
+                    accumulated_response_for_db = ""  # For DB saving
                     frontend_buffer = ""             # Buffer for sending to frontend
                     BUFFER_LENGTH_THRESHOLD_CHARS = 50
 
                     for chunk in stream:
-                        content = getattr(chunk.choices[0].delta, "content", None)
+                        content = getattr(
+                            chunk.choices[0].delta, "content", None)
                         if content:
                             accumulated_response_for_db += content
                             frontend_buffer += content
 
                             if ("\n" in frontend_buffer) or (len(frontend_buffer) >= BUFFER_LENGTH_THRESHOLD_CHARS):
                                 yield f"data: {json.dumps({'type': 'content', 'content': frontend_buffer})}\n\n"
-                                frontend_buffer = "" # Reset buffer
-                    
+                                frontend_buffer = ""  # Reset buffer
+
                     if frontend_buffer:
                         yield f"data: {json.dumps({'type': 'content', 'content': frontend_buffer})}\n\n"
 
                     if accumulated_response_for_db:
                         await sync_to_async(close_old_connections)()
                         await sync_to_async(Message.objects.create)(chat=chat, role='assistant', content=accumulated_response_for_db)
-                        logger.info("Assistant message created from accumulated RAG stream.")
-                    
+                        logger.info(
+                            "Assistant message created from accumulated RAG stream.")
+
                     yield f"data: {json.dumps({'type': 'done'})}\n\n"
-                    
+
                     if files_rag_instance:
                         rag_stats = {
                             'file_chunks_used': len(files_rag_instance.chunks) if files_rag_instance and hasattr(files_rag_instance, 'chunks') else 0,
                         }
                         yield f"data: {json.dumps({'type': 'metadata', 'content': rag_stats})}\n\n"
-                    return # End stream for RAG mode
+                    return  # End stream for RAG mode
 
                 # --- Agent System Integration (if not in RAG mode) ---
                 logger.info("RAG mode is inactive. Using agent system.")
@@ -380,29 +449,73 @@ class ChatStreamView(View):
                     'chat_service': chat_service,
                     'files_rag_instance': files_rag_instance,
                 }
-                
+
                 active_modes = {
                     'rag': rag_mode_active,
                     'diagram': diagram_mode_active,
                     'youtube': youtube_mode_active
                 }
-                
-                user_message = current_user_prompt_for_saving if current_user_prompt_for_saving else messages_for_llm[-1]['content']
-                
+
+                user_message = current_user_prompt_for_saving if current_user_prompt_for_saving else messages_for_llm[
+                    -1]['content']
+
                 ai_response, tool_results = await agent_system.process_message(
                     user_message=user_message,
                     chat_context=chat_context,
                     active_modes=active_modes
                 )
-                
-                # Handle tool results
-                for tool_result in tool_results:
-                    if not tool_result.success:
-                        logger.warning(f"Tool failed: {tool_result.error}")
-                        continue
-                        
+
+                # Separate successful tool results from background processes
+                primary_tools_used = [r for r in tool_results if r.message_type not in [
+                    "background_process"] and r.success]
+                background_results = [
+                    r for r in tool_results if r.message_type == "background_process"]
+
+                # Handle background processes (notifications)
+                for background_result in background_results:
+                    if background_result.content:
+                        yield f"data: {json.dumps({'type': 'notification', 'content': background_result.content})}\n\n"
+
+                # If we have multiple tool results, combine them into a single mixed-content message
+                if len(primary_tools_used) > 1:
+                    # Signal the start of mixed content to frontend
+                    yield f"data: {json.dumps({'type': 'mixed_content_start'})}\n\n"
+
+                    await self._handle_mixed_content_message(chat, primary_tools_used, ai_response)
+
+                    # Stream all the tool results to frontend
+                    for tool_result in primary_tools_used:
+                        if tool_result.message_type == "diagram":
+                            diagram_image_id = tool_result.structured_data.get(
+                                'diagram_image_id')
+                            if diagram_image_id:
+                                yield f"data: {json.dumps({'type': 'diagram_image', 'diagram_image_id': str(diagram_image_id), 'text_content': tool_result.content})}\n\n"
+
+                        elif tool_result.message_type == "youtube":
+                            if tool_result.structured_data and 'videos' in tool_result.structured_data:
+                                video_list = tool_result.structured_data.get(
+                                    'videos', [])
+                                yield f"data: {json.dumps({'type': 'youtube_recommendations', 'data': video_list})}\n\n"
+                            else:
+                                yield f"data: {json.dumps({'type': 'content', 'content': tool_result.content})}\n\n"
+
+                        elif tool_result.message_type == "quiz":
+                            quiz_html = tool_result.structured_data.get(
+                                'quiz_html', '')
+                            # For mixed content, we'll include the quiz HTML directly in the stream
+                            yield f"data: {json.dumps({'type': 'quiz_html', 'quiz_html': quiz_html})}\n\n"
+
+                    # Stream the AI response if present
+                    if ai_response:
+                        yield f"data: {json.dumps({'type': 'content', 'content': ai_response})}\n\n"
+
+                # Handle single tool result (maintain existing behavior for backwards compatibility)
+                elif len(primary_tools_used) == 1:
+                    tool_result = primary_tools_used[0]
+
                     if tool_result.message_type == "diagram":
-                        diagram_image_id = tool_result.structured_data.get('diagram_image_id')
+                        diagram_image_id = tool_result.structured_data.get(
+                            'diagram_image_id')
                         if diagram_image_id:
                             await sync_to_async(close_old_connections)()
                             new_diagram_message = await sync_to_async(Message.objects.create)(
@@ -410,14 +523,11 @@ class ChatStreamView(View):
                                 type='diagram', diagram_image_id=diagram_image_id
                             )
                             yield f"data: {json.dumps({'type': 'diagram_image', 'diagram_image_id': str(diagram_image_id), 'message_id': new_diagram_message.id, 'text_content': tool_result.content})}\n\n"
-                    
+
                     elif tool_result.message_type == "youtube":
-                        # This tool can return two types of content:
-                        # 1. A list of videos for recommendation (structured_data is present)
-                        # 2. A text summary (structured_data is None)
                         if tool_result.structured_data and 'videos' in tool_result.structured_data:
-                            # Handle video recommendations
-                            video_list = tool_result.structured_data.get('videos', [])
+                            video_list = tool_result.structured_data.get(
+                                'videos', [])
                             await sync_to_async(close_old_connections)()
                             await sync_to_async(Message.objects.create)(
                                 chat=chat, role='assistant', content=tool_result.content,
@@ -425,47 +535,50 @@ class ChatStreamView(View):
                             )
                             yield f"data: {json.dumps({'type': 'youtube_recommendations', 'data': video_list})}\n\n"
                         else:
-                            # Handle text summary
                             await sync_to_async(close_old_connections)()
                             await sync_to_async(Message.objects.create)(
                                 chat=chat, role='assistant', content=tool_result.content,
-                                type='text'  # Save as a standard text message
+                                type='text'
                             )
-                            # Stream as a standard content message
                             yield f"data: {json.dumps({'type': 'content', 'content': tool_result.content})}\n\n"
-                    
+
                     elif tool_result.message_type == "quiz":
-                        quiz_html = tool_result.structured_data.get('quiz_html', '')
+                        quiz_html = tool_result.structured_data.get(
+                            'quiz_html', '')
                         await sync_to_async(close_old_connections)()
                         new_quiz_message = await sync_to_async(Message.objects.create)(
                             chat=chat, role='assistant', content=tool_result.content,
                             type='quiz', quiz_html=quiz_html
                         )
-                        # Instead of sending the whole quiz, just notify the client to fetch it.
                         yield f"data: {json.dumps({'type': 'trigger_quiz_render', 'message_id': new_quiz_message.id})}\n\n"
-                    
-                    elif tool_result.message_type == "background_process":
-                        if tool_result.content:
-                            yield f"data: {json.dumps({'type': 'notification', 'content': tool_result.content})}\n\n"
-                
-                if ai_response:
+
+                    # Handle AI response for single tool case
+                    if ai_response:
+                        await sync_to_async(close_old_connections)()
+                        await sync_to_async(Message.objects.create)(
+                            chat=chat, role='assistant', content=ai_response
+                        )
+                        yield f"data: {json.dumps({'type': 'content', 'content': ai_response})}\n\n"
+
+                # Handle case with no tools used but AI response
+                elif ai_response:
                     await sync_to_async(close_old_connections)()
                     await sync_to_async(Message.objects.create)(
                         chat=chat, role='assistant', content=ai_response
                     )
                     yield f"data: {json.dumps({'type': 'content', 'content': ai_response})}\n\n"
-                
-                # If tools were used or AI response was provided, just send done signal
-                primary_tools_used = [r for r in tool_results if r.message_type not in ["background_process"] and r.success]
+
+                # Send done signal
                 if primary_tools_used or ai_response:
                     yield f"data: {json.dumps({'type': 'done'})}\n\n"
                     return
-                
+
                 # Fallback for if agent system fails silently
                 yield f"data: {json.dumps({'type': 'done', 'message': 'No action taken.'})}\n\n"
 
             except APIStatusError as e:
-                logger.error(f"Groq APIStatusError in stream_response.event_stream_async: Status {e.status_code}, Response: {e.response.text if e.response else 'No response body'}", exc_info=True)
+                logger.error(
+                    f"Groq APIStatusError in stream_response.event_stream_async: Status {e.status_code}, Response: {e.response.text if e.response else 'No response body'}", exc_info=True)
                 user_message = "An API error occurred with the language model."
                 if e.status_code == 413:
                     try:
@@ -474,14 +587,15 @@ class ChatStreamView(View):
                             user_message = "The request is too large for the model. Please try reducing your message size or shortening the conversation if the history is very long."
                     except json.JSONDecodeError:
                         if "Request too large" in str(e) or "tokens per minute (TPM)" in str(e):
-                             user_message = "The request is too large for the model. Please try reducing your message size or shortening the conversation if the history is very long."
-                
+                            user_message = "The request is too large for the model. Please try reducing your message size or shortening the conversation if the history is very long."
+
                 yield f"data: {json.dumps({'type': 'error', 'content': user_message})}\n\n"
 
             except Exception as e:
-                logger.error(f"Generic exception in stream_response.event_stream_async: {str(e)}", exc_info=True)
+                logger.error(
+                    f"Generic exception in stream_response.event_stream_async: {str(e)}", exc_info=True)
                 yield f"data: {json.dumps({'type': 'error', 'content': 'An unexpected error occurred. Please try again.'})}\n\n"
-        
+
         def sync_wrapper_for_event_stream():
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
@@ -494,11 +608,137 @@ class ChatStreamView(View):
             finally:
                 loop.close()
 
-        response = StreamingHttpResponse(sync_wrapper_for_event_stream(), content_type='text/event-stream')
+        response = StreamingHttpResponse(
+            sync_wrapper_for_event_stream(), content_type='text/event-stream')
         response['Cache-Control'] = 'no-cache'
         response['X-Accel-Buffering'] = 'no'
         logger.info("StreamingHttpResponse returned.")
         return response
+
+    async def _handle_mixed_content_message(self, chat, tool_results, ai_response):
+        """Create a single message that combines multiple tool results with mixed content"""
+        try:
+            # Create mixed content structure for frontend rendering
+            mixed_content_structure = {
+                'type': 'mixed',
+                'components': []
+            }
+
+            # Set flags for different content types
+            has_diagram = False
+            has_youtube = False
+            has_quiz = False
+            has_code = False
+            diagram_image_id = None
+            quiz_html = ""
+            youtube_videos = None  # Keep YouTube data separate
+
+            # Process each tool result
+            for tool_result in tool_results:
+                component = {
+                    'type': tool_result.message_type,
+                    'content': tool_result.content
+                }
+
+                if tool_result.message_type == "diagram":
+                    has_diagram = True
+                    diagram_image_id = tool_result.structured_data.get(
+                        'diagram_image_id')
+                    component['diagram_image_id'] = str(
+                        diagram_image_id) if diagram_image_id else None
+
+                elif tool_result.message_type == "youtube":
+                    has_youtube = True
+                    if tool_result.structured_data and 'videos' in tool_result.structured_data:
+                        youtube_videos = tool_result.structured_data.get(
+                            'videos', [])
+                        component['videos'] = youtube_videos
+
+                elif tool_result.message_type == "quiz":
+                    has_quiz = True
+                    quiz_html = tool_result.structured_data.get(
+                        'quiz_html', '')
+                    component['quiz_html'] = quiz_html
+
+                # Check if content contains code (simple heuristic)
+                if any(keyword in tool_result.content.lower() for keyword in ['def ', 'function', 'import ', 'class ', '```']):
+                    has_code = True
+
+                mixed_content_structure['components'].append(component)
+
+            # Add AI response if present (this will be the brief contextual message)
+            if ai_response:
+                mixed_content_structure['ai_response'] = ai_response
+
+            # Use the AI response as the main content (brief message)
+            # Frontend will render the actual tool results separately
+            message_content = ai_response if ai_response else "Here are your requested resources:"
+
+            await sync_to_async(close_old_connections)()
+            await sync_to_async(Message.objects.create)(
+                chat=chat,
+                role='assistant',
+                content=message_content,
+                type='mixed',
+                structured_content=youtube_videos,  # Only YouTube data goes here
+                mixed_content_data=mixed_content_structure,  # Mixed content structure goes here
+                quiz_html=quiz_html if has_quiz else "",
+                diagram_image_id=diagram_image_id if has_diagram else None,
+                has_diagram=has_diagram,
+                has_youtube=has_youtube,
+                has_quiz=has_quiz,
+                has_code=has_code
+            )
+
+            logger.info(
+                f"Created mixed content message with components: diagram={has_diagram}, youtube={has_youtube}, quiz={has_quiz}, code={has_code}")
+
+        except Exception as e:
+            logger.error(
+                f"Error creating mixed content message: {e}", exc_info=True)
+            # Fallback: create individual messages
+            await self._create_fallback_individual_messages(chat, tool_results, ai_response)
+
+    async def _create_fallback_individual_messages(self, chat, tool_results, ai_response):
+        """Fallback method to create individual messages if mixed content creation fails"""
+        try:
+            for tool_result in tool_results:
+                await sync_to_async(close_old_connections)()
+
+                if tool_result.message_type == "diagram":
+                    diagram_image_id = tool_result.structured_data.get(
+                        'diagram_image_id')
+                    await sync_to_async(Message.objects.create)(
+                        chat=chat, role='assistant', content=tool_result.content,
+                        type='diagram', diagram_image_id=diagram_image_id
+                    )
+                elif tool_result.message_type == "youtube":
+                    await sync_to_async(Message.objects.create)(
+                        chat=chat, role='assistant', content=tool_result.content,
+                        type='youtube', structured_content=tool_result.structured_data
+                    )
+                elif tool_result.message_type == "quiz":
+                    quiz_html = tool_result.structured_data.get(
+                        'quiz_html', '')
+                    await sync_to_async(Message.objects.create)(
+                        chat=chat, role='assistant', content=tool_result.content,
+                        type='quiz', quiz_html=quiz_html
+                    )
+                else:
+                    await sync_to_async(Message.objects.create)(
+                        chat=chat, role='assistant', content=tool_result.content,
+                        type='text'
+                    )
+
+            # Create AI response message if present
+            if ai_response:
+                await sync_to_async(Message.objects.create)(
+                    chat=chat, role='assistant', content=ai_response
+                )
+
+        except Exception as e:
+            logger.error(
+                f"Error in fallback message creation: {e}", exc_info=True)
 
 
 @login_required
@@ -550,7 +790,6 @@ def create_chat(request):
     }, status=405)
 
 
-
 @login_required
 def delete_chat(request, chat_id):
     if request.method == "POST":
@@ -598,9 +837,9 @@ def clear_chat(request, chat_id):
 @require_POST
 def chat_quiz(request, chat_id):
     chat = get_object_or_404(Chat, id=chat_id, user=request.user)
-    
+
     # We can still check for a minimum number of messages here before calling the service
-    if chat.messages.count() < 3: # Example check
+    if chat.messages.count() < 3:  # Example check
         return JsonResponse({'error': 'Not enough conversation content in this chat to generate a meaningful quiz. Please continue the conversation further.'}, status=400)
 
     try:
@@ -609,7 +848,7 @@ def chat_quiz(request, chat_id):
             {"role": msg.role, "content": msg.content}
             for msg in chat.messages.all().order_by('created_at')
         ]
-        
+
         # Call the refactored service function
         quiz_data = async_to_sync(chat_service.generate_quiz)(
             chat_history_messages=history_messages,
@@ -618,7 +857,7 @@ def chat_quiz(request, chat_id):
 
         if quiz_data.get("error"):
             return JsonResponse({'error': quiz_data["error"]}, status=400)
-            
+
         processed_quiz_html = quiz_data.get("quiz_html", "")
 
     except Exception as e:
@@ -630,8 +869,8 @@ def chat_quiz(request, chat_id):
         chat=chat,
         role='assistant',
         type='quiz',
-        quiz_html=processed_quiz_html, # Storing HTML string here
-        content='Here is your quiz:' # Add some default content for consistency
+        quiz_html=processed_quiz_html,  # Storing HTML string here
+        content='Here is your quiz:'  # Add some default content for consistency
     )
 
     # Also save to question bank (similar to QuizTool)
@@ -645,7 +884,8 @@ def chat_quiz(request, chat_id):
         )
         logger.info("Manual quiz questions saved to question bank")
     except Exception as e:
-        logger.error(f"Error saving manual quiz to question bank: {e}", exc_info=True)
+        logger.error(
+            f"Error saving manual quiz to question bank: {e}", exc_info=True)
 
     # Return the HTML string to the client
     return JsonResponse({'quiz_html': processed_quiz_html, 'message_id': quiz_msg.id})
@@ -657,13 +897,13 @@ def study_hub_view(request, chat_id):
     Displays a study hub with flashcards and a question bank for a specific chat.
     """
     chat = get_object_or_404(Chat, id=chat_id, user=request.user)
-    
+
     # Get all flashcards for this chat
     flashcards = chat.flashcards.all().order_by('created_at')
-    
+
     # Get all questions from the question bank for this chat
     questions = chat.question_bank.all().order_by('created_at')
-    
+
     context = {
         'chat': chat,
         'flashcards': flashcards,
@@ -677,7 +917,8 @@ def get_quiz_html(request, message_id):
     """
     An endpoint to fetch the HTML for a specific quiz message.
     """
-    message = get_object_or_404(Message, id=message_id, chat__user=request.user, type='quiz')
+    message = get_object_or_404(
+        Message, id=message_id, chat__user=request.user, type='quiz')
     return JsonResponse({
         'quiz_html': message.quiz_html,
         'message_id': message.id,
@@ -694,7 +935,7 @@ def edit_message(request, chat_id, message_id):
 
         if message_to_edit.role != 'user':
             return JsonResponse({'error': 'Only user messages can be edited.'}, status=403)
-        
+
         if message_to_edit.chat.user != request.user:
             return JsonResponse({'error': 'User not authorized to edit this message.'}, status=403)
 
@@ -711,9 +952,11 @@ def edit_message(request, chat_id, message_id):
         message_to_edit.save()
 
         # Delete all messages that came after the edited message in this chat
-        Message.objects.filter(chat=chat, created_at__gt=message_to_edit.created_at).delete()
-        
-        logger.info(f"Message {message_id} in chat {chat_id} edited. Subsequent messages deleted.")
+        Message.objects.filter(
+            chat=chat, created_at__gt=message_to_edit.created_at).delete()
+
+        logger.info(
+            f"Message {message_id} in chat {chat_id} edited. Subsequent messages deleted.")
 
         return JsonResponse({
             'success': True,
@@ -726,7 +969,8 @@ def edit_message(request, chat_id, message_id):
     except json.JSONDecodeError:
         return JsonResponse({'error': 'Invalid JSON'}, status=400)
     except Exception as e:
-        logger.error(f"Error editing message {message_id} in chat {chat_id}: {e}", exc_info=True)
+        logger.error(
+            f"Error editing message {message_id} in chat {chat_id}: {e}", exc_info=True)
         return JsonResponse({'error': f'Could not edit message: {str(e)}'}, status=500)
 
 
@@ -744,7 +988,8 @@ class ChatRAGFilesView(View):
         except Chat.DoesNotExist:
             return JsonResponse({'error': 'Chat not found'}, status=404)
         except Exception as e:
-            logger.error(f"Error fetching RAG files for chat {chat_id}: {e}", exc_info=True)
+            logger.error(
+                f"Error fetching RAG files for chat {chat_id}: {e}", exc_info=True)
             return JsonResponse({'error': 'Could not retrieve RAG files.'}, status=500)
 
     def post(self, request, chat_id):
@@ -758,7 +1003,7 @@ class ChatRAGFilesView(View):
             uploaded_file = request.FILES.get('file')
             if not uploaded_file:
                 return JsonResponse({'error': 'No file provided.'}, status=400)
-            
+
             # Basic validation for file type (can be expanded)
             allowed_extensions = ['.pdf', '.txt']
             file_name, file_extension = os.path.splitext(uploaded_file.name)
@@ -772,17 +1017,18 @@ class ChatRAGFilesView(View):
                 file=uploaded_file,
                 original_filename=uploaded_file.name
             )
-            rag_file.save() # This will call the upload_to logic in the model
+            rag_file.save()  # This will call the upload_to logic in the model
 
             return JsonResponse({
                 'success': True,
                 'file': {'id': str(rag_file.id), 'name': rag_file.original_filename}
             }, status=201)
 
-        except Chat.DoesNotExist: # Should be caught by get_object_or_404 if that's what it raises as Http404
+        except Chat.DoesNotExist:  # Should be caught by get_object_or_404 if that's what it raises as Http404
             return JsonResponse({'error': 'Chat not found'}, status=404)
         except Exception as e:
-            logger.error(f"Error uploading RAG file for chat {chat_id}: {e}", exc_info=True)
+            logger.error(
+                f"Error uploading RAG file for chat {chat_id}: {e}", exc_info=True)
             return JsonResponse({'error': 'Could not upload RAG file.'}, status=500)
 
     def delete(self, request, chat_id, file_id):
@@ -790,13 +1036,16 @@ class ChatRAGFilesView(View):
             try:
                 chat = Chat.objects.get(id=chat_id, user=request.user)
             except Chat.DoesNotExist:
-                logger.warning(f"Chat not found during RAG file deletion: chat_id={chat_id}, user={request.user.id}")
+                logger.warning(
+                    f"Chat not found during RAG file deletion: chat_id={chat_id}, user={request.user.id}")
                 return JsonResponse({'error': 'Chat not found'}, status=404)
 
             try:
-                rag_file = ChatRAGFile.objects.get(id=file_id, chat=chat, user=request.user)
+                rag_file = ChatRAGFile.objects.get(
+                    id=file_id, chat=chat, user=request.user)
             except ChatRAGFile.DoesNotExist:
-                logger.warning(f"RAG file not found during deletion: file_id={file_id}, chat_id={chat_id}")
+                logger.warning(
+                    f"RAG file not found during deletion: file_id={file_id}, chat_id={chat_id}")
                 return JsonResponse({'error': 'RAG file not found in this chat'}, status=404)
 
             # Delete the actual file from storage
@@ -804,32 +1053,38 @@ class ChatRAGFilesView(View):
                 # Ensure the file exists before trying to delete
                 if default_storage.exists(rag_file.file.name):
                     default_storage.delete(rag_file.file.name)
-                    logger.info(f"Successfully deleted file from storage: {rag_file.file.name}")
+                    logger.info(
+                        f"Successfully deleted file from storage: {rag_file.file.name}")
                 else:
-                    logger.warning(f"File not found in storage for {rag_file.file.name}, attempting to delete DB record anyway.")
-            
+                    logger.warning(
+                        f"File not found in storage for {rag_file.file.name}, attempting to delete DB record anyway.")
+
             # Delete the ChatRAGFile model instance
             rag_file_name_for_log = rag_file.original_filename
             rag_file.delete()
-            logger.info(f"Successfully deleted ChatRAGFile record for '{rag_file_name_for_log}' (ID: {file_id}) from chat {chat_id}")
+            logger.info(
+                f"Successfully deleted ChatRAGFile record for '{rag_file_name_for_log}' (ID: {file_id}) from chat {chat_id}")
 
             return JsonResponse({'success': True, 'message': 'File removed from RAG context successfully.'}, status=200)
 
-        except Exception as e: # Catch any other unexpected errors
-            logger.error(f"Unexpected error deleting RAG file {file_id} for chat {chat_id}: {e}", exc_info=True)
+        except Exception as e:  # Catch any other unexpected errors
+            logger.error(
+                f"Unexpected error deleting RAG file {file_id} for chat {chat_id}: {e}", exc_info=True)
             return JsonResponse({'error': 'Could not delete RAG file due to an unexpected server error.'}, status=500)
 
-@csrf_exempt # Use Django's CSRF protection in production with {% csrf_token %} in forms
+
+# Use Django's CSRF protection in production with {% csrf_token %} in forms
+@csrf_exempt
 def generate_flashcards_view(request):
     if request.method == 'POST':
         if not flashcard_model:
             return JsonResponse({"error": "Flashcard generation model not configured."}, status=500)
-        
+
         try:
             print(f"Request's BODY:\n {request.body}")
             data = json.loads(request.body)
             print(f"Data in json format: \n {data}")
-            topic = data.get('topic', '').strip() # If using dictionary access
+            topic = data.get('topic', '').strip()  # If using dictionary access
             print(f"The TOPIC IS: {topic}")
         except json.JSONDecodeError:
             return JsonResponse({"error": "Invalid JSON."}, status=400)
@@ -867,7 +1122,8 @@ Goodbye: Adiós"""
                     parts = line.split(":", 1)
 
                     if line_to_append and append_to_which == 0:
-                        parts[append_to_which] = line_to_append + f" {parts[append_to_which]}"
+                        parts[append_to_which] = line_to_append + \
+                            f" {parts[append_to_which]}"
                     elif line_to_append and append_to_which == 1:
                         parts[append_to_which] += f" {line_to_append}"
 
@@ -876,7 +1132,7 @@ Goodbye: Adiós"""
                     print(f"Term is {term}")
                     definition = parts[1].strip() if len(parts) > 1 else ""
                     print(f"Definition is {definition}")
-                    if term and definition: # Ensure both term and definition are present
+                    if term and definition:  # Ensure both term and definition are present
                         flashcards.append({
                             "term": term,
                             "definition": definition
@@ -884,7 +1140,6 @@ Goodbye: Adiós"""
                 print(f"Flashcards here: \n {flashcards}")
             if not flashcards:
                 return JsonResponse({"error": "No valid flashcards were generated by the model. The response might have been empty or not in the expected format.", "details": text}, status=500)
-
 
             return JsonResponse({"flashcards": flashcards})
 
@@ -897,25 +1152,37 @@ Goodbye: Adiós"""
     # For GET request, render the page with the form
     return render(request, 'chat/flashcards.html')
 
+
 @login_required
 def serve_diagram_image(request, diagram_id):
-    logger.info(f"[serve_diagram_image] Received request for diagram_id: {diagram_id}")
+    logger.info(
+        f"[serve_diagram_image] Received request for diagram_id: {diagram_id}")
     try:
-        diagram_image_instance = get_object_or_404(DiagramImage, id=diagram_id, user=request.user)
-        logger.info(f"[serve_diagram_image] Found DiagramImage record with ID: {diagram_image_instance.id}, Filename: {diagram_image_instance.filename}")
-        logger.info(f"[serve_diagram_image] Content type: {diagram_image_instance.content_type}")
-        image_data_length = len(diagram_image_instance.image_data) if diagram_image_instance.image_data else 0
-        logger.info(f"[serve_diagram_image] Length of image_data from DB: {image_data_length} bytes")
-        
-        if image_data_length == 0:
-            logger.error(f"[serve_diagram_image] Image data for ID {diagram_id} is empty in the database!")
-            return HttpResponse("Image data not found or is empty.", status=404) # Return 404 if data is empty
+        diagram_image_instance = get_object_or_404(
+            DiagramImage, id=diagram_id, user=request.user)
+        logger.info(
+            f"[serve_diagram_image] Found DiagramImage record with ID: {diagram_image_instance.id}, Filename: {diagram_image_instance.filename}")
+        logger.info(
+            f"[serve_diagram_image] Content type: {diagram_image_instance.content_type}")
+        image_data_length = len(
+            diagram_image_instance.image_data) if diagram_image_instance.image_data else 0
+        logger.info(
+            f"[serve_diagram_image] Length of image_data from DB: {image_data_length} bytes")
 
-        logger.info(f"[serve_diagram_image] Returning HttpResponse for diagram ID: {diagram_id}")
+        if image_data_length == 0:
+            logger.error(
+                f"[serve_diagram_image] Image data for ID {diagram_id} is empty in the database!")
+            # Return 404 if data is empty
+            return HttpResponse("Image data not found or is empty.", status=404)
+
+        logger.info(
+            f"[serve_diagram_image] Returning HttpResponse for diagram ID: {diagram_id}")
         return HttpResponse(diagram_image_instance.image_data, content_type=diagram_image_instance.content_type)
     except Http404:
-        logger.warning(f"DiagramImage with id {diagram_id} not found or user {request.user.id} not authorized.")
+        logger.warning(
+            f"DiagramImage with id {diagram_id} not found or user {request.user.id} not authorized.")
         return HttpResponse("Diagram not found or access denied.", status=404)
     except Exception as e:
-        logger.error(f"Error serving diagram image {diagram_id}: {e}", exc_info=True)
+        logger.error(
+            f"Error serving diagram image {diagram_id}: {e}", exc_info=True)
         return HttpResponse("Error serving diagram.", status=500)

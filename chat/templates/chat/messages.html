@@ -56,16 +56,65 @@
 			</div>
 			<!-- Message content -->
 			<div class="block overflow-x-auto min-w-[65%] max-w-[85%]">
-				{% if msg.type == 'diagram' and msg.diagram_image_url %}
+				{% if msg.type == 'mixed' %}
+				<!-- Mixed content message - render all components -->
+				<div class="mixed-content-message space-y-4">
+					{% if msg.mixed_content_data.ai_response %}
+					<div class="ai-response-component">
+						<div class="max-w-none markdown-content text-gray-100">
+							{{ msg.mixed_content_data.ai_response|safe }}
+						</div>
+					</div>
+					{% endif %}
+
+					{% for component in msg.mixed_content_data.components %}
+					{% if component.type == 'diagram' and msg.diagram_image_url %}
+					<div class="diagram-component">
+						<div
+							class="diagram-message-container border border-gray-600 shadow-md shadow-gray-900 bg-gray-800/50 p-2 my-2 rounded-lg shadow-md flex flex-col justify-center items-center">
+							<img src="{{ msg.diagram_image_url }}"
+								alt="{{ component.content | default:'Generated Diagram' }}"
+								class="max-w-full h-auto rounded-md mb-1 cursor-pointer hover:opacity-90 transition-opacity"
+								onclick="openImageModal('{{ msg.diagram_image_url }}')">
+						</div>
+					</div>
+					{% elif component.type == 'youtube' and component.videos %}
+					<div class="youtube-component">
+						<div class="youtube-recommendations-container space-y-3">
+							<p class="text-gray-200 font-medium">{{ component.content }}</p>
+							{% for video in component.videos %}
+							<a href="{{ video.url }}" target="_blank" rel="noopener noreferrer"
+								class="flex items-center bg-gray-800/50 hover:bg-gray-700/60 border border-gray-700 rounded-lg p-2 no-underline transition-all duration-200 group">
+								<div class="flex-shrink-0 w-32 h-18 mr-3">
+									<img src="{{ video.thumbnail }}" alt="Thumbnail for {{ video.title }}"
+										class="w-full h-full object-cover rounded-md border border-gray-600">
+								</div>
+								<div class="flex-1 min-w-0">
+									<p
+										class="text-gray-100 font-medium text-sm truncate group-hover:text-white">{{video.title }}</p>
+								</div>
+							</a>
+							{% endfor %}
+						</div>
+					</div>
+					{% elif component.type == 'quiz' and component.quiz_html %}
+					<div class="quiz-component">
+						<p class="text-gray-200 font-medium mb-2">{{ component.content }}</p>
+						<div
+							class="quiz-message max-w-none text-gray-100 bg-gray-700/70 p-2 rounded-xl">
+							{{ component.quiz_html|safe }}
+						</div>
+					</div>
+					{% endif %}
+					{% endfor %}
+				</div>
+				{% elif msg.type == 'diagram' and msg.diagram_image_url %}
 				<div
 					class="diagram-message-container borderd border-red-600 shadow-md shadow-gray-900 bg-gray-800/50 p-2 my-2 rounded-lg shadow-md flex flex-col justify-center items-center">
 					<img src="{{ msg.diagram_image_url }}"
 						alt="{{ msg.text | default:'Generated Diagram' }}"
 						class="max-w-full h-auto rounded-md mb-1 cursor-pointer hover:opacity-90 transition-opacity"
 						onclick="openImageModal('{{ msg.diagram_image_url }}')">
-					{% if msg.text %}
-					<p class="text-xs text-gray-400 italic mt-1 text-center">{{ msg.text }}</p>
-					{% endif %}
 				</div>
 				{% elif msg.type == 'youtube' and msg.structured_content %}
 				<div class="youtube-recommendations-container space-y-3">
@@ -79,7 +128,7 @@
 						</div>
 						<div class="flex-1 min-w-0">
 							<p
-								class="text-gray-100 font-medium text-sm truncate group-hover:text-white">{{video.title }}</p>
+								class="text-gray-100 font-medium text-sm truncate group-hover:text-white">{{video.title}}</p>
 						</div>
 					</a>
 					{% endfor %}
