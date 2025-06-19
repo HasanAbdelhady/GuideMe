@@ -7,6 +7,7 @@ from ..models import ChatQuestionBank
 from django.utils.html import strip_tags
 import json
 from bs4 import BeautifulSoup
+from asgiref.sync import sync_to_async
 
 logger = logging.getLogger(__name__)
 
@@ -100,20 +101,25 @@ class QuizTool(BaseTool):
         """Extract and save individual questions to the question bank"""
         try:
             quiz_html = quiz_data.get('quiz_html', '')
+            logger.info(f"Saving quiz to question bank. HTML length: {len(quiz_html)}")
             
             # Parse quiz HTML to extract individual questions
             questions = self._extract_questions_from_html(quiz_html)
+            logger.info(f"Extracted {len(questions)} questions from quiz HTML")
             
+            saved_count = 0
             for question_data in questions:
                 try:
-                    # Check if this question already exists
-                    existing = await ChatQuestionBank.objects.filter(
-                        chat=chat,
-                        question_text=question_data['text']
-                    ).afirst()
+                    # Check if this question already exists (using sync_to_async)
+                    existing = await sync_to_async(
+                        lambda: ChatQuestionBank.objects.filter(
+                            chat=chat,
+                            question_text=question_data['text']
+                        ).first()
+                    )()
                     
                     if not existing:
-                        await ChatQuestionBank.objects.acreate(
+                        await sync_to_async(ChatQuestionBank.objects.create)(
                             chat=chat,
                             question_html=question_data['html'],
                             question_text=question_data['text'],
@@ -121,11 +127,16 @@ class QuizTool(BaseTool):
                             topic=self._extract_topic_from_message(user_message),
                             difficulty='medium'  # Default, could be enhanced
                         )
+                        saved_count += 1
                         logger.info(f"Saved question to bank: {question_data['text'][:50]}...")
+                    else:
+                        logger.info(f"Question already exists in bank: {question_data['text'][:50]}...")
+                        
                 except Exception as db_error:
-                    # Database table might not exist yet (migration not run)
-                    logger.warning(f"Question bank save skipped (table might not exist): {db_error}")
+                    logger.error(f"Error saving individual question to bank: {db_error}", exc_info=True)
                     continue
+            
+            logger.info(f"Successfully saved {saved_count} new questions to question bank")
                     
         except Exception as e:
             logger.error(f"Error saving quiz to question bank: {e}", exc_info=True)
@@ -134,26 +145,38 @@ class QuizTool(BaseTool):
         """Extract individual questions from quiz HTML using BeautifulSoup."""
         questions = []
         try:
-            soup = BeautifulSoup(quiz_html, 'lxml')
+            soup = BeautifulSoup(quiz_html, 'html.parser')
             question_divs = soup.find_all('div', class_='quiz-question')
+            logger.info(f"Found {len(question_divs)} quiz-question divs in HTML")
             
             for i, div in enumerate(question_divs):
                 # Ensure each question has a unique name for its radio buttons
                 form = div.find('form')
                 if form:
                     for radio in form.find_all('input', type='radio'):
-                        radio['name'] = f'q_{i}'
+                        radio['name'] = f'q_{i + 1}'  # Start from q_1
 
                 question_text_div = div.find('div', class_='font-semibold mb-1')
-                question_text = question_text_div.get_text(strip=True) if question_text_div else 'Unknown Question'
+                if not question_text_div:
+                    # Try alternative selectors
+                    question_text_div = div.find('div', class_='font-semibold')
+                    if not question_text_div:
+                        question_text_div = div.find('p')
+                
+                question_text = question_text_div.get_text(strip=True) if question_text_div else f'Question {i + 1}'
                 
                 correct_answer = div.get('data-correct', '').upper()
+                if not correct_answer:
+                    logger.warning(f"No correct answer found for question {i + 1}")
                 
                 questions.append({
                     'html': str(div),
                     'text': question_text,
                     'correct_answer': correct_answer
                 })
+                
+                logger.info(f"Extracted question {i + 1}: {question_text[:30]}... (Correct: {correct_answer})")
+                
         except Exception as e:
             logger.error(f"Error parsing quiz HTML with BeautifulSoup: {e}", exc_info=True)
             

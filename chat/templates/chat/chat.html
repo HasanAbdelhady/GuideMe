@@ -78,16 +78,14 @@
     </a>
   </div>
   
-  {% if not is_new_chat and current_chat %}
-  <div class="fixed left-40 mb-2 z-40 py-4 ">
-    <a href="{% url 'study_hub' current_chat.id %}" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-gradient-to-br from-sky-600 to-sky-800 hover:from-sky-800 hover:to-sky-600 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+  <div id="hub-button-container" class="fixed left-40 mb-2 z-40 py-4 hidden">
+    <a id="study-hub-link" href="#" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-gradient-to-br from-sky-600 to-sky-800 hover:from-sky-800 hover:to-sky-600 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
       <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
         <path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L9 9.61v4.65a1 1 0 00.5.866l4 2.5a1 1 0 001 0l4-2.5a1 1 0 00.5-.866v-4.65l6.394-2.69a1 1 0 000-1.84l-7-3zM9 14.53V9.61l-6-2.53v.03l6 2.53z"/>
       </svg>
       Open Study Hub
     </a>
   </div>
-  {% endif %}
 
 
   <!-- Quiz Button Container -->
@@ -181,7 +179,6 @@
 
   </div>
 </div>
-
 <script id="chat-config" type="application/json">
 	{"currentChatId": "{{ current_chat.id|default:'new' }}", "isNewChat": {{ is_new_chat|yesno:'true,false' }}}
 </script>

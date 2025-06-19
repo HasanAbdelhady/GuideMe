@@ -148,8 +148,15 @@ class ChatStreamView(View):
             logger.info(f"ChatStreamView.post called for chat_id={chat_id} by user {user.id}")
             
             # Use the pre-loaded 'user' object for DB queries
-            chat = await sync_to_async(get_object_or_404)(Chat, id=chat_id, user=user)
-            logger.info(f"Got chat: {chat}")
+            try:
+                chat = await sync_to_async(Chat.objects.select_related('user').get)(id=chat_id, user=user)
+            except Chat.DoesNotExist:
+                logger.error(f"Chat with id={chat_id} not found for user {user.id}.")
+                # This should be an async-safe way to raise Http404, but for simplicity
+                # we return a JsonResponse which is clear for an API view.
+                return JsonResponse({'error': 'Chat not found.'}, status=404)
+                
+            logger.info(f"Got chat: {chat} with pre-fetched user: {chat.user}")
 
             user_typed_prompt = request.POST.get('prompt', '').strip()
             logger.info(f"User typed prompt: {user_typed_prompt}")
@@ -626,6 +633,19 @@ def chat_quiz(request, chat_id):
         quiz_html=processed_quiz_html, # Storing HTML string here
         content='Here is your quiz:' # Add some default content for consistency
     )
+
+    # Also save to question bank (similar to QuizTool)
+    try:
+        from .tools.quiz_tool import QuizTool
+        quiz_tool = QuizTool(chat_service)
+        async_to_sync(quiz_tool._save_quiz_to_question_bank)(
+            quiz_data={'quiz_html': processed_quiz_html},
+            chat=chat,
+            user_message="Manual quiz generation"
+        )
+        logger.info("Manual quiz questions saved to question bank")
+    except Exception as e:
+        logger.error(f"Error saving manual quiz to question bank: {e}", exc_info=True)
 
     # Return the HTML string to the client
     return JsonResponse({'quiz_html': processed_quiz_html, 'message_id': quiz_msg.id})
