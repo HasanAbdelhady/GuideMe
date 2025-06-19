@@ -483,27 +483,33 @@ class ChatStreamView(View):
 
                     await self._handle_mixed_content_message(chat, primary_tools_used, ai_response)
 
-                    # Stream all the tool results to frontend
-                    for tool_result in primary_tools_used:
+                    # Stream all the tool results to frontend in the order they were requested by the user
+                    # Note: primary_tools_used is now sorted by execution_order from the agent system
+                    logger.info(
+                        f"Streaming {len(primary_tools_used)} tool results in requested order")
+                    for i, tool_result in enumerate(primary_tools_used):
+                        logger.info(
+                            f"Streaming tool result {i+1}: {tool_result.message_type} (order: {getattr(tool_result, 'execution_order', 'unknown')})")
+
                         if tool_result.message_type == "diagram":
                             diagram_image_id = tool_result.structured_data.get(
                                 'diagram_image_id')
                             if diagram_image_id:
-                                yield f"data: {json.dumps({'type': 'diagram_image', 'diagram_image_id': str(diagram_image_id), 'text_content': tool_result.content})}\n\n"
+                                yield f"data: {json.dumps({'type': 'diagram_image', 'diagram_image_id': str(diagram_image_id), 'text_content': tool_result.content, 'order': getattr(tool_result, 'execution_order', i)})}\n\n"
 
                         elif tool_result.message_type == "youtube":
                             if tool_result.structured_data and 'videos' in tool_result.structured_data:
                                 video_list = tool_result.structured_data.get(
                                     'videos', [])
-                                yield f"data: {json.dumps({'type': 'youtube_recommendations', 'data': video_list})}\n\n"
+                                yield f"data: {json.dumps({'type': 'youtube_recommendations', 'data': video_list, 'order': getattr(tool_result, 'execution_order', i)})}\n\n"
                             else:
-                                yield f"data: {json.dumps({'type': 'content', 'content': tool_result.content})}\n\n"
+                                yield f"data: {json.dumps({'type': 'content', 'content': tool_result.content, 'order': getattr(tool_result, 'execution_order', i)})}\n\n"
 
                         elif tool_result.message_type == "quiz":
                             quiz_html = tool_result.structured_data.get(
                                 'quiz_html', '')
                             # For mixed content, we'll include the quiz HTML directly in the stream
-                            yield f"data: {json.dumps({'type': 'quiz_html', 'quiz_html': quiz_html})}\n\n"
+                            yield f"data: {json.dumps({'type': 'quiz_html', 'quiz_html': quiz_html, 'order': getattr(tool_result, 'execution_order', i)})}\n\n"
 
                     # Stream the AI response if present
                     if ai_response:
@@ -633,11 +639,13 @@ class ChatStreamView(View):
             quiz_html = ""
             youtube_videos = None  # Keep YouTube data separate
 
-            # Process each tool result
+            # Process each tool result in the order they were requested
             for tool_result in tool_results:
                 component = {
                     'type': tool_result.message_type,
-                    'content': tool_result.content
+                    'content': tool_result.content,
+                    # Fallback order
+                    'order': getattr(tool_result, 'execution_order', len(mixed_content_structure['components']))
                 }
 
                 if tool_result.message_type == "diagram":
@@ -858,19 +866,25 @@ def chat_quiz(request, chat_id):
         if quiz_data.get("error"):
             return JsonResponse({'error': quiz_data["error"]}, status=400)
 
+        # Separate content and quiz HTML properly
         processed_quiz_html = quiz_data.get("quiz_html", "")
+        content_text = quiz_data.get("content", "Here is your quiz:")
+
+        # Ensure we have clean content
+        if not content_text or len(content_text.strip()) < 5:
+            content_text = "Here is your quiz:"
 
     except Exception as e:
         logger.error(f"Quiz generation call failed: {str(e)}", exc_info=True)
         return JsonResponse({'error': f'Quiz generation failed: {str(e)}'}, status=500)
 
-    # Save as a quiz message, storing the HTML string in quiz_html
+    # Save as a quiz message with properly separated content
     quiz_msg = Message.objects.create(
         chat=chat,
         role='assistant',
         type='quiz',
-        quiz_html=processed_quiz_html,  # Storing HTML string here
-        content='Here is your quiz:'  # Add some default content for consistency
+        quiz_html=processed_quiz_html,  # Only HTML goes here
+        content=content_text  # Only text content goes here
     )
 
     # Also save to question bank (similar to QuizTool)

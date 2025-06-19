@@ -796,7 +796,7 @@ document.addEventListener("DOMContentLoaded", function () {
 		let currentMessageContainer = null; // This will hold the .markdown-content div for the current assistant message
 		let isFirstTextChunk = true;
 		let isMixedContentMessage = false; // Track if we're building a mixed content message
-		let mixedContentElements = []; // Store elements for mixed content
+		let mixedContentElements = []; // Store elements for mixed content with order info
 		let toolResultCount = 0; // Track how many tool results we've received
 
 		try {
@@ -861,7 +861,18 @@ document.addEventListener("DOMContentLoaded", function () {
 
 							if (isMixedContentMessage) {
 								const quizElement = createQuizElement(data.quiz_html);
-								mixedContentElements.push(quizElement);
+								// Store order information for proper sorting
+								quizElement.dataset.order = data.order || toolResultCount;
+								mixedContentElements.push({
+									element: quizElement,
+									order: parseInt(data.order) || toolResultCount,
+									type: "quiz"
+								});
+								console.log(
+									`Added quiz to mixed content with order: ${
+										data.order || toolResultCount
+									}`
+								);
 							} else {
 								// Standalone quiz
 								renderAndAppendQuiz({ quiz_html: data.quiz_html });
@@ -913,12 +924,23 @@ document.addEventListener("DOMContentLoaded", function () {
 								}
 
 								if (isMixedContentMessage) {
-									// Add to mixed content elements
+									// Add to mixed content elements with order information
 									const diagramElement = createDiagramElement(
 										imageUrl,
 										data.text_content || "Generated Diagram"
 									);
-									mixedContentElements.push(diagramElement);
+									// Store order information for proper sorting
+									diagramElement.dataset.order = data.order || toolResultCount;
+									mixedContentElements.push({
+										element: diagramElement,
+										order: parseInt(data.order) || toolResultCount,
+										type: "diagram"
+									});
+									console.log(
+										`Added diagram to mixed content with order: ${
+											data.order || toolResultCount
+										}`
+									);
 								} else {
 									// Standalone diagram
 									appendDiagramMessage(
@@ -965,9 +987,20 @@ document.addEventListener("DOMContentLoaded", function () {
 							}
 
 							if (isMixedContentMessage) {
-								// Add to mixed content elements
+								// Add to mixed content elements with order information
 								const youtubeElement = createYoutubeElement(data.data);
-								mixedContentElements.push(youtubeElement);
+								// Store order information for proper sorting
+								youtubeElement.dataset.order = data.order || toolResultCount;
+								mixedContentElements.push({
+									element: youtubeElement,
+									order: parseInt(data.order) || toolResultCount,
+									type: "youtube"
+								});
+								console.log(
+									`Added YouTube to mixed content with order: ${
+										data.order || toolResultCount
+									}`
+								);
 							} else {
 								// Standalone YouTube recommendations (existing behavior)
 								// This is a new message, so create the container for it
@@ -2640,10 +2673,37 @@ document.addEventListener("DOMContentLoaded", function () {
 			contentWrapper.appendChild(textDiv);
 		}
 
-		// Add all mixed content elements
-		mixedElements.forEach((element) => {
-			contentWrapper.appendChild(element);
-		});
+		// Sort mixed content elements by order before adding them
+		if (Array.isArray(mixedElements) && mixedElements.length > 0) {
+			// Check if elements have the new structure with order info
+			if (
+				mixedElements[0] &&
+				typeof mixedElements[0] === "object" &&
+				mixedElements[0].element
+			) {
+				// New structure: sort by order and extract elements
+				console.log("Sorting mixed content elements by requested order...");
+				const sortedElements = mixedElements
+					.sort((a, b) => (a.order || 0) - (b.order || 0))
+					.map((item) => {
+						console.log(
+							`Placing ${item.type} element with order: ${item.order}`
+						);
+						return item.element;
+					});
+
+				// Add sorted elements to content wrapper
+				sortedElements.forEach((element) => {
+					contentWrapper.appendChild(element);
+				});
+			} else {
+				// Legacy structure: elements are direct DOM elements
+				console.log("Using legacy mixed content structure (no ordering)");
+				mixedElements.forEach((element) => {
+					contentWrapper.appendChild(element);
+				});
+			}
+		}
 
 		messagesContainer.appendChild(messageDiv);
 		applyConsistentChatElementStyling(messageDiv);
