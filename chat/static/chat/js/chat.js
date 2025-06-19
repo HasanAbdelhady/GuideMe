@@ -91,29 +91,37 @@ function closeImageModal() {
 
 // Centralized function to initialize quiz forms
 function initializeQuizForms(parentElement) {
+	// Find all quiz forms within the provided element (e.g., a new message or the question bank)
 	const quizForms = parentElement.querySelectorAll(".quiz-question form");
+
 	quizForms.forEach((form) => {
-		// Prevent multiple listeners if function is called multiple times on same element
-		if (form.dataset.quizInitialized) return;
-		form.dataset.quizInitialized = "true";
+		// Check if this form has already been initialized to prevent duplicate listeners
+		if (form.dataset.initialized) {
+			return;
+		}
+		form.dataset.initialized = "true";
 
-		form.addEventListener("submit", function (e) {
-			e.preventDefault();
-			const questionDiv = this.closest(".quiz-question");
-			const correctAnswer = questionDiv.dataset.correct;
-			const selectedAnswer = this.querySelector(
-				'input[type="radio"]:checked'
-			)?.value;
+		form.addEventListener("submit", function (event) {
+			event.preventDefault(); // Stop the default form submission!
 
+			const questionDiv = form.closest(".quiz-question");
+			const selectedOption = form.querySelector("input[type=radio]:checked");
 			const feedbackDiv = questionDiv.querySelector(".quiz-feedback");
-			if (feedbackDiv) {
-				if (selectedAnswer === correctAnswer) {
-					feedbackDiv.textContent = "Correct!";
-					feedbackDiv.className = "quiz-feedback mt-1.5 text-green-400";
-				} else {
-					feedbackDiv.textContent = "Incorrect. Try again!";
-					feedbackDiv.className = "quiz-feedback mt-1.5 text-red-400";
-				}
+
+			if (!selectedOption) {
+				feedbackDiv.textContent = "Please select an answer.";
+				feedbackDiv.className = "quiz-feedback mt-1.5 text-yellow-400 text-xs";
+				return;
+			}
+
+			const isCorrect = selectedOption.value === questionDiv.dataset.correct;
+
+			if (isCorrect) {
+				feedbackDiv.textContent = "Correct! Well done.";
+				feedbackDiv.className = "quiz-feedback mt-1.5 text-green-400 font-bold";
+			} else {
+				feedbackDiv.textContent = `Not quite. The correct answer is ${questionDiv.dataset.correct}.`;
+				feedbackDiv.className = "quiz-feedback mt-1.5 text-red-400";
 			}
 		});
 	});

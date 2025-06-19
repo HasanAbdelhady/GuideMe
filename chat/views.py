@@ -632,6 +632,27 @@ def chat_quiz(request, chat_id):
 
 
 @login_required
+def study_hub_view(request, chat_id):
+    """
+    Displays a study hub with flashcards and a question bank for a specific chat.
+    """
+    chat = get_object_or_404(Chat, id=chat_id, user=request.user)
+    
+    # Get all flashcards for this chat
+    flashcards = chat.flashcards.all().order_by('created_at')
+    
+    # Get all questions from the question bank for this chat
+    questions = chat.question_bank.all().order_by('created_at')
+    
+    context = {
+        'chat': chat,
+        'flashcards': flashcards,
+        'questions': questions
+    }
+    return render(request, 'chat/study_hub.html', context)
+
+
+@login_required
 def get_quiz_html(request, message_id):
     """
     An endpoint to fetch the HTML for a specific quiz message.
