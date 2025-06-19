@@ -436,17 +436,16 @@ document.addEventListener("DOMContentLoaded", function () {
 		typingDiv.innerHTML = `
 			<div class="chat-container flex gap-4 md:gap-6">
         <div>
-          <div
-					class="w-30 flex items-center justify-center text-white">
-					<img src="/static/images/logo.png" alt="Assistant icon"
-						class="h-12 w-12 ">
-				</div>
+          <div class="w-full flex items-center justify-center text-white typing-indicator">
+				<img src="/static/images/logo.png" alt="Assistant icon" class="h-20 w-20 ">
 				<div class="flex-1">
 					<div class="typing-indicator">
 						<span></span>
 						<span></span>
 						<span></span>
 					</div>
+				</div>
+
 				</div>
 			</div>
 		`;
@@ -573,9 +572,9 @@ document.addEventListener("DOMContentLoaded", function () {
 			<div class="chat-container flex gap-4 md:gap-6">
         <div>
           <div
-					class="w-30 flex items-center justify-center text-white">
+					class="w-full flex items-center justify-center text-white">
 					<img src="/static/images/logo.png" alt="Assistant icon"
-						class="h-12 w-12 ">
+						class="h-20 w-20 ">
 				</div>
 					</div>
 					<!-- Message content -->
@@ -651,8 +650,8 @@ document.addEventListener("DOMContentLoaded", function () {
 				<!-- Assistant icon - left side -->
 				<div class="chat-container flex gap-4 md:gap-6">
 					<div>
-						<div class="w-30 flex items-center justify-center text-white">
-							<img src="/static/images/logo.png" alt="Assistant icon" class="h-12 w-12 ">
+						<div class="w-full flex items-center justify-center text-white">
+							<img src="/static/images/logo.png" alt="Assistant icon" class="h-20 w-20 ">
 						</div>
 					</div>
 					<!-- Message content -->
@@ -1013,9 +1012,9 @@ document.addEventListener("DOMContentLoaded", function () {
 	                                <div class="chat-container flex gap-4 md:gap-6">
 	                                    <div>
 	                                      <div
-	                                        class="w-30 flex items-center justify-center text-white">
+	                                        class="w-full flex items-center justify-center text-white">
 	                                        <img src="/static/images/logo.png" alt="Assistant icon"
-	                                          class="h-12 w-12 ">
+	                                          class="h-20 w-20 ">
 	                                      </div>
 	                                    </div>
 	                                    <div class="flex-1 overflow-x-auto min-w-0 max-w-[85%]" data-role="youtube-content-wrapper">
@@ -1264,9 +1263,9 @@ document.addEventListener("DOMContentLoaded", function () {
 					<div class="chat-container flex gap-4 md:gap-6">
           <div>
             <div
-              class="w-30 flex items-center justify-center text-white">
+              class="w-full flex items-center justify-center text-white">
               <img src="/static/images/logo.png" alt="Assistant icon"
-                class="h-12 w-12 ">
+                class="h-20 w-20 ">
             </div>
           </div>
 						<div class="flex-1 overflow-x-auto min-w-0">
@@ -2326,9 +2325,9 @@ document.addEventListener("DOMContentLoaded", function () {
 			<div class="chat-container flex gap-4 md:gap-6">
           <div>
             <div
-              class="w-30 flex items-center justify-center text-white">
+              class="w-full flex items-center justify-center text-white">
               <img src="/static/images/logo.png" alt="Assistant icon"
-                class="h-12 w-12 ">
+                class="h-20 w-20 ">
             </div>
           </div>
 				<div class="flex-1 overflow-x-auto min-w-0 max-w-[85%]">
