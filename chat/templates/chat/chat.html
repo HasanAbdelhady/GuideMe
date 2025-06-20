@@ -77,16 +77,19 @@
       Flashcards
     </a>
   </div>
-  
-  <div id="hub-button-container" class="fixed left-40 mb-2 z-40 py-4 hidden">
-    <a id="study-hub-link" href="#" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-gradient-to-br from-sky-600 to-sky-800 hover:from-sky-800 hover:to-sky-600 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-        <path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L9 9.61v4.65a1 1 0 00.5.866l4 2.5a1 1 0 001 0l4-2.5a1 1 0 00.5-.866v-4.65l6.394-2.69a1 1 0 000-1.84l-7-3zM9 14.53V9.61l-6-2.53v.03l6 2.53z"/>
+
+  <div id="hub-button-container"
+    class="fixed left-40 mb-2 z-40 py-4 hidden transition-all duration-300 ease-in-out">
+    <a id="study-hub-link" href="#"
+      class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-gradient-to-br from-sky-600 to-sky-800 hover:from-sky-800 hover:to-sky-600 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5"
+        viewBox="0 0 20 20" fill="currentColor">
+        <path
+          d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L9 9.61v4.65a1 1 0 00.5.866l4 2.5a1 1 0 001 0l4-2.5a1 1 0 00.5-.866v-4.65l6.394-2.69a1 1 0 000-1.84l-7-3zM9 14.53V9.61l-6-2.53v.03l6 2.53z" />
       </svg>
       Open Study Hub
     </a>
   </div>
-
 
   <!-- Quiz Button Container -->
   <div id="quiz-button-container"
@@ -101,7 +104,8 @@
     <div
       class="md:hidden flex items-center justify-center p-2 mb-4 text-center">
       <h1 class="text-lg font-medium truncate max-w-[250px]">
-        {% if current_chat.title %}{{ current_chat.title }}{% else %}New Chat{% endif %}
+        {% if current_chat.title %}{{ current_chat.title }}{% else %}New
+        Chat{%endif %}
       </h1>
     </div>
     <div
@@ -115,9 +119,9 @@
             <div
               class="h-full overflow-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800">
               <div>
-                
+
                 <!-- Study Hub Link -->
-                
+
                 {% include "chat/messages.html" %}
               </div>
             </div>
@@ -185,8 +189,9 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{% static 'chat/js/chat.js' %}"></script>
-<script src="{% static 'chat/js/code_block_feature.js' %}"></script>
-<script src="{% static 'chat/js/message_edit.js' %}"></script>
-<script src="{% static 'chat/js/youtube_handler.js' %}"></script>
+<script src="{% static 'chat/js/chat.js' %}?v={% now "U" %}"></script>
+<script
+  src="{% static 'chat/js/code_block_feature.js' %}?v={% now "U"%}"></script>
+<script src="{% static 'chat/js/message_edit.js' %}?v={% now "U" %}"></script>
+<script src="{% static 'chat/js/youtube_handler.js' %}?v={% now "U"%}"></script>
 {% endblock %}

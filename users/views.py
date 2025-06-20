@@ -40,15 +40,15 @@ class UserRegistrationView(View):
     def post(self, request):
         if request.user.is_authenticated:
             return redirect('chat')
-        
+
         form = CustomUserCreationForm(request.POST, request.FILES)
         print(request.POST)
-        
+
         if form.is_valid():
             with transaction.atomic():
                 user = form.save(commit=False)
-                print("Form is valid")                
-                
+                print("Form is valid")
+
                 # Update learning preferences from form data
                 learning_styles = {
                     'visual': request.POST.get('learning_style_visual') == "1",
@@ -77,18 +77,21 @@ class UserRegistrationView(View):
                 # Now handle the interests
                 interest_names = request.POST.getlist('interests')
                 print(f"Interest names: {interest_names}")
-                
+
                 # Create user interests
                 for interest_name in interest_names:
                     # Try to find existing interest or create new one
-                    interest, created = Interest.objects.get_or_create(name=interest_name)
+                    interest, created = Interest.objects.get_or_create(
+                        name=interest_name)
                     # Create the user-interest relationship
                     UserInterest.objects.create(user=user, interest=interest)
                     print(f"Added interest: {interest}")
-                
-                # Now log in the user
-                login(request, user)
-                
+
+                # Now log in the user - specify backend for multiple auth backends
+                from django.contrib.auth.backends import ModelBackend
+                login(request, user,
+                      backend='django.contrib.auth.backends.ModelBackend')
+
                 messages.success(
                     request, 'Your account has been created! You can now start chatting.')
                 return redirect('new_chat')
@@ -96,10 +99,11 @@ class UserRegistrationView(View):
             for field, errors in form.errors.items():
                 for error in errors:
                     messages.error(request, f'{field}: {error}')
-        
+
         interests = list(Interest.objects.values('id', 'name'))
         print(f"Available interests: {interests}")
         return render(request, 'users/register.html', {'form': form, 'interests': interests})
+
 
 class UserLoginView(View):
     def get(self, request):
@@ -110,21 +114,22 @@ class GoogleSignupPreferencesView(LoginRequiredMixin, View):
     """
     View to handle preferences setup for users who signed up with Google
     """
+
     def get(self, request):
         # Allow access if user came from Google signup OR if they don't have preferences set
         user = request.user
         has_preferences = (
-            user.learning_style_visual or 
-            user.learning_style_auditory or 
-            user.learning_style_kinesthetic or 
+            user.learning_style_visual or
+            user.learning_style_auditory or
+            user.learning_style_kinesthetic or
             user.learning_style_reading or
             user.interests.exists()
         )
-        
+
         # If user has preferences already, redirect to chat
         if has_preferences and not request.session.get('google_signup', False):
             return redirect('chat')
-        
+
         # Get available interests
         interests = Interest.objects.all()
         context = {
@@ -134,14 +139,14 @@ class GoogleSignupPreferencesView(LoginRequiredMixin, View):
             'is_google_signup': True,
         }
         return render(request, 'users/google_preferences.html', context)
-    
+
     def post(self, request):
         # Check if user came from Google signup
         if not request.session.get('google_signup', False):
             return redirect('profile')
-        
+
         user = request.user
-        
+
         # Update learning styles
         learning_styles = {
             'visual': request.POST.get('learning_style_visual') == "1",
@@ -170,7 +175,8 @@ class GoogleSignupPreferencesView(LoginRequiredMixin, View):
         # Handle interests
         interest_names = request.POST.getlist('interests')
         for interest_name in interest_names:
-            interest, created = Interest.objects.get_or_create(name=interest_name)
+            interest, created = Interest.objects.get_or_create(
+                name=interest_name)
             UserInterest.objects.get_or_create(user=user, interest=interest)
 
         # Clear session flags
@@ -256,15 +262,19 @@ class UserProfileView(LoginRequiredMixin, View):
             if interest_name and interest_name.strip():
                 interest_name = interest_name.strip()
                 # Try to find existing interest
-                interest, created = Interest.objects.get_or_create(name=interest_name)
-                
+                interest, created = Interest.objects.get_or_create(
+                    name=interest_name)
+
                 # Check if user already has this interest
                 if not UserInterest.objects.filter(user=request.user, interest=interest).exists():
                     # Create the relationship
-                    UserInterest.objects.create(user=request.user, interest=interest)
-                    messages.success(request, f'Added interest: {interest.name}')
+                    UserInterest.objects.create(
+                        user=request.user, interest=interest)
+                    messages.success(
+                        request, f'Added interest: {interest.name}')
                 else:
-                    messages.info(request, f'You already have "{interest.name}" in your interests')
+                    messages.info(
+                        request, f'You already have "{interest.name}" in your interests')
             else:
                 messages.error(request, 'Invalid interest name')
 
@@ -275,15 +285,17 @@ class UserProfileView(LoginRequiredMixin, View):
                     interest = Interest.objects.get(id=int(interest_id))
                     # Find and delete the relationship
                     user_interest = UserInterest.objects.filter(
-                        user=request.user, 
+                        user=request.user,
                         interest=interest
                     ).first()
-                    
+
                     if user_interest:
                         user_interest.delete()
-                        messages.success(request, f'Removed interest: {interest.name}')
+                        messages.success(
+                            request, f'Removed interest: {interest.name}')
                     else:
-                        messages.error(request, 'You haven\'t added this interest')
+                        messages.error(
+                            request, 'You haven\'t added this interest')
                 except Interest.DoesNotExist:
                     messages.error(request, 'Interest not found')
             else:
@@ -299,19 +311,23 @@ class UserProfileView(LoginRequiredMixin, View):
                         # Check if user already has this interest
                         if not UserInterest.objects.filter(user=request.user, interest=interest).exists():
                             # Create the relationship
-                            UserInterest.objects.create(user=request.user, interest=interest)
+                            UserInterest.objects.create(
+                                user=request.user, interest=interest)
                             added_count += 1
                     except Interest.DoesNotExist:
                         continue
-            
+
             if added_count > 0:
-                messages.success(request, f'Added {added_count} interests to your profile')
+                messages.success(
+                    request, f'Added {added_count} interests to your profile')
         elif action == "change_password":
             return self.handle_password_change(request)
 
         return redirect('profile')
 
 # Other views remain unchanged unless they interact with interests
+
+
 class TokenObtainPairView(APIView):
     def post(self, request):
         user = request.user
