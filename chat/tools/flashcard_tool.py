@@ -287,8 +287,7 @@ class FlashcardTool(BaseTool):
 
         # Filter out terms that are clearly not educational concepts
         invalid_terms = [
-            'diagram', 'video', 'quiz', 'flashcard', 'recommendation',
-            'explanation', 'teaching', 'learning', 'style', 'preference',
+            'diagram', 'video', 'quiz', 'recommendation', 'style', 'preference',
             'user', 'chat', 'conversation', 'request', 'instruction',
             'mode', 'system', 'tool', 'feature', 'interface'
         ]
@@ -327,7 +326,13 @@ class FlashcardTool(BaseTool):
         # Allow scientific/technical terms even without explicit indicators
         scientific_domains = [
             'biology', 'chemistry', 'physics', 'mathematics', 'computer', 'engineering',
-            'medical', 'scientific', 'technical', 'academic', 'research'
+            'medical', 'scientific', 'technical', 'academic', 'research', 'computer science',
+            'data science', 'machine learning', 'deep learning', 'artificial intelligence',
+            'neural network', 'reinforcement learning', 'natural language processing',
+            'computer vision', 'robotics', 'cybersecurity', 'blockchain', 'quantum computing',
+            'genetic algorithms', 'evolutionary algorithms', 'fuzzy logic', 'expert systems',
+            'knowledge management', 'knowledge representation', 'knowledge acquisition',
+            'knowledge base', 'knowledge engineering', 'knowledge management system',
         ]
 
         has_scientific_context = any(

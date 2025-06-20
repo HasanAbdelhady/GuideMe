@@ -16,7 +16,8 @@ protobuf==6.31.1
 pydantic==2.11.5
 python-dotenv==1.1.0
 yt_dlp==2025.6.9
-sentence_transformers==2.2.2
+sentence_transformers==2.7.0
+huggingface-hub==0.23.0
 django-allauth
 django-sslserver==0.22
 uvicorn==0.23.2

@@ -323,8 +323,7 @@ class ChatAgentSystem:
                     return await self._generate_comprehensive_response(user_message, chat_context, successful_tools, stream)
 
                 # Otherwise, provide brief context
-                tools_used = ", ".join(tool_types)
-                return f"Here's your {tools_used} as requested!"
+                return f""
 
             # For single tool usage, check if additional explanation is needed
             result = successful_tools[0]
