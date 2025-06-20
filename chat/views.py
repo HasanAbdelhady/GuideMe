@@ -408,7 +408,7 @@ class ChatStreamView(View):
                         "Got stream from chat_service.stream_completion (RAG mode).")
                     accumulated_response_for_db = ""  # For DB saving
                     frontend_buffer = ""             # Buffer for sending to frontend
-                    BUFFER_LENGTH_THRESHOLD_CHARS = 50
+                    BUFFER_LENGTH_THRESHOLD_CHARS = 25  # Reduced from 50 for better streaming
 
                     for chunk in stream:
                         content = getattr(
@@ -417,6 +417,7 @@ class ChatStreamView(View):
                             accumulated_response_for_db += content
                             frontend_buffer += content
 
+                            # Send smaller chunks more frequently for better streaming experience
                             if ("\n" in frontend_buffer) or (len(frontend_buffer) >= BUFFER_LENGTH_THRESHOLD_CHARS):
                                 yield f"data: {json.dumps({'type': 'content', 'content': frontend_buffer})}\n\n"
                                 frontend_buffer = ""  # Reset buffer
@@ -476,6 +477,13 @@ class ChatStreamView(View):
                     if background_result.content:
                         yield f"data: {json.dumps({'type': 'notification', 'content': background_result.content})}\n\n"
 
+                # Check if we need to stream AI responses for better UX
+                needs_streaming = len(primary_tools_used) == 0 or (
+                    len(primary_tools_used) == 1 and
+                    any(keyword in user_message.lower() for keyword in [
+                        'explain', 'what is', 'how does', 'why', 'tell me about'])
+                )
+
                 # If we have multiple tool results, combine them into a single mixed-content message
                 if len(primary_tools_used) > 1:
                     # Signal the start of mixed content to frontend
@@ -513,7 +521,44 @@ class ChatStreamView(View):
 
                     # Stream the AI response if present
                     if ai_response:
-                        yield f"data: {json.dumps({'type': 'content', 'content': ai_response})}\n\n"
+                        # Check if AI response is a stream object or string
+                        # Groq Stream objects have __iter__ method but not 'choices' attribute directly
+                        is_stream = hasattr(ai_response, '__iter__') and hasattr(
+                            ai_response, '__next__') and not isinstance(ai_response, str)
+
+                        if is_stream:  # It's a stream object
+                            accumulated_ai_response = ""
+                            frontend_buffer = ""
+                            BUFFER_THRESHOLD = 15  # Smaller buffer for better streaming
+
+                            for chunk in ai_response:
+                                content = getattr(
+                                    chunk.choices[0].delta, "content", None)
+                                if content:
+                                    accumulated_ai_response += content
+                                    frontend_buffer += content
+
+                                    if len(frontend_buffer) >= BUFFER_THRESHOLD or "\n" in frontend_buffer:
+                                        yield f"data: {json.dumps({'type': 'content', 'content': frontend_buffer})}\n\n"
+                                        frontend_buffer = ""
+
+                            # Send any remaining content
+                            if frontend_buffer:
+                                yield f"data: {json.dumps({'type': 'content', 'content': frontend_buffer})}\n\n"
+
+                            # Save the final AI response to database
+                            if accumulated_ai_response:
+                                await sync_to_async(close_old_connections)()
+                                await sync_to_async(Message.objects.create)(
+                                    chat=chat, role='assistant', content=accumulated_ai_response
+                                )
+                        else:
+                            # It's a regular string response
+                            await sync_to_async(close_old_connections)()
+                            await sync_to_async(Message.objects.create)(
+                                chat=chat, role='assistant', content=ai_response
+                            )
+                            yield f"data: {json.dumps({'type': 'content', 'content': ai_response})}\n\n"
 
                 # Handle single tool result (maintain existing behavior for backwards compatibility)
                 elif len(primary_tools_used) == 1:
@@ -560,19 +605,85 @@ class ChatStreamView(View):
 
                     # Handle AI response for single tool case
                     if ai_response:
+                        # Check if AI response is a stream object or string
+                        # Groq Stream objects have __iter__ method but not 'choices' attribute directly
+                        is_stream = hasattr(ai_response, '__iter__') and hasattr(
+                            ai_response, '__next__') and not isinstance(ai_response, str)
+
+                        if is_stream:  # It's a stream object
+                            accumulated_ai_response = ""
+                            frontend_buffer = ""
+                            BUFFER_THRESHOLD = 15  # Smaller buffer for better streaming
+
+                            for chunk in ai_response:
+                                content = getattr(
+                                    chunk.choices[0].delta, "content", None)
+                                if content:
+                                    accumulated_ai_response += content
+                                    frontend_buffer += content
+
+                                    if len(frontend_buffer) >= BUFFER_THRESHOLD or "\n" in frontend_buffer:
+                                        yield f"data: {json.dumps({'type': 'content', 'content': frontend_buffer})}\n\n"
+                                        frontend_buffer = ""
+
+                            # Send any remaining content
+                            if frontend_buffer:
+                                yield f"data: {json.dumps({'type': 'content', 'content': frontend_buffer})}\n\n"
+
+                            # Save the final AI response to database
+                            if accumulated_ai_response:
+                                await sync_to_async(close_old_connections)()
+                                await sync_to_async(Message.objects.create)(
+                                    chat=chat, role='assistant', content=accumulated_ai_response
+                                )
+                        else:
+                            # It's a regular string response
+                            await sync_to_async(close_old_connections)()
+                            await sync_to_async(Message.objects.create)(
+                                chat=chat, role='assistant', content=ai_response
+                            )
+                            yield f"data: {json.dumps({'type': 'content', 'content': ai_response})}\n\n"
+
+                # Handle case with no tools used but AI response
+                elif ai_response:
+                    # Check if AI response is a stream object or string
+                    # Groq Stream objects have __iter__ method but not 'choices' attribute directly
+                    is_stream = hasattr(ai_response, '__iter__') and hasattr(
+                        ai_response, '__next__') and not isinstance(ai_response, str)
+
+                    if is_stream:  # It's a stream object
+                        accumulated_ai_response = ""
+                        frontend_buffer = ""
+                        BUFFER_THRESHOLD = 15  # Smaller buffer for better streaming
+
+                        for chunk in ai_response:
+                            content = getattr(
+                                chunk.choices[0].delta, "content", None)
+                            if content:
+                                accumulated_ai_response += content
+                                frontend_buffer += content
+
+                                if len(frontend_buffer) >= BUFFER_THRESHOLD or "\n" in frontend_buffer:
+                                    yield f"data: {json.dumps({'type': 'content', 'content': frontend_buffer})}\n\n"
+                                    frontend_buffer = ""
+
+                        # Send any remaining content
+                        if frontend_buffer:
+                            yield f"data: {json.dumps({'type': 'content', 'content': frontend_buffer})}\n\n"
+
+                        # Save the final AI response to database
+                        if accumulated_ai_response:
+                            await sync_to_async(close_old_connections)()
+                            await sync_to_async(Message.objects.create)(
+                                chat=chat, role='assistant', content=accumulated_ai_response
+                            )
+                    else:
+                        # It's a regular string response
                         await sync_to_async(close_old_connections)()
                         await sync_to_async(Message.objects.create)(
                             chat=chat, role='assistant', content=ai_response
                         )
                         yield f"data: {json.dumps({'type': 'content', 'content': ai_response})}\n\n"
-
-                # Handle case with no tools used but AI response
-                elif ai_response:
-                    await sync_to_async(close_old_connections)()
-                    await sync_to_async(Message.objects.create)(
-                        chat=chat, role='assistant', content=ai_response
-                    )
-                    yield f"data: {json.dumps({'type': 'content', 'content': ai_response})}\n\n"
 
                 # Send done signal
                 if primary_tools_used or ai_response:

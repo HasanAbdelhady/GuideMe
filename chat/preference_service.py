@@ -149,6 +149,7 @@ prompt_code_graphviz = """
     - Create a `Digraph` object with ONLY the format parameter: `g = Digraph(format='png')`.
     - Set dpi='300' for high-quality output and rankdir='TB' for a vertical (top-to-bottom) layout.
     - Generate a Python script using `graphviz.Digraph()` import it from graphviz library to create a diagram named "diagram" with format='png'.
+    - IMPORTANT: Use g.node() to add nodes and g.edge() to add edges. Do NOT use .nodes or .edges attributes.
     - Use the following color palette:
         Background: Snow White (#FAFAFA)
         Main Nodes: Soft Blue (#A0C4FF)
@@ -179,31 +180,39 @@ prompt_code_graphviz = """
 
     EXAMPLE 1:
 
-    ```
-digraph {
-	dpi=300 nodesep=0.7 rankdir=TB ranksep=1.1
-	node [color="#2F3E46" fontname=Helvetica fontsize=10 shape=box style="filled,rounded"]
-	InputLayer [label="📝 Input Layer" fillcolor="#A0C4FF"]
-	ModelArchitecture [label="🤖 Model Architecture" fillcolor="#A0C4FF"]
-	OutputLayer [label="🎯 Output Layer" fillcolor="#A0C4FF"]
-	node [fontsize=8 shape=note style=filled]
-	InputNote [label="The input layer processes the initial text, tokenizing it into subwords or characters." fillcolor="#B9FBC0"]
-	ModelNote [label="The transformer architecture enables LLMs to understand context and generate coherent text by leveraging self-attention mechanisms." fillcolor="#B9FBC0"]
-	OutputNote [label="The output layer produces the final text, which can be a response, translation, or completion of the input prompt." fillcolor="#B9FBC0"]
-	node [fontsize=10 shape=box style="filled,rounded"]
-	InputLayer -> ModelArchitecture
-	ModelArchitecture -> OutputLayer
-	edge [style=dashed]
-	InputLayer -> InputNote
-	ModelArchitecture -> ModelNote
-	OutputLayer -> OutputNote
-	subgraph LLM {
-		bgcolor="#FFD6A5" label="Large Language Model (LLM)" labelloc=t
-		InputLayer
-		ModelArchitecture
-		OutputLayer
-	}
-}
+    ```python
+    from graphviz import Digraph
+
+    # Create the diagram
+    g = Digraph(format='png')
+    g.attr(dpi='300', nodesep='0.7', rankdir='TB', ranksep='1.1')
+    
+    # Set default node attributes
+    g.attr('node', color='#2F3E46', fontname='Helvetica', fontsize='10', shape='box', style='filled,rounded')
+    
+    # Add main nodes
+    g.node('InputLayer', '📝 Input Layer', fillcolor='#A0C4FF')
+    g.node('ModelArchitecture', '🤖 Model Architecture', fillcolor='#A0C4FF')
+    g.node('OutputLayer', '🎯 Output Layer', fillcolor='#A0C4FF')
+    
+    # Add note nodes
+    g.attr('node', fontsize='8', shape='note', style='filled')
+    g.node('InputNote', 'The input layer processes the initial text, tokenizing it into subwords or characters.', fillcolor='#B9FBC0')
+    g.node('ModelNote', 'The transformer architecture enables LLMs to understand context and generate coherent text by leveraging self-attention mechanisms.', fillcolor='#B9FBC0')
+    g.node('OutputNote', 'The output layer produces the final text, which can be a response, translation, or completion of the input prompt.', fillcolor='#B9FBC0')
+    
+    # Add edges
+    g.edge('InputLayer', 'ModelArchitecture')
+    g.edge('ModelArchitecture', 'OutputLayer')
+    
+    # Add dashed edges to notes
+    g.attr('edge', style='dashed')
+    g.edge('InputLayer', 'InputNote')
+    g.edge('ModelArchitecture', 'ModelNote')
+    g.edge('OutputLayer', 'OutputNote')
+    
+    # Render the diagram
+    g.render('diagram_output', view=False, cleanup=True)
     """
 
 # Prompt for fixing erroneous code
