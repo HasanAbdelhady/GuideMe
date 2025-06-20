@@ -712,22 +712,18 @@ class ChatStreamView(View):
                 logger.error(
                     f"Generic exception in stream_response.event_stream_async: {str(e)}", exc_info=True)
                 yield f"data: {json.dumps({'type': 'error', 'content': 'An unexpected error occurred. Please try again.'})}\n\n"
-
-        def sync_wrapper_for_event_stream():
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            gen = event_stream_async()
-            try:
-                while True:
-                    yield loop.run_until_complete(gen.__anext__())
-            except StopAsyncIteration:
-                pass
             finally:
-                loop.close()
+                logger.info("stream_response.event_stream_async has finished.")
+                # Ensure the 'done' event is always sent to the client
+                yield f"data: {json.dumps({'type': 'done'})}\n\n"
 
+        # The sync wrapper is unnecessary with modern async Django and can cause issues.
+        # We pass the async generator directly to StreamingHttpResponse.
         response = StreamingHttpResponse(
-            sync_wrapper_for_event_stream(), content_type='text/event-stream')
-        response['Cache-Control'] = 'no-cache'
+            event_stream_async(), content_type='text/event-stream')
+        # Add headers to prevent caching by intermediaries
+        response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response['Pragma'] = 'no-cache'
         response['X-Accel-Buffering'] = 'no'
         logger.info("StreamingHttpResponse returned.")
         return response

@@ -206,6 +206,8 @@ class FlashcardTool(BaseTool):
             2. Have clear definitions provided in the conversation
             3. Are NOT meta-instructions or conversation management
             
+            IMPORTANT:
+            - MAKE SURE THE DEFINITIONS ARE CLEAR AND CONCISE AND NO MORE THAN 12 WORDS.
             If no valid educational concepts are found, return an empty JSON object {{}}.
             """
 

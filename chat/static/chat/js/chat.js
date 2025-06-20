@@ -251,10 +251,11 @@ function initializeImageZoom() {
 
 	// Reset zoom to fit container
 	window.resetImageZoom = function () {
-		// User override for testing: start at a specific scale and translation
-		currentScale = 0.45;
+		// Calculate the proper scale to fit the image in the container
+		const fitScale = calculateFitScale();
+		currentScale = fitScale;
 		translateX = 0;
-		translateY = -900;
+		translateY = 0;
 		applyTransform();
 	};
 
@@ -420,6 +421,7 @@ document.addEventListener("DOMContentLoaded", function () {
 	const form = document.getElementById("chat-form");
 	const textarea = document.getElementById("prompt");
 	const stopButton = document.getElementById("stop-button");
+	const submitButton = document.getElementById("submit-button"); // Get submit button
 	const fileInput = document.getElementById("file-input");
 	const fileNameIndicator = document.getElementById("file-name");
 	const clearFileButton = document.getElementById("clear-file");
@@ -446,11 +448,9 @@ document.addEventListener("DOMContentLoaded", function () {
 		e.stopPropagation();
 		console.log("Sidebar toggle clicked");
 		if (sidebar.classList.contains("-translate-x-full")) {
-			sidebar.classList.remove("-translate-x-full");
-			mainContent.classList.add("pl-64");
+			openSidebar();
 		} else {
-			sidebar.classList.add("-translate-x-full");
-			mainContent.classList.remove("pl-64");
+			closeSidebar();
 		}
 	});
 
@@ -465,21 +465,54 @@ document.addEventListener("DOMContentLoaded", function () {
 		sidebarOpen = true;
 		sidebar.classList.remove("-translate-x-full");
 		mainContent.classList.add("pl-64");
+
+		// Adjust study hub button position when sidebar opens
+		const hubButtonContainer = document.getElementById("hub-button-container");
+		if (hubButtonContainer) {
+			hubButtonContainer.classList.remove("left-40");
+			hubButtonContainer.classList.add("left-80"); // 320px (256px sidebar + 64px original offset)
+		}
 	}
 
 	function closeSidebar() {
 		sidebarOpen = false;
 		sidebar.classList.add("-translate-x-full");
 		mainContent.classList.remove("pl-64");
+
+		// Reset study hub button position when sidebar closes
+		const hubButtonContainer = document.getElementById("hub-button-container");
+		if (hubButtonContainer) {
+			hubButtonContainer.classList.remove("left-80");
+			hubButtonContainer.classList.add("left-40");
+		}
 	}
 
-	// Click outside to close
+	// Click outside to close - but be more selective
 	document.addEventListener("click", (e) => {
 		const clickedSidebar = sidebar.contains(e.target);
 		const clickedToggle = sidebarToggle.contains(e.target);
+		const clickedMainContent = mainContent.contains(e.target);
+		const clickedChatInput = document
+			.getElementById("chat-form")
+			?.contains(e.target);
+		const clickedModal = e.target.closest(
+			".rag-modal-overlay, #image-modal-overlay, #delete-confirm-dialog"
+		);
 
-		// Only close if clicking outside both sidebar and toggle button
-		if (sidebarOpen && !clickedSidebar && !clickedToggle) {
+		// Only close sidebar if:
+		// 1. Sidebar is open
+		// 2. Not clicking on sidebar itself or toggle button
+		// 3. Not clicking on main chat content area
+		// 4. Not clicking on chat input form
+		// 5. Not clicking on any modal
+		if (
+			sidebarOpen &&
+			!clickedSidebar &&
+			!clickedToggle &&
+			!clickedMainContent &&
+			!clickedChatInput &&
+			!clickedModal
+		) {
 			closeSidebar();
 		}
 	});
@@ -916,9 +949,20 @@ document.addEventListener("DOMContentLoaded", function () {
 		let isMixedContentMessage = false; // Track if we're building a mixed content message
 		let mixedContentElements = []; // Store elements for mixed content with order info
 		let toolResultCount = 0; // Track how many tool results we've received
+		let streamFinished = false; // Flag to indicate server has sent the 'done' message
+		let streamTimeout;
+
+		function resetTimeout() {
+			clearTimeout(streamTimeout);
+			streamTimeout = setTimeout(() => {
+				console.warn("Stream timeout reached. Forcing termination.");
+				streamFinished = true;
+			}, 2000); // 2-second timeout
+		}
 
 		try {
 			while (true) {
+				resetTimeout(); // Reset timeout with each new data chunk
 				const { value, done } = await reader.read();
 				if (done) break;
 
@@ -1092,6 +1136,7 @@ document.addEventListener("DOMContentLoaded", function () {
 							}
 							// Remove any remaining typing indicator (in case no content was streamed)
 							window.removeTypingIndicator();
+							streamFinished = true; // Set flag to terminate the stream
 						} else if (data.type === "youtube_recommendations") {
 							toolResultCount++;
 							// Auto-detect mixed content if we have other elements or text content
@@ -1155,10 +1200,22 @@ document.addEventListener("DOMContentLoaded", function () {
 						}
 					}
 				}
+
+				if (streamFinished) {
+					console.log(
+						"Done message received from server, breaking client-side loop."
+					);
+					break; // Exit the while(true) loop
+				}
 			}
 		} catch (error) {
 			console.error("Error in handleStreamResponse:", error);
 			window.removeTypingIndicator();
+		} finally {
+			clearTimeout(streamTimeout); // Clear final timeout
+			console.log(
+				"Exiting handleStreamResponse. The submit handler's finally block should run now."
+			);
 		}
 	};
 
@@ -1174,13 +1231,20 @@ document.addEventListener("DOMContentLoaded", function () {
 				: `[Attached file: ${fileData.name}]`;
 		}
 		if (!promptText && !fileData) return;
+
+		// --- Start of UI state change ---
 		window.appendMessage("user", promptText);
 		textarea.value = "";
 		window.adjustMainTextareaHeight();
 		if (fileData) clearFileSelection();
 		window.createTypingIndicator();
+
+		// Swap send button for stop button
+		submitButton.classList.add("hidden");
 		stopButton.classList.remove("hidden");
 		abortController = new AbortController();
+		// --- End of UI state change ---
+
 		try {
 			const formData = new FormData();
 			formData.append("prompt", promptText);
@@ -1232,6 +1296,16 @@ document.addEventListener("DOMContentLoaded", function () {
 
 				// Create and add new chat element to the sidebar
 				const chatsList = document.getElementById("chats-list");
+
+				// Remove "No chats yet" message if it exists
+				const noChatMessage = chatsList.querySelector("p");
+				if (
+					noChatMessage &&
+					noChatMessage.textContent.includes("No chats yet")
+				) {
+					noChatMessage.remove();
+				}
+
 				const newChatElement = document.createElement("div");
 				newChatElement.classList.add("group", "relative");
 				newChatElement.dataset.chatId = data.chat_id;
@@ -1336,7 +1410,11 @@ document.addEventListener("DOMContentLoaded", function () {
 		} catch (error) {
 			console.error("Error:", error);
 			window.removeTypingIndicator();
-			if (error.name !== "AbortError") {
+			if (error.name === "AbortError") {
+				// User clicked stop, show the message
+				appendMessage("assistant", `_Response stopped by user._`);
+			} else {
+				// Other errors
 				window.appendMessage(
 					"assistant",
 					`Error: ${error.message}`,
@@ -1344,7 +1422,13 @@ document.addEventListener("DOMContentLoaded", function () {
 					"text"
 				);
 			}
+		} finally {
+			// Restore the button states regardless of outcome
+			console.log(
+				"Executing submit handler's finally block. Hiding stop button."
+			);
 			stopButton.classList.add("hidden");
+			submitButton.classList.remove("hidden");
 		}
 	});
 
@@ -1410,10 +1494,7 @@ document.addEventListener("DOMContentLoaded", function () {
 	stopButton.addEventListener("click", () => {
 		if (abortController) {
 			abortController.abort();
-
-			stopButton.classList.add("hidden");
-			window.removeTypingIndicator();
-			appendMessage("assistant", `_Response stopped by user._`);
+			// The catch/finally block in the submit handler will now manage UI changes
 		}
 	});
 
@@ -1663,6 +1744,9 @@ document.addEventListener("DOMContentLoaded", function () {
 					if (chatId === window.currentChatId) {
 						window.location.href = "/chat/new/";
 					}
+
+					// Keep sidebar open after deletion
+					// No need to close sidebar here
 				} catch (error) {
 					// Restore the element if API call fails
 					chatElement.style.opacity = "1";

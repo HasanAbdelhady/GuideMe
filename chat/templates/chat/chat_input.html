@@ -12,13 +12,6 @@
             </svg>
             Clear chat
         </button>
-        <!-- Stop button occupies the same spot as "send" but starts hidden -->
-        <button id="stop-button"
-            class="absolute right-2.5 bottom-10 p-1.5 rounded-full bg-red-600 text-white hover:bg-red-500 transition-colors flex items-center justify-center hidden z-10">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M6 6h12v12H6z"/>
-            </svg>
-        </button>
     </div>
 
     <!-- Chat form -->
@@ -29,20 +22,31 @@
             <textarea id="prompt" name="prompt" rows="1"
                 placeholder="Teach me about..."
                 class="bg-gray-700/40 w-full py-2 pl-4 pr-14 text-gray-100 rounded-md focus:outline-none resize-none max-h-40"></textarea>
-            
+
             <!-- Send button -->
             <button type="submit" id="submit-button"
                 class="absolute right-2.5 bottom-2 p-1.5 rounded-full bg-blue-600 text-white hover:bg-blue-500 transition-colors flex items-center z-10">
                 <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none"
                     xmlns="http://www.w3.org/2000/svg">
-                <path d="M12 5V19M12 5L6 11M12 5L18 11" stroke="currentColor"
-                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                    <path d="M12 5V19M12 5L6 11M12 5L18 11"
+                        stroke="currentColor"
+                        stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round" />
+                </svg>
+            </button>
+
+            <!-- Stop button occupies the same spot as "send" but starts hidden -->
+            <button type="button" id="stop-button"
+                class="absolute right-2.5 bottom-2 p-1.5 rounded-full bg-red-600 text-white hover:bg-red-500 transition-colors flex items-center justify-center hidden z-10">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4"
+                    fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M6 6h12v12H6z" />
                 </svg>
             </button>
 
             <div class="relative left-2 bottom-0 flex p-1 ">
                 <!-- RAG Mode Toggle Button -->
-                <button id="rag-mode-toggle"
+                <button type="button" id="rag-mode-toggle"
                     class="p-1 mr-2 rounded-md hover:bg-gray-700/70 focus:outline-none transition-colors flex items-center"
                     title="Toggle RAG Mode (Contextual QA from your documents)">
                     <svg id="rag-mode-icon" xmlns="http://www.w3.org/2000/svg"
@@ -56,7 +60,7 @@
                 </button>
 
                 <!-- Diagram Mode Toggle Button -->
-                <button id="diagram-mode-toggle"
+                <button type="button" id="diagram-mode-toggle"
                     class="p-1 mr-2 rounded-md hover:bg-gray-700/70 focus:outline-none transition-colors flex items-center"
                     title="Toggle Diagram Generation Mode">
                     <svg id="diagram-mode-icon"
@@ -71,7 +75,7 @@
                 </button>
 
                 <!-- YouTube Mode Toggle Button -->
-                <button id="youtube-mode-toggle"
+                <button type="button" id="youtube-mode-toggle"
                     class="p-1 mr-2 rounded-md hover:bg-gray-700/70 focus:outline-none transition-colors flex items-center"
                     title="Toggle YouTube Mode (Summarize or Recommend Videos)">
                     <svg id="youtube-mode-icon"
@@ -115,57 +119,6 @@
         <p class="text-xs text-center text-gray-500 flex-grow pl-2">
             The AI assistant may produce inaccurate information about people,
             places, or facts.
-    </p>
+        </p>
     </div>
 </div>
-<script>
-  document.addEventListener('DOMContentLoaded', () => {
-    const form = document.getElementById('chat-form');
-    const submitBtn = document.getElementById('submit-button');
-    const stopBtn = document.getElementById('stop-button');
-    let controller; // for aborting fetch
-
-    form.addEventListener('submit', async e => {
-      e.preventDefault();
-
-      // swap buttons
-      submitBtn.classList.add('hidden');
-      stopBtn.classList.remove('hidden');
-
-      // create an AbortController so we can stop streaming
-      controller = new AbortController();
-      const signal = controller.signal;
-
-      try {
-        const resp = await fetch(form.action, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': '{{ csrf_token }}'
-          },
-          body: JSON.stringify({ prompt: form.prompt.value }),
-          signal,
-        });
-        // handle streaming response here…
-        // when done:
-      } catch (err) {
-        if (err.name === 'AbortError') {
-          console.log('Generation stopped by user');
-        } else {
-          console.error(err);
-        }
-      } finally {
-        // restore buttons
-        stopBtn.classList.add('hidden');
-        submitBtn.classList.remove('hidden');
-      }
-    });
-
-    // clicking "Stop" will abort the fetch and revert UI
-    stopBtn.addEventListener('click', () => {
-      if (controller) controller.abort();
-      stopBtn.classList.add('hidden');
-      submitBtn.classList.remove('hidden');
-    });
-  });
-</script>

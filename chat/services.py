@@ -909,10 +909,10 @@ class ChatService:
     async def generate_quiz_from_query(self, chat_history_messages: List[Dict[str, str]], user_query: str, chat_id: str, **kwargs) -> Dict[str, Any]:
         """
         Generates a quiz based on the conversation history, with a focus on the user's specific query.
-        (Used by the QuizTool agent)
+        (Used by the QuizTool agent) - Now using Gemini AI
         """
         self.logger.info(
-            f"Starting query-focused quiz generation for chat {chat_id} on topic: '{user_query}'")
+            f"Starting query-focused quiz generation with Gemini for chat {chat_id} on topic: '{user_query}'")
 
         # Add the user's specific query to the history to ensure it's part of the context
         history_with_query = chat_history_messages + \
@@ -927,13 +927,31 @@ class ChatService:
                 "Not enough conversation content to generate a quiz.")
             return {"error": "Not enough conversation content to generate a quiz."}
 
-        focus_instruction = f"The user has specifically asked to be quizzed on: '{user_query}'. Please create questions that are primarily focused on this topic, using the provided conversation as context to find relevant information."
+        # Enhanced logic to detect "more" requests and extract the main learning topic
+        is_more_request = any(word in user_query.lower() for word in [
+                              'more', 'another', 'additional', 'continue', 'keep going'])
+
+        # Extract the main learning topic from conversation
+        main_topic = self._extract_main_learning_topic(
+            content_text, user_query)
+
+        if is_more_request and main_topic:
+            focus_instruction = f"The user is asking for MORE quizzes on the topic of '{main_topic}'. Create new, different questions about {main_topic} concepts, theories, and practical applications. Do NOT create questions about the conversation itself or what was previously discussed - focus entirely on testing knowledge of {main_topic}."
+        else:
+            focus_instruction = f"The user has specifically asked to be quizzed on: '{user_query}'. Please create questions that test knowledge and understanding of this topic, focusing on educational content rather than conversation details."
 
         prompt = f"""
-        You are a helpful assistant that creates quizzes.
+        You are an educational quiz generator that creates questions to test understanding of academic topics.
         {focus_instruction}
         
-        Create at least 2 multiple-choice quizzes (4 options per question) based on the following conversation.
+        IMPORTANT GUIDELINES:
+        - Create questions that test understanding of CONCEPTS, THEORIES, and PRACTICAL APPLICATIONS
+        - Do NOT create questions about "what the user asked" or "what happened in the conversation"
+        - Focus on educational content and knowledge testing
+        - Make questions challenging but fair
+        - Ensure all 4 options are plausible but only one is correct
+        
+        Create at least 2 multiple-choice questions (4 options per question).
         For each question, use this HTML structure:
         <div class="quiz-question" data-correct="B">
           <div class="font-semibold mb-1">What is 2+2?</div>
@@ -948,20 +966,19 @@ class ChatService:
         </div>
         Replace the question, answers, and correct value as appropriate.
         **CRITICAL: Output ONLY the HTML for the quiz. Do NOT include any explanations, introductory text, or content outside the HTML structure.**
-        **Do NOT add phrases like "Here's your quiz" or "Based on the conversation" - output ONLY the quiz HTML.**
         
-        Conversation for Context:
+        Educational Context:
         {content_text}
         """
 
         try:
-            quiz_html_response = await self.get_completion(
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=2000
-            )
+            # Use Gemini instead of Groq
+            from asgiref.sync import sync_to_async
+            quiz_html_response = await sync_to_async(flashcard_model.generate_content)(prompt)
+            quiz_html_text = quiz_html_response.text
 
             # More robust extraction to separate text from HTML
-            return self._extract_quiz_content(quiz_html_response, user_query)
+            return self._extract_quiz_content(quiz_html_text, user_query)
 
         except Exception as e:
             self.logger.error(
@@ -971,10 +988,10 @@ class ChatService:
     async def generate_quiz(self, chat_history_messages: List[Dict[str, str]], chat_id: str, **kwargs) -> Dict[str, Any]:
         """
         Generates a general quiz based on the conversation history.
-        (Used by the manual 'Generate Quiz' button)
+        (Used by the manual 'Generate Quiz' button) - Now using Gemini AI
         """
         self.logger.info(
-            f"Starting general quiz generation for chat {chat_id}")
+            f"Starting general quiz generation with Gemini for chat {chat_id}")
 
         # Combine conversation history into a single text block
         content_text = "\n".join(
@@ -1013,14 +1030,13 @@ class ChatService:
         """
 
         try:
-            # Call the AI model to get the quiz HTML
-            quiz_html_response = await self.get_completion(
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=2000
-            )
+            # Use Gemini instead of Groq
+            from asgiref.sync import sync_to_async
+            quiz_html_response = await sync_to_async(flashcard_model.generate_content)(prompt)
+            quiz_html_text = quiz_html_response.text
 
             # More robust extraction to separate text from HTML
-            return self._extract_quiz_content(quiz_html_response, "conversation content")
+            return self._extract_quiz_content(quiz_html_text, "conversation content")
 
         except Exception as e:
             self.logger.error(
@@ -1148,6 +1164,65 @@ class ChatService:
             return ""
 
         return text.strip()
+
+    def _extract_main_learning_topic(self, content_text: str, user_query: str) -> str:
+        """
+        Extract the main learning topic from conversation content and user queries.
+        """
+        import re
+
+        # Common academic subjects and topics
+        academic_topics = [
+            'machine learning', 'deep learning', 'artificial intelligence', 'ai',
+            'neural networks', 'data science', 'python', 'javascript', 'programming',
+            'algorithms', 'data structures', 'computer science', 'mathematics',
+            'statistics', 'calculus', 'linear algebra', 'physics', 'chemistry',
+            'biology', 'economics', 'finance', 'marketing', 'business',
+            'cybersecurity', 'networking', 'databases', 'web development',
+            'software engineering', 'cloud computing', 'blockchain'
+        ]
+
+        # Look for quiz-related phrases to find the topic
+        quiz_patterns = [
+            r'quiz\s+(?:me\s+)?(?:on\s+)?([a-zA-Z\s]+?)(?:\.|$|quiz|test)',
+            r'test\s+(?:my\s+)?(?:knowledge\s+)?(?:of\s+)?([a-zA-Z\s]+?)(?:\.|$|quiz|test)',
+            r'questions?\s+(?:about\s+)?([a-zA-Z\s]+?)(?:\.|$|quiz|test)',
+        ]
+
+        # First try to extract from recent conversation
+        recent_content = content_text[-1000:] if len(
+            content_text) > 1000 else content_text
+        combined_text = recent_content.lower() + " " + user_query.lower()
+
+        # Try pattern matching first
+        for pattern in quiz_patterns:
+            matches = re.findall(pattern, combined_text, re.IGNORECASE)
+            for match in matches:
+                match = match.strip()
+                if len(match) > 2 and match not in ['me', 'my', 'the', 'and', 'or']:
+                    return match
+
+        # Look for academic topics mentioned in the conversation
+        for topic in academic_topics:
+            if topic in combined_text:
+                return topic
+
+        # Extract meaningful words from user query (fallback)
+        words = user_query.lower().split()
+        meaningful_words = [w for w in words if len(w) > 3 and w not in [
+            'quiz', 'test', 'more', 'make', 'create', 'give', 'another', 'additional'
+        ]]
+
+        if meaningful_words:
+            return " ".join(meaningful_words[:2])
+
+        # Ultimate fallback - try to find any capitalized terms that might be topics
+        capitalized_terms = re.findall(
+            r'[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*', content_text)
+        if capitalized_terms:
+            return capitalized_terms[-1]  # Take the most recent one
+
+        return "the subject"
 
     def get_system_encoding(self):
         """Get the system's preferred encoding, defaulting to UTF-8 if not available."""
