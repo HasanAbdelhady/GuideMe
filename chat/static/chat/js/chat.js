@@ -655,6 +655,11 @@ document.addEventListener("DOMContentLoaded", function () {
 		quizHtml = null
 	) {
 		const messagesContainer = document.getElementById("chat-messages");
+
+		// Remove empty placeholder if present
+		const placeholder = document.getElementById("initial-chat-placeholder");
+		if (placeholder) placeholder.remove();
+
 		const messageDiv = document.createElement("div");
 		messageDiv.className = "message-enter px-4 md:px-6 py-6";
 		let contentElementToReturn = messageDiv; // Default to outer div
@@ -767,6 +772,11 @@ document.addEventListener("DOMContentLoaded", function () {
 
 	function renderAndAppendQuiz(quizData) {
 		const messagesDiv = document.getElementById("chat-messages");
+
+		// Remove empty placeholder if present
+		const placeholder = document.getElementById("initial-chat-placeholder");
+		if (placeholder) placeholder.remove();
+
 		const messageDiv = document.createElement("div");
 		messageDiv.className = "message-enter px-4 md:px-6 py-6";
 		if (quizData.message_id) {
@@ -1112,6 +1122,13 @@ document.addEventListener("DOMContentLoaded", function () {
 								window.removeTypingIndicator();
 								const messagesContainer =
 									document.getElementById("chat-messages");
+
+								// Remove empty placeholder if present
+								const placeholder = document.getElementById(
+									"initial-chat-placeholder"
+								);
+								if (placeholder) placeholder.remove();
+
 								const messageDiv = document.createElement("div");
 								messageDiv.className = "message-enter px-4 md:px-6 py-6";
 
@@ -2631,6 +2648,11 @@ document.addEventListener("DOMContentLoaded", function () {
 
 	function createMixedContentMessage(mixedElements, textContainer) {
 		const messagesContainer = document.getElementById("chat-messages");
+
+		// Remove empty placeholder if present
+		const placeholder = document.getElementById("initial-chat-placeholder");
+		if (placeholder) placeholder.remove();
+
 		const messageDiv = document.createElement("div");
 		messageDiv.className = "message-enter px-4 md:px-6 py-6";
 
