@@ -96,8 +96,8 @@ function openImageModal(imgSrc) {
 	const modalImage = document.getElementById("modal-image");
 	modalImage.src = imgSrc;
 
-	// Reset zoom when opening new image
-	resetImageZoom();
+	// Reset zoom when opening new image - REMOVED, now handled by event listener in initializeImageZoom
+	// resetImageZoom();
 
 	// Show the modal with animation
 	modalOverlay.classList.remove("opacity-0", "pointer-events-none");
@@ -135,22 +135,69 @@ function initializeImageZoom() {
 	let startY = 0;
 	let translateX = 0;
 	let translateY = 0;
+	let originalImageWidth = 0;
+	let originalImageHeight = 0;
 
-	const minScale = 0.5;
-	const maxScale = 5;
-	const scaleStep = 0.2;
+	const minScale = 0.1;
+	const maxScale = 5; // Increased max zoom
+	const scaleStep = 0.1;
+
+	// Calculate initial fit-to-container scale
+	function calculateFitScale() {
+		// Use naturalWidth/Height for the true image size.
+		originalImageWidth = modalImage.naturalWidth;
+		originalImageHeight = modalImage.naturalHeight;
+
+		// If dimensions are not yet available, cannot calculate scale.
+		if (!originalImageWidth || !originalImageHeight) {
+			return 1; // Default to 1 to avoid errors
+		}
+
+		// Use clientWidth/Height for robust container dimensions.
+		const containerWidth = imageContainer.clientWidth;
+		const containerHeight = imageContainer.clientHeight;
+
+		const scaleX = containerWidth / originalImageWidth;
+		const scaleY = containerHeight / originalImageHeight;
+
+		// Return the smaller scale to fit the entire image ("contain").
+		// This allows upscaling for small images to fit the modal.
+		return Math.min(scaleX, scaleY);
+	}
 
 	// Update cursor based on zoom level
 	function updateCursor() {
-		if (currentScale > 1) {
+		// Allow grabbing if scale is anything larger than the initial fit
+		if (currentScale > calculateFitScale() + 0.01) {
+			// Added tolerance
 			modalImage.style.cursor = isDragging ? "grabbing" : "grab";
 		} else {
 			modalImage.style.cursor = "zoom-in";
 		}
 	}
 
-	// Apply transform to image
+	// Apply transform to image with bounds checking
 	function applyTransform() {
+		// Calculate bounds to prevent dragging image out of view
+		const containerRect = imageContainer.getBoundingClientRect();
+		const imageWidth = originalImageWidth * currentScale;
+		const imageHeight = originalImageHeight * currentScale;
+
+		// Calculate maximum translation allowed to keep image edges within view
+		const maxTranslateX = Math.max(
+			0,
+			(imageWidth - containerRect.width) / 2 / currentScale
+		);
+		const maxTranslateY = Math.max(
+			0,
+			(imageHeight - containerRect.height) / 2 / currentScale
+		);
+
+		// Constrain translation within bounds, but allow user override for Y
+		translateX = Math.max(-maxTranslateX, Math.min(maxTranslateX, translateX));
+		// translateY is not constrained here to allow the user's initial override
+		// translateY = Math.max(-maxTranslateY, Math.min(maxTranslateY, translateY));
+
 		modalImage.style.transform = `scale(${currentScale}) translate(${translateX}px, ${translateY}px)`;
 		updateCursor();
 
@@ -161,78 +208,98 @@ function initializeImageZoom() {
 		zoomOutBtn.style.opacity = currentScale <= minScale ? "0.5" : "1";
 	}
 
-	// Zoom in
-	function zoomIn() {
-		if (currentScale < maxScale) {
-			currentScale = Math.min(currentScale + scaleStep, maxScale);
-			applyTransform();
+	// Zoom in at specific point
+	function zoomInAtPoint(clientX = null, clientY = null) {
+		if (currentScale >= maxScale) return;
+
+		const oldScale = currentScale;
+		currentScale = Math.min(currentScale + scaleStep, maxScale);
+
+		// If zoom point is specified, adjust translation to zoom at that point
+		if (clientX !== null && clientY !== null) {
+			const containerRect = imageContainer.getBoundingClientRect();
+			// Point relative to image container center
+			const pointX = clientX - containerRect.left - containerRect.width / 2;
+			const pointY = clientY - containerRect.top - containerRect.height / 2;
+
+			const scaleFactor = (currentScale - oldScale) / oldScale;
+
+			translateX -=
+				((pointX - translateX * oldScale) * scaleFactor) / currentScale;
+			translateY -=
+				((pointY - translateY * oldScale) * scaleFactor) / currentScale;
 		}
+
+		applyTransform();
 	}
 
 	// Zoom out
 	function zoomOut() {
-		if (currentScale > minScale) {
-			currentScale = Math.max(currentScale - scaleStep, minScale);
-			// Reset position when zooming out to fit
-			if (currentScale <= 1) {
-				translateX = 0;
-				translateY = 0;
-			}
-			applyTransform();
+		if (currentScale <= minScale) return;
+
+		const fitScale = calculateFitScale();
+		currentScale = Math.max(currentScale - scaleStep, minScale);
+
+		// Reset position when zooming out to fit or smaller
+		if (currentScale <= fitScale) {
+			currentScale = fitScale;
+			translateX = 0;
+			translateY = 0;
 		}
+		applyTransform();
 	}
 
-	// Reset zoom
+	// Reset zoom to fit container
 	window.resetImageZoom = function () {
-		currentScale = 1;
+		// User override for testing: start at a specific scale and translation
+		currentScale = 0.45;
 		translateX = 0;
-		translateY = 0;
+		translateY = -900;
 		applyTransform();
 	};
 
 	// Button event listeners
-	zoomInBtn.addEventListener("click", zoomIn);
+	zoomInBtn.addEventListener("click", () => zoomInAtPoint());
 	zoomOutBtn.addEventListener("click", zoomOut);
 	zoomResetBtn.addEventListener("click", resetImageZoom);
 
-	// Mouse wheel zoom
+	// Mouse wheel zoom at cursor position
 	imageContainer.addEventListener("wheel", (e) => {
 		e.preventDefault();
-		const rect = imageContainer.getBoundingClientRect();
-		const x = e.clientX - rect.left;
-		const y = e.clientY - rect.top;
 
 		if (e.deltaY < 0) {
-			zoomIn();
+			zoomInAtPoint(e.clientX, e.clientY);
 		} else {
 			zoomOut();
 		}
 	});
 
-	// Click to zoom
+	// Click to zoom at clicked point
 	modalImage.addEventListener("click", (e) => {
-		if (currentScale === 1) {
+		// Only zoom in on click if image is at its fitted size
+		if (Math.abs(currentScale - calculateFitScale()) < 0.01) {
 			e.stopPropagation();
-			zoomIn();
+			zoomInAtPoint(e.clientX, e.clientY);
 		}
 	});
 
-	// Mouse drag when zoomed
+	// Mouse drag - allow dragging when image is larger than container
 	modalImage.addEventListener("mousedown", (e) => {
-		if (currentScale > 1) {
+		// Allow dragging only if the image is larger than its container
+		if (currentScale > calculateFitScale() + 0.01) {
 			e.preventDefault();
 			isDragging = true;
-			startX = e.clientX - translateX;
-			startY = e.clientY - translateY;
+			startX = e.clientX - translateX * currentScale;
+			startY = e.clientY - translateY * currentScale;
 			modalImage.style.cursor = "grabbing";
 		}
 	});
 
 	document.addEventListener("mousemove", (e) => {
-		if (isDragging && currentScale > 1) {
+		if (isDragging) {
 			e.preventDefault();
-			translateX = e.clientX - startX;
-			translateY = e.clientY - startY;
+			translateX = (e.clientX - startX) / currentScale;
+			translateY = (e.clientY - startY) / currentScale;
 			applyTransform();
 		}
 	});
@@ -244,8 +311,18 @@ function initializeImageZoom() {
 		}
 	});
 
-	// Initialize
-	applyTransform();
+	// Initialize with fit-to-container scale when image loads
+	modalImage.addEventListener("load", () => {
+		window.resetImageZoom();
+	});
+
+	// If image is already loaded from cache
+	if (modalImage.complete && modalImage.naturalHeight > 0) {
+		window.resetImageZoom();
+	} else {
+		// Fallback for initial state before load
+		applyTransform();
+	}
 }
 
 function handleImageModalKeydown(e) {
