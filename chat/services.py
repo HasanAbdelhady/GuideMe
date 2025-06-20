@@ -682,6 +682,11 @@ class ChatService:
                 f"Generated Graphviz code does not appear to be valid or is empty. Preview: {graphviz_code[:500]}")
             return None
 
+        # Ensure proper imports are present
+        if "from graphviz import Digraph" not in graphviz_code and "import graphviz" not in graphviz_code:
+            self.logger.info("Adding missing graphviz import")
+            graphviz_code = "from graphviz import Digraph\n\n" + graphviz_code
+
         # Add fallback .render() call if missing
         if ".render(" not in graphviz_code:
             self.logger.info("Adding fallback .render() call to Graphviz code")
@@ -690,9 +695,23 @@ class ChatService:
 
         # Pre-process the code to handle common issues
         # Remove invalid 'parent' attribute which is a common mistake in the generated code
-        # Reverted to more general parent removal, using r"..." for regex string
         graphviz_code = re.sub(
             r"parent\s*=\s*['\"].*?['\"]", '', graphviz_code)
+
+        # Fix common Graphviz attribute errors
+        # Fix .nodes -> .node (common LLM mistake)
+        graphviz_code = re.sub(r'\.nodes\(\)', '.node()', graphviz_code)
+        graphviz_code = re.sub(r'\.nodes\b', '.node', graphviz_code)
+
+        # Fix .edges -> .edge (another common mistake)
+        graphviz_code = re.sub(r'\.edges\(\)', '.edge()', graphviz_code)
+        graphviz_code = re.sub(r'\.edges\b', '.edge', graphviz_code)
+
+        # Ensure proper Digraph instantiation
+        if 'Digraph(' in graphviz_code and 'format=' not in graphviz_code:
+            graphviz_code = re.sub(
+                r'Digraph\(\)', "Digraph(format='png')", graphviz_code)
+
         self.logger.info(
             f"Pre-processed Graphviz code (first 300 chars): {graphviz_code[:300]}...")
 
@@ -809,6 +828,21 @@ class ChatService:
 
                 except Exception as e:
                     self.logger.error(f"Error executing code: {str(e)}")
+
+                    # Add specific handling for common Graphviz errors
+                    error_str = str(e)
+                    if "has no attribute 'nodes'" in error_str:
+                        self.logger.info(
+                            "Detected .nodes attribute error - attempting to fix generated code")
+                        # Try to fix common .nodes attribute errors in the generated code
+                        current_code = re.sub(
+                            r'\.nodes\(\)', '.node()', current_code)
+                        current_code = re.sub(
+                            r'\.nodes\b', '.node', current_code)
+                        self.logger.info(
+                            "Applied .nodes -> .node fixes, retrying...")
+                        continue
+
                     if attempt == 2:  # Last attempt
                         return None
 

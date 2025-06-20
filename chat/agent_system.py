@@ -34,45 +34,65 @@ class ChatAgentSystem:
         active_modes: Dict[str, bool]
     ) -> Tuple[Optional[str], List[ToolResult]]:
         """
-        Process a user message and decide whether to use tools
-
-        Args:
-            user_message: The user's input
-            chat_context: Full chat context including history, user, chat object
-            active_modes: Dict of currently active modes {rag: bool, diagram: bool, youtube: bool}
-
-        Returns:
-            Tuple of (normal_ai_response, tool_results)
+        Process a user message and return AI response and tool results.
+        Now supports streaming for better user experience.
         """
-        try:
-            logger.info(f"Agent processing message: {user_message[:100]}...")
+        logger.info(f"Processing message: {user_message[:100]}...")
 
-            # Agent mode is active - analyze and potentially use tools
-            tool_results = await self._select_and_execute_tools(user_message, chat_context, active_modes)
+        # Execute tools first
+        tool_results = await self._select_and_execute_tools(user_message, chat_context, active_modes)
 
-            # Always run background tools (like flashcard tracker)
-            background_results = await self._run_background_tools(user_message, chat_context)
+        # Run background tools
+        background_results = await self._run_background_tools(user_message, chat_context)
+        all_results = tool_results + background_results
 
-            # Determine if we need a normal AI response
-            ai_response = None
-            primary_tools_used = [
-                r for r in tool_results if r.message_type != "background_process"]
+        # Determine if we should use streaming for AI response
+        should_stream = self._should_use_streaming(user_message, tool_results)
 
-            # Always get an AI response to provide context and explanation for the tools used
-            if primary_tools_used:
-                # If tools were used, create a contextual AI response
-                ai_response = await self._get_contextual_ai_response(user_message, chat_context, primary_tools_used)
-            else:
-                # No primary tools were used, get normal AI response
-                ai_response = await self._get_normal_ai_response(user_message, chat_context)
+        # Generate AI response based on tool results
+        ai_response = None
+        successful_tools = [r for r in tool_results if r.success]
 
-            return ai_response, tool_results + background_results
+        if successful_tools:
+            # Tools were used - provide contextual response
+            ai_response = await self._get_contextual_ai_response(
+                user_message, chat_context, successful_tools, stream=should_stream
+            )
+        else:
+            # No tools used - provide normal AI response
+            ai_response = await self._get_normal_ai_response(
+                user_message, chat_context, stream=should_stream
+            )
 
-        except Exception as e:
-            logger.error(f"Agent system error: {e}", exc_info=True)
-            # Fallback to normal AI response
-            ai_response = await self._get_normal_ai_response(user_message, chat_context)
-            return ai_response, []
+        logger.info(
+            f"Processed message. Tools: {len(successful_tools)}, AI response: {'stream' if should_stream else 'string'}")
+        return ai_response, all_results
+
+    def _should_use_streaming(self, user_message: str, tool_results: List[ToolResult]) -> bool:
+        """
+        Determine if we should use streaming for the AI response based on the context
+        """
+        successful_tools = [r for r in tool_results if r.success]
+
+        # Always stream if no tools are used (pure conversation)
+        if len(successful_tools) == 0:
+            return True
+
+        # Stream if user is asking for explanations along with tools
+        explanation_keywords = [
+            'explain', 'what is', 'what are', 'how does', 'how do', 'why',
+            'tell me about', 'describe', 'elaborate', 'detail'
+        ]
+
+        if any(keyword in user_message.lower() for keyword in explanation_keywords):
+            return True
+
+        # Stream if the message is long (likely complex)
+        if len(user_message.split()) > 20:
+            return True
+
+        # Don't stream for simple tool requests
+        return False
 
     async def _detect_tool_order_from_message(self, user_message: str) -> List[str]:
         """
@@ -245,27 +265,34 @@ class ChatAgentSystem:
 
         return background_results
 
-    async def _get_normal_ai_response(self, user_message: str, chat_context: Dict[str, Any]) -> str:
+    async def _get_normal_ai_response(self, user_message: str, chat_context: Dict[str, Any], stream: bool = False) -> str:
         """Get a normal AI response without using tools"""
         try:
             # Use the existing AI service to get a normal response
             messages_for_llm = chat_context.get('messages_for_llm', [])
             messages_for_llm.append({"role": "user", "content": user_message})
 
-            response = await self.ai_service.get_ai_response(
-                messages=messages_for_llm,
-                max_tokens=1000,
-                temperature=0.7
-            )
-
-            return response
+            if stream:
+                # Return the stream object for streaming responses
+                return await self.ai_service.get_ai_response_stream(
+                    messages=messages_for_llm,
+                    max_tokens=1000,
+                    temperature=0.7
+                )
+            else:
+                response = await self.ai_service.get_ai_response(
+                    messages=messages_for_llm,
+                    max_tokens=1000,
+                    temperature=0.7
+                )
+                return response
 
         except Exception as e:
             logger.error(
                 f"Error getting normal AI response: {e}", exc_info=True)
             return "I apologize, but I'm having trouble processing your request right now. Please try again."
 
-    async def _get_contextual_ai_response(self, user_message: str, chat_context: Dict[str, Any], tool_results: List[ToolResult]) -> str:
+    async def _get_contextual_ai_response(self, user_message: str, chat_context: Dict[str, Any], tool_results: List[ToolResult], stream: bool = False) -> str:
         """Get an AI response that provides context for the tools that were used"""
         try:
             # Create a summary of what tools were used
@@ -293,7 +320,7 @@ class ChatAgentSystem:
                 # If user asked for additional explanation, provide comprehensive response
                 if additional_explanation_needed:
                     # Generate full AI response that includes both tool context and explanations
-                    return await self._generate_comprehensive_response(user_message, chat_context, successful_tools)
+                    return await self._generate_comprehensive_response(user_message, chat_context, successful_tools, stream)
 
                 # Otherwise, provide brief context
                 tools_used = ", ".join(tool_types)
@@ -304,20 +331,9 @@ class ChatAgentSystem:
 
             if additional_explanation_needed:
                 # Generate comprehensive response even for single tool
-                return await self._generate_comprehensive_response(user_message, chat_context, successful_tools)
+                return await self._generate_comprehensive_response(user_message, chat_context, successful_tools, stream)
 
             # Default brief responses for single tools
-            if result.message_type == "quiz":
-                return "Here's your interactive quiz based on our conversation:"
-            elif result.message_type == "diagram":
-                return "Here's the diagram you requested:"
-            elif result.message_type == "youtube":
-                if result.structured_data and 'videos' in result.structured_data:
-                    return "Here are some relevant video recommendations:"
-                else:
-                    return "Here's a summary of that YouTube video:"
-            else:
-                return f"Here's your {result.message_type} as requested:"
 
         except Exception as e:
             logger.error(
@@ -372,7 +388,7 @@ class ChatAgentSystem:
 
         return False
 
-    async def _generate_comprehensive_response(self, user_message: str, chat_context: Dict[str, Any], tool_results: List[ToolResult]) -> str:
+    async def _generate_comprehensive_response(self, user_message: str, chat_context: Dict[str, Any], tool_results: List[ToolResult], stream: bool = False) -> str:
         """
         Generate a comprehensive AI response that addresses both tool results and additional explanations
         """
@@ -410,15 +426,22 @@ Focus especially on explaining any concepts, definitions, or "what is" questions
                 {"role": "user", "content": enhanced_user_message}
             ]
 
-            response = await self.ai_service.get_ai_response(
-                messages=messages_for_comprehensive,
-                max_tokens=800,
-                temperature=0.7
-            )
-
-            logger.info(
-                f"Generated comprehensive response for mixed tool scenario with explanations")
-            return response
+            if stream:
+                # Return the stream object for streaming responses
+                return await self.ai_service.get_ai_response_stream(
+                    messages=messages_for_comprehensive,
+                    max_tokens=800,
+                    temperature=0.7
+                )
+            else:
+                response = await self.ai_service.get_ai_response(
+                    messages=messages_for_comprehensive,
+                    max_tokens=800,
+                    temperature=0.7
+                )
+                logger.info(
+                    f"Generated comprehensive response for mixed tool scenario with explanations")
+                return response
 
         except Exception as e:
             logger.error(

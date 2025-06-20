@@ -425,9 +425,9 @@ document.addEventListener("DOMContentLoaded", function () {
 		}
 	});
 
-	// Typing indicator
+	// Typing indicator - simplified to just show animated dots
 	window.createTypingIndicator = function () {
-		window.removeTypingIndicator(); // Use the global remove function
+		window.removeTypingIndicator(); // Remove any existing indicator
 
 		const typingDiv = document.createElement("div");
 		typingDiv.className = "message-enter px-4 md:px-6 py-6";
@@ -435,17 +435,17 @@ document.addEventListener("DOMContentLoaded", function () {
 
 		typingDiv.innerHTML = `
 			<div class="chat-container flex gap-4 md:gap-6">
-        <div>
-          <div class="w-full flex items-center justify-center text-white typing-indicator">
-				<img src="/static/images/logo.png" alt="Assistant icon" class="h-20 w-20 ">
-				<div class="flex-1">
-					<div class="typing-indicator">
-						<span></span>
-						<span></span>
-						<span></span>
+				<div>
+					<div class="w-full flex items-center justify-center text-white">
+						<img src="/static/images/logo.png" alt="Assistant icon" class="h-20 w-20">
 					</div>
 				</div>
-
+				<div class="flex-1 overflow-x-auto min-w-0 max-w-[85%]" data-role="assistant-content-wrapper">
+					<div class="typing-dots text-gray-400">
+						<span>●</span>
+						<span>●</span>
+						<span>●</span>
+					</div>
 				</div>
 			</div>
 		`;
@@ -454,19 +454,79 @@ document.addEventListener("DOMContentLoaded", function () {
 		window.smoothScrollToBottom();
 	};
 
+	// Transform typing indicator into response message
+	window.transformTypingIndicatorToMessage = function (content, type = "text") {
+		const indicator = document.getElementById("typing-indicator");
+		if (!indicator) {
+			// Fallback: create new message if no typing indicator exists
+			return window.appendMessage("assistant", content, null, type);
+		}
+
+		// Remove the typing indicator ID and dots
+		indicator.removeAttribute("id");
+		const contentWrapper = indicator.querySelector(
+			'[data-role="assistant-content-wrapper"]'
+		);
+
+		if (contentWrapper) {
+			// Replace typing dots with actual content
+			if (type === "text") {
+				const markdownContentHtml = `<div class="max-w-none markdown-content text-gray-100">${marked.parse(
+					content
+				)}</div>`;
+				contentWrapper.innerHTML = markdownContentHtml;
+
+				const markdownContentDiv =
+					contentWrapper.querySelector(".markdown-content");
+				if (markdownContentDiv) {
+					markdownContentDiv.dataset.rawTextBuffer = content;
+					if (typeof hljs !== "undefined") {
+						markdownContentDiv.querySelectorAll("pre code").forEach((block) => {
+							hljs.highlightElement(block);
+						});
+					}
+					initializeCodeBlockFeatures(markdownContentDiv);
+					return markdownContentDiv; // Return for streaming updates
+				}
+			}
+		}
+
+		return contentWrapper;
+	};
+
 	window.removeTypingIndicator = function () {
-		const indicator = document.querySelector(".typing-indicator");
+		const indicator = document.getElementById("typing-indicator");
 		if (indicator) {
 			indicator.remove();
 		}
 	};
 
-	// Smooth scroll
-	window.smoothScrollToBottom = function () {
-		window.scrollTo({
-			top: document.body.scrollHeight,
-			behavior: "smooth"
-		});
+	// Smooth scroll - now more intelligent about when to scroll
+	window.smoothScrollToBottom = function (force = false) {
+		// Check if user is already near the bottom (within 100px)
+		const scrollPosition =
+			window.pageYOffset || document.documentElement.scrollTop;
+		const windowHeight = window.innerHeight;
+		const documentHeight = document.documentElement.scrollHeight;
+		const distanceFromBottom = documentHeight - (scrollPosition + windowHeight);
+
+		// Only auto-scroll if user is near the bottom or if forced
+		if (force || distanceFromBottom <= 100) {
+			window.scrollTo({
+				top: document.body.scrollHeight,
+				behavior: "smooth"
+			});
+		}
+	};
+
+	// Function to check if user is near bottom (for conditional scrolling)
+	window.isNearBottom = function (threshold = 100) {
+		const scrollPosition =
+			window.pageYOffset || document.documentElement.scrollTop;
+		const windowHeight = window.innerHeight;
+		const documentHeight = document.documentElement.scrollHeight;
+		const distanceFromBottom = documentHeight - (scrollPosition + windowHeight);
+		return distanceFromBottom <= threshold;
 	};
 
 	// File handling
@@ -487,6 +547,22 @@ document.addEventListener("DOMContentLoaded", function () {
 	});
 
 	clearFileButton.addEventListener("click", clearFileSelection);
+
+	// Helper function to create assistant message structure
+	function createAssistantMessageStructure(contentHtml) {
+		return `
+			<div class="chat-container flex gap-4 md:gap-6">
+				<div>
+					<div class="w-full flex items-center justify-center text-white">
+						<img src="/static/images/logo.png" alt="Assistant icon" class="h-20 w-20">
+					</div>
+				</div>
+				<div class="flex-1 overflow-x-auto min-w-0 max-w-[85%]" data-role="assistant-content-wrapper">
+					${contentHtml}
+				</div>
+			</div>
+		`;
+	}
 
 	// Initialize textarea
 	if (textarea.value) {
@@ -566,23 +642,8 @@ document.addEventListener("DOMContentLoaded", function () {
 				)}</div>`;
 			}
 
-			messageDiv.innerHTML = `
-				<div class="chat-container flex gap-4 md:gap-6">
-					<!-- Assistant icon - left side -->
-			<div class="chat-container flex gap-4 md:gap-6">
-        <div>
-          <div
-					class="w-full flex items-center justify-center text-white">
-					<img src="/static/images/logo.png" alt="Assistant icon"
-						class="h-20 w-20 ">
-				</div>
-					</div>
-					<!-- Message content -->
-					<div class="flex-1 overflow-x-auto min-w-0 max-w-[85%]" data-role="assistant-content-wrapper">
-						${assistantContentHtml}
-					</div>
-				</div>
-			`;
+			messageDiv.innerHTML =
+				createAssistantMessageStructure(assistantContentHtml);
 
 			if (type === "text") {
 				// For assistant text messages, we want to return the actual content div for streaming updates
@@ -645,22 +706,8 @@ document.addEventListener("DOMContentLoaded", function () {
 			assistantContentHtml += `<div class="quiz-message max-w-none text-gray-100 bg-gray-700/70 p-2 rounded-xl mt-2">${quizData.quiz_html}</div>`;
 		}
 
-		messageDiv.innerHTML = `
-			<div class="chat-container flex gap-4 md:gap-6">
-				<!-- Assistant icon - left side -->
-				<div class="chat-container flex gap-4 md:gap-6">
-					<div>
-						<div class="w-full flex items-center justify-center text-white">
-							<img src="/static/images/logo.png" alt="Assistant icon" class="h-20 w-20 ">
-						</div>
-					</div>
-					<!-- Message content -->
-					<div class="flex-1 overflow-x-auto min-w-0 max-w-[85%]" data-role="assistant-content-wrapper">
-						${assistantContentHtml}
-					</div>
-				</div>
-			</div>
-		`;
+		messageDiv.innerHTML =
+			createAssistantMessageStructure(assistantContentHtml);
 
 		messagesDiv.appendChild(messageDiv);
 
@@ -735,12 +782,7 @@ document.addEventListener("DOMContentLoaded", function () {
 				initializeQuizForms(container);
 			} else if (container.classList.contains("markdown-content")) {
 				// For markdown text, append and re-parse
-				// NO LONGER Sanitize the incoming chunk FIRST
-				// const sanitizedContentChunk = contentChunk.replace(/\n/g, ' '); // REMOVED
-				console.log(
-					"Received contentChunk for update:",
-					JSON.stringify(contentChunk)
-				);
+				// Update markdown content with new chunk
 
 				// Use a data attribute to buffer raw text
 				if (typeof container.dataset.rawTextBuffer === "undefined") {
@@ -750,33 +792,21 @@ document.addEventListener("DOMContentLoaded", function () {
 				container.dataset.rawTextBuffer += contentChunk; // Use contentChunk directly
 
 				// Re-parse the entire accumulated content with marked
-				// Ensure global 'marked' and 'hljs' are available or pass them/access them correctly
 				if (typeof marked !== "undefined" && typeof hljs !== "undefined") {
-					// Explicitly set marked.js options to ensure standard GFM behavior for newlines
 					marked.setOptions({
-						breaks: false, // GFM line breaks: single newlines are treated as spaces
-						gfm: true // Use GitHub Flavored Markdown
+						breaks: false,
+						gfm: true
 					});
-					const parsedHtml = marked.parse(container.dataset.rawTextBuffer); // Parse the full buffer
-					console.log(
-						"marked.parse() output (first 100 chars):",
-						JSON.stringify(parsedHtml.substring(0, 100))
-					);
+					const parsedHtml = marked.parse(container.dataset.rawTextBuffer);
 					container.innerHTML = parsedHtml;
-					// REMOVE/COMMENT OUT: container.textContent = container.dataset.rawTextBuffer;
 
-					// Re-apply syntax highlighting to any new or existing code blocks
+					// Re-apply syntax highlighting and code block features
 					container.querySelectorAll("pre code").forEach((block) => {
 						hljs.highlightElement(block);
 					});
-					// Re-initialize code block features (copy, expand, etc.)
 					initializeCodeBlockFeatures(container);
 				} else {
-					console.warn(
-						"marked.js or highlight.js not available for markdown processing."
-					);
-					// Fallback to just showing text if markdown/highlighting isn't set up
-					container.textContent = container.dataset.rawTextBuffer; // Ensure raw buffer is shown
+					container.textContent = container.dataset.rawTextBuffer;
 				}
 			} else {
 				// Fallback for other types or if container is not what's expected
@@ -784,6 +814,8 @@ document.addEventListener("DOMContentLoaded", function () {
 				// For safety, we can append if it seems like a text container.
 				container.textContent += contentChunk;
 			}
+
+			// Only scroll if user is near the bottom to avoid interrupting reading
 			window.smoothScrollToBottom();
 		}
 	}
@@ -836,8 +868,9 @@ document.addEventListener("DOMContentLoaded", function () {
 							currentMessageContainer = null;
 							toolResultCount = 0;
 						} else if (data.type === "quiz") {
-							// A quiz is a self-contained message. It doesn't use the streaming text container.
-							appendMessage(
+							// A quiz is a self-contained message. Transform the typing indicator.
+							window.removeTypingIndicator(); // Remove typing indicator first
+							window.appendMessage(
 								"assistant",
 								data.content || "Here is your quiz:", // Fallback content
 								data.message_id,
@@ -873,7 +906,8 @@ document.addEventListener("DOMContentLoaded", function () {
 									}`
 								);
 							} else {
-								// Standalone quiz
+								// Standalone quiz - remove typing indicator first
+								window.removeTypingIndicator();
 								renderAndAppendQuiz({ quiz_html: data.quiz_html });
 							}
 						} else if (data.type === "mixed_content_start") {
@@ -882,27 +916,21 @@ document.addEventListener("DOMContentLoaded", function () {
 							mixedContentElements = [];
 							toolResultCount = 0;
 						} else if (data.type === "content") {
-							const messagesDiv = document.getElementById("chat-messages");
-
 							// Check if we should enter mixed content mode based on previous elements
 							if (!isMixedContentMessage && mixedContentElements.length > 0) {
 								isMixedContentMessage = true;
 							}
 
 							if (isFirstTextChunk) {
-								// Create the initial message container and get the .markdown-content div
-								currentMessageContainer = appendMessage(
-									"assistant",
-									data.content, // First chunk goes here
-									null,
-									"text"
-								);
+								// Transform the typing indicator into the response message
+								currentMessageContainer =
+									window.transformTypingIndicatorToMessage(
+										data.content,
+										"text"
+									);
 								isFirstTextChunk = false;
-								// The appendMessage function (as modified previously) already handles
-								// sanitizing, setting rawTextBuffer, and initial parsing for this first chunk.
-								// For this test, we let that happen for the first chunk.
 							} else {
-								// **RESTORED: Call updateAssistantMessage for subsequent chunks**
+								// Update the existing message with subsequent chunks
 								updateAssistantMessage(currentMessageContainer, data.content);
 							}
 						} else if (data.type === "error") {
@@ -941,7 +969,8 @@ document.addEventListener("DOMContentLoaded", function () {
 										}`
 									);
 								} else {
-									// Standalone diagram
+									// Standalone diagram - remove typing indicator first
+									window.removeTypingIndicator();
 									appendDiagramMessage(
 										imageUrl,
 										data.text_content || "Generated Diagram",
@@ -974,6 +1003,7 @@ document.addEventListener("DOMContentLoaded", function () {
 								isFirstTextChunk = true;
 								toolResultCount = 0;
 							}
+							// Remove any remaining typing indicator (in case no content was streamed)
 							window.removeTypingIndicator();
 						} else if (data.type === "youtube_recommendations") {
 							toolResultCount++;
@@ -1001,27 +1031,18 @@ document.addEventListener("DOMContentLoaded", function () {
 									}`
 								);
 							} else {
-								// Standalone YouTube recommendations (existing behavior)
-								// This is a new message, so create the container for it
+								// Standalone YouTube recommendations - remove typing indicator first
+								window.removeTypingIndicator();
 								const messagesContainer =
 									document.getElementById("chat-messages");
 								const messageDiv = document.createElement("div");
 								messageDiv.className = "message-enter px-4 md:px-6 py-6";
 
-								messageDiv.innerHTML = `
-	                                <div class="chat-container flex gap-4 md:gap-6">
-	                                    <div>
-	                                      <div
-	                                        class="w-full flex items-center justify-center text-white">
-	                                        <img src="/static/images/logo.png" alt="Assistant icon"
-	                                          class="h-20 w-20 ">
-	                                      </div>
-	                                    </div>
-	                                    <div class="flex-1 overflow-x-auto min-w-0 max-w-[85%]" data-role="youtube-content-wrapper">
-	                                        <!-- YouTube recommendations will be rendered here -->
-	                                    </div>
-	                                </div>
-	                            `;
+								messageDiv.innerHTML = createAssistantMessageStructure(`
+									<div data-role="youtube-content-wrapper">
+										<!-- YouTube recommendations will be rendered here -->
+									</div>
+								`);
 								messagesContainer.appendChild(messageDiv);
 								const youtubeWrapper = messageDiv.querySelector(
 									'[data-role="youtube-content-wrapper"]'
@@ -1047,42 +1068,7 @@ document.addEventListener("DOMContentLoaded", function () {
 		}
 	};
 
-	function appendUserMessage(content, messageId = null) {
-		const messagesDiv = document.getElementById("chat-messages");
-		const placeholder = document.getElementById("initial-chat-placeholder");
-		if (placeholder) placeholder.remove();
-		const messageDiv = document.createElement("div");
-		messageDiv.className = "message-enter px-4 md:px-6 py-6";
-		messageDiv.innerHTML = `
-			<div class="chat-container flex flex-row-reverse gap-4 md:gap-6 justify-start">
-				<div class="overflow-x-auto max-w-[75%]">
-					<div class="user-message text-gray-100 bg-[#444654] p-3 rounded-lg message-text-container" data-message-id="${
-						messageId || ""
-					}" data-created-at="${new Date().toISOString()}">
-						<p class="whitespace-pre-wrap message-content-text">${content}</p>
-						<div class="edit-controls hidden mt-2">
-							<textarea class="edit-message-textarea w-full p-2 rounded bg-gray-700 border border-gray-600 text-gray-100 resize-none" rows="3"></textarea>
-							<div class="flex justify-end gap-2 mt-2">
-								<button class="cancel-edit-btn px-3 py-1 text-xs bg-gray-600 hover:bg-gray-500 rounded text-white">Cancel</button>
-								<button class="save-edit-btn px-3 py-1 text-xs bg-blue-600 hover:bg-blue-500 rounded text-white">Save</button>
-							</div>
-						</div>
-					</div>
-					<div class="flex justify-end mt-1 pr-1">
-						<button class="edit-message-btn p-1 text-gray-400 hover:text-gray-200 transition-opacity" data-message-id="${
-							messageId || ""
-						}" title="Edit message">
-							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-								<path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-							</svg>
-						</button>
-					</div>
-				</div>
-			</div>
-		`;
-		messagesDiv.appendChild(messageDiv);
-		window.smoothScrollToBottom();
-	}
+	// Removed duplicate appendUserMessage - using window.appendMessage("user", content) instead
 
 	form.addEventListener("submit", async function (e) {
 		e.preventDefault();
@@ -1094,7 +1080,7 @@ document.addEventListener("DOMContentLoaded", function () {
 				: `[Attached file: ${fileData.name}]`;
 		}
 		if (!promptText && !fileData) return;
-		appendUserMessage(promptText);
+		window.appendMessage("user", promptText);
 		textarea.value = "";
 		window.adjustMainTextareaHeight();
 		if (fileData) clearFileSelection();
@@ -1257,23 +1243,12 @@ document.addEventListener("DOMContentLoaded", function () {
 			console.error("Error:", error);
 			window.removeTypingIndicator();
 			if (error.name !== "AbortError") {
-				const messageDiv = document.createElement("div");
-				messageDiv.className = "message-enter px-4 md:px-6 py-6";
-				messageDiv.innerHTML = `
-					<div class="chat-container flex gap-4 md:gap-6">
-          <div>
-            <div
-              class="w-full flex items-center justify-center text-white">
-              <img src="/static/images/logo.png" alt="Assistant icon"
-                class="h-20 w-20 ">
-            </div>
-          </div>
-						<div class="flex-1 overflow-x-auto min-w-0">
-							<p class="text-red-400">Error: ${error.message}</p>
-						</div>
-					</div>
-				`;
-				document.getElementById("chat-messages").appendChild(messageDiv);
+				window.appendMessage(
+					"assistant",
+					`Error: ${error.message}`,
+					null,
+					"text"
+				);
 			}
 			stopButton.classList.add("hidden");
 		}
@@ -1763,17 +1738,7 @@ document.addEventListener("DOMContentLoaded", function () {
 		}
 	});
 
-	document.querySelectorAll(".message-enter").forEach((msg) => {
-		// Use a valid selector for the green assistant icon
-		// Instead of querySelector('.w-7.h-7.rounded-sm.bg-[#11A27F]'), use attribute selector or classList check
-		const icon = Array.from(msg.children).find(
-			(child) =>
-				child.querySelector && child.querySelector("[class*='bg-#11A27F']")
-		);
-		if (icon) {
-			msg.classList.add("");
-		}
-	});
+	// Clean up any legacy message styling
 
 	window.scrollTo({ top: document.body.scrollHeight, behavior: "auto" });
 	if (textarea.value) {
@@ -1794,31 +1759,7 @@ document.addEventListener("DOMContentLoaded", function () {
 		applyConsistentChatElementStyling(chatElement);
 	});
 
-	// Patch appendMessage to also fix after rendering (only once)
-	if (!window._appendMessagePatched) {
-		const origAppendMessage = appendMessage;
-		appendMessage = function (role, content) {
-			const result = origAppendMessage(role, content);
-			fixEscapedQuizMessages();
-			fixFirstLineQuizPreCode();
-			// If it's an assistant message, its content might have been set and needs features.
-			// The `result` from the modified appendMessage is the content container for assistant.
-			if (role === "assistant" && result) {
-				// Assuming marked and hljs have run or will run if it's markdown.
-				// For safety, ensure this runs after any markdown parsing and highlighting.
-				// This might need to be more targeted if appendMessage itself doesn't trigger hljs.
-				// However, typically hljs is called on the container after marked.parse.
-				setTimeout(() => {
-					// Use a timeout to ensure DOM update and hljs completion
-					if (typeof initializeCodeBlockFeatures === "function") {
-						initializeCodeBlockFeatures(result);
-					}
-				}, 0);
-			}
-			return result;
-		};
-		window._appendMessagePatched = true;
-	}
+	// Quiz and code block features are now handled directly in appendMessage
 
 	// --- RAG Context Management UI --- //
 	const ragModalContent = document.getElementById("rag-modal-content");
@@ -2321,29 +2262,20 @@ document.addEventListener("DOMContentLoaded", function () {
 		messageDiv.className = "message-enter px-4 md:px-6 py-6";
 		messageDiv.setAttribute("data-message-id", messageId); // For potential future use
 
-		messageDiv.innerHTML = `
-			<div class="chat-container flex gap-4 md:gap-6">
-          <div>
-            <div
-              class="w-full flex items-center justify-center text-white">
-              <img src="/static/images/logo.png" alt="Assistant icon"
-                class="h-20 w-20 ">
-            </div>
-          </div>
-				<div class="flex-1 overflow-x-auto min-w-0 max-w-[85%]">
-					<div class="diagram-message-container bg-gray-800/50 p-2 my-2 rounded-lg shadow-md flex flex-col justify-center items-center">
-						<img src="${imageUrl}" alt="${textContent || "Generated Diagram"}" 
-							class="max-w-full h-auto rounded-md mb-1 cursor-pointer hover:opacity-90 transition-opacity" 
-							onclick="openImageModal('${imageUrl}')">
-						${
-							textContent
-								? `<p class="text-xs text-gray-400 italic mt-1 text-center">${textContent}</p>`
-								: ""
-						}
-					</div>
-				</div>
+		const diagramContentHtml = `
+			<div class="diagram-message-container bg-gray-800/50 p-2 my-2 rounded-lg shadow-md flex flex-col justify-center items-center">
+				<img src="${imageUrl}" alt="${textContent || "Generated Diagram"}" 
+					class="max-w-full h-auto rounded-md mb-1 cursor-pointer hover:opacity-90 transition-opacity" 
+					onclick="openImageModal('${imageUrl}')">
+				${
+					textContent
+						? `<p class="text-xs text-gray-400 italic mt-1 text-center">${textContent}</p>`
+						: ""
+				}
 			</div>
 		`;
+
+		messageDiv.innerHTML = createAssistantMessageStructure(diagramContentHtml);
 
 		messagesDiv.appendChild(messageDiv);
 		window.smoothScrollToBottom();
@@ -2625,18 +2557,11 @@ document.addEventListener("DOMContentLoaded", function () {
 		const messageDiv = document.createElement("div");
 		messageDiv.className = "message-enter px-4 md:px-6 py-6";
 
-		messageDiv.innerHTML = `
-			<div class="chat-container flex gap-4 md:gap-6">
-				<div>
-					<div class="w-30 flex items-center justify-center text-white">
-						<img src="/static/images/logo.png" alt="Assistant icon" class="h-12 w-12">
-					</div>
-				</div>
-				<div class="flex-1 overflow-x-auto min-w-0 max-w-[85%]" data-role="mixed-content-wrapper">
-					<!-- Mixed content will be rendered here -->
-				</div>
+		messageDiv.innerHTML = createAssistantMessageStructure(`
+			<div data-role="mixed-content-wrapper">
+				<!-- Mixed content will be rendered here -->
 			</div>
-		`;
+		`);
 
 		const contentWrapper = messageDiv.querySelector(
 			'[data-role="mixed-content-wrapper"]'
@@ -2714,42 +2639,7 @@ document.addEventListener("DOMContentLoaded", function () {
 		}
 	}
 
-	function appendUserMessage(content, messageId = null) {
-		const messagesDiv = document.getElementById("chat-messages");
-		const placeholder = document.getElementById("initial-chat-placeholder");
-		if (placeholder) placeholder.remove();
-		const messageDiv = document.createElement("div");
-		messageDiv.className = "message-enter px-4 md:px-6 py-6";
-		messageDiv.innerHTML = `
-			<div class="chat-container flex flex-row-reverse gap-4 md:gap-6 justify-start">
-				<div class="overflow-x-auto max-w-[75%]">
-					<div class="user-message text-gray-100 bg-[#444654] p-3 rounded-lg message-text-container" data-message-id="${
-						messageId || ""
-					}" data-created-at="${new Date().toISOString()}">
-						<p class="whitespace-pre-wrap message-content-text">${content}</p>
-						<div class="edit-controls hidden mt-2">
-							<textarea class="edit-message-textarea w-full p-2 rounded bg-gray-700 border border-gray-600 text-gray-100 resize-none" rows="3"></textarea>
-							<div class="flex justify-end gap-2 mt-2">
-								<button class="cancel-edit-btn px-3 py-1 text-xs bg-gray-600 hover:bg-gray-500 rounded text-white">Cancel</button>
-								<button class="save-edit-btn px-3 py-1 text-xs bg-blue-600 hover:bg-blue-500 rounded text-white">Save</button>
-							</div>
-						</div>
-					</div>
-					<div class="flex justify-end mt-1 pr-1">
-						<button class="edit-message-btn p-1 text-gray-400 hover:text-gray-200 transition-opacity" data-message-id="${
-							messageId || ""
-						}" title="Edit message">
-							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-								<path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-							</svg>
-						</button>
-					</div>
-				</div>
-			</div>
-		`;
-		messagesDiv.appendChild(messageDiv);
-		window.smoothScrollToBottom();
-	}
+	// Removed duplicate appendUserMessage function - using window.appendMessage("user", content) instead
 });
 
 function updateNewChatUI(isNew) {

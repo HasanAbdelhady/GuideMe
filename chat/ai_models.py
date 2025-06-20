@@ -6,25 +6,33 @@ logger = logging.getLogger(__name__)
 
 class AIService:
     """Service for AI interactions used by the agent system"""
-    
+
     def __init__(self):
         self.client = Groq()
         self.default_model = "llama3-8b-8192"
-    
-    async def get_ai_response(self, messages, max_tokens=1000, temperature=0.7, model=None):
-        """Get AI response for agent system"""
+
+    async def get_ai_response(self, messages, max_tokens=1000, temperature=0.7, model=None, stream=False):
+        """Get AI response for agent system - now supports streaming"""
         try:
             response = self.client.chat.completions.create(
                 model=model or self.default_model,
                 messages=messages,
                 temperature=temperature,
                 max_tokens=max_tokens,
-                stream=False
+                stream=stream
             )
-            return response.choices[0].message.content
+
+            if stream:
+                return response  # Return the stream object directly
+            else:
+                return response.choices[0].message.content
         except Exception as e:
             logger.error(f"AIService error: {e}", exc_info=True)
             raise AIModelException(f"Error getting AI response: {str(e)}")
+
+    async def get_ai_response_stream(self, messages, max_tokens=1000, temperature=0.7, model=None):
+        """Get streaming AI response for agent system"""
+        return await self.get_ai_response(messages, max_tokens, temperature, model, stream=True)
 
 
 class AIModelManager:
