@@ -1,7 +1,22 @@
 from groq import Groq
 import logging
+import os
+import google.generativeai as genai
+from .agent_system import AIModelException
 
 logger = logging.getLogger(__name__)
+
+# Configure Gemini at the module level
+try:
+    FLASHCARD_API_KEY = os.environ.get("FLASHCARD")
+    if FLASHCARD_API_KEY:
+        genai.configure(api_key=FLASHCARD_API_KEY)
+    else:
+        logger.warning(
+            "FLASHCARD API key for Gemini not found. Vision features will be disabled.")
+except Exception as e:
+    logger.error(f"Error configuring Gemini: {e}")
+    FLASHCARD_API_KEY = None
 
 
 class AIService:
@@ -10,10 +25,59 @@ class AIService:
     def __init__(self):
         self.client = Groq()
         self.default_model = "llama3-8b-8192"
+        # Initialize vision model if API key is available
+        if FLASHCARD_API_KEY:
+            self.vision_model = genai.GenerativeModel(
+                "gemini-1.5-flash-latest")
+        else:
+            self.vision_model = None
 
-    async def get_ai_response(self, messages, max_tokens=1000, temperature=0.7, model=None, stream=False):
-        """Get AI response for agent system - now supports streaming"""
+    async def get_ai_response(self, messages, max_tokens=1000, temperature=0.7, model=None, stream=False, image_data=None, image_mime_type=None):
+        """Get AI response for agent system - now supports streaming and vision"""
         try:
+            # If there's image data, we must use a vision model
+            if image_data and image_mime_type and self.vision_model:
+                logger.info("Using vision model for multimodal response.")
+
+                # Convert message history to Gemini's format
+                gemini_messages = []
+                for msg in messages[:-1]:
+                    role = 'model' if msg['role'] == 'assistant' else 'user'
+                    gemini_messages.append(
+                        {'role': role, 'parts': [msg['content']]})
+
+                # Create the multimodal prompt for the last message
+                last_message = messages[-1]
+                image_part = {'mime_type': image_mime_type, 'data': image_data}
+                prompt_parts = [last_message['content'], image_part]
+                gemini_messages.append({'role': 'user', 'parts': prompt_parts})
+
+                response = self.vision_model.generate_content(
+                    gemini_messages,
+                    stream=stream,
+                    generation_config=genai.types.GenerationConfig(
+                        max_output_tokens=max_tokens,
+                        temperature=temperature
+                    )
+                )
+
+                if stream:
+                    # Adapt the Gemini stream to look like Groq's for compatibility
+                    async def gemini_stream_adapter():
+                        async for chunk in response:
+                            mock_choice = type('Choice', (object,), {
+                                'delta': type('Delta', (object,), {'content': chunk.text})
+                            })
+                            mock_chunk = type('Chunk', (object,), {
+                                'choices': [mock_choice]
+                            })
+                            yield mock_chunk
+                    return gemini_stream_adapter()
+                else:
+                    return response.text
+
+            # Fallback to original Groq logic for text-only
+            logger.info("Using default text model for response.")
             response = self.client.chat.completions.create(
                 model=model or self.default_model,
                 messages=messages,
@@ -30,9 +94,9 @@ class AIService:
             logger.error(f"AIService error: {e}", exc_info=True)
             raise AIModelException(f"Error getting AI response: {str(e)}")
 
-    async def get_ai_response_stream(self, messages, max_tokens=1000, temperature=0.7, model=None):
-        """Get streaming AI response for agent system"""
-        return await self.get_ai_response(messages, max_tokens, temperature, model, stream=True)
+    async def get_ai_response_stream(self, messages, max_tokens=1000, temperature=0.7, model=None, **kwargs):
+        """Get streaming AI response for agent system (now passes vision kwargs)"""
+        return await self.get_ai_response(messages, max_tokens, temperature, model, stream=True, **kwargs)
 
 
 class AIModelManager:

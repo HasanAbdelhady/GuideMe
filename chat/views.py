@@ -196,6 +196,26 @@ class ChatStreamView(View):
             uploaded_file = request.FILES.get('file')
             logger.info(f"Uploaded file: {uploaded_file}")
 
+            # New: Handle image file for vision model
+            image_file = request.FILES.get('image_file')
+            image_data_for_llm = None
+            image_mime_type_for_llm = None
+            if image_file:
+                logger.info(f"Image file uploaded: {image_file.name}")
+                # Ensure it's a valid image type
+                allowed_image_types = ['image/jpeg',
+                                       'image/png', 'image/gif', 'image/webp']
+                if image_file.content_type in allowed_image_types:
+                    image_data_for_llm = image_file.read()
+                    image_mime_type_for_llm = image_file.content_type
+                    logger.info(
+                        f"Image data prepared for LLM: {len(image_data_for_llm)} bytes, MIME type: {image_mime_type_for_llm}")
+                else:
+                    logger.warning(
+                        f"Unsupported image type: {image_file.content_type}")
+                    # Optionally, send a notification back to the user
+                    # For now, we'll just log it and proceed without the image.
+
             file_info_for_llm = None
             prompt_for_display_and_db = user_typed_prompt
             llm_query_content = user_typed_prompt
@@ -353,7 +373,10 @@ class ChatStreamView(View):
                 user_id_for_diagram=user.id if diagram_mode_active else None,
                 youtube_mode_active=youtube_mode_active,
                 query_for_youtube_agent=user_typed_prompt if youtube_mode_active else None,
-                rag_mode_active=rag_mode_active  # Add this parameter
+                rag_mode_active=rag_mode_active,  # Add this parameter
+                # New: Pass image data to the streaming response
+                image_data=image_data_for_llm,
+                image_mime_type=image_mime_type_for_llm
             )
 
         except Exception as e:
@@ -361,7 +384,7 @@ class ChatStreamView(View):
                 f"Exception in ChatStreamView.post: {str(e)}", exc_info=True)
             return JsonResponse({'error': str(e)}, status=500)
 
-    async def stream_response(self, chat, messages_for_llm, query_for_rag=None, files_rag_instance=None, is_new_chat=False, current_user_prompt_for_saving=None, attached_file_name_for_rag=None, file_info_for_truncation_warning=None, diagram_mode_active=False, user_id_for_diagram=None, youtube_mode_active=False, query_for_youtube_agent=None, rag_mode_active=False):
+    async def stream_response(self, chat, messages_for_llm, query_for_rag=None, files_rag_instance=None, is_new_chat=False, current_user_prompt_for_saving=None, attached_file_name_for_rag=None, file_info_for_truncation_warning=None, diagram_mode_active=False, user_id_for_diagram=None, youtube_mode_active=False, query_for_youtube_agent=None, rag_mode_active=False, image_data=None, image_mime_type=None):
         async def event_stream_async():
             user_message_saved = False
             try:
@@ -449,6 +472,9 @@ class ChatStreamView(View):
                     'messages_for_llm': messages_for_llm[:-1],
                     'chat_service': chat_service,
                     'files_rag_instance': files_rag_instance,
+                    # New: Add image data to chat context if available
+                    'image_data': image_data,
+                    'image_mime_type': image_mime_type,
                 }
 
                 active_modes = {
