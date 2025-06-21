@@ -272,18 +272,30 @@ class ChatAgentSystem:
             messages_for_llm = chat_context.get('messages_for_llm', [])
             messages_for_llm.append({"role": "user", "content": user_message})
 
+            # New: Check for image data in the context
+            image_data = chat_context.get('image_data')
+            image_mime_type = chat_context.get('image_mime_type')
+            vision_kwargs = {}
+            if image_data and image_mime_type:
+                vision_kwargs['image_data'] = image_data
+                vision_kwargs['image_mime_type'] = image_mime_type
+                logger.info(
+                    "Passing image data to the AI service for a normal response.")
+
             if stream:
                 # Return the stream object for streaming responses
                 return await self.ai_service.get_ai_response_stream(
                     messages=messages_for_llm,
-                    max_tokens=1000,
-                    temperature=0.7
+                    max_tokens=2000,  # Increased token limit for vision
+                    temperature=0.7,
+                    **vision_kwargs
                 )
             else:
                 response = await self.ai_service.get_ai_response(
                     messages=messages_for_llm,
-                    max_tokens=1000,
-                    temperature=0.7
+                    max_tokens=2000,  # Increased token limit for vision
+                    temperature=0.7,
+                    **vision_kwargs
                 )
                 return response
 
@@ -297,6 +309,16 @@ class ChatAgentSystem:
         try:
             # Create a summary of what tools were used
             successful_tools = [r for r in tool_results if r.success]
+
+            # New: Check for image data to pass to contextual response
+            image_data = chat_context.get('image_data')
+            image_mime_type = chat_context.get('image_mime_type')
+            vision_kwargs = {}
+            if image_data and image_mime_type:
+                vision_kwargs['image_data'] = image_data
+                vision_kwargs['image_mime_type'] = image_mime_type
+                logger.info(
+                    "Passing image data to the AI service for a contextual response.")
 
             # Check if user is asking for additional explanations beyond tool functionality
             additional_explanation_needed = self._needs_additional_explanation(
@@ -320,7 +342,7 @@ class ChatAgentSystem:
                 # If user asked for additional explanation, provide comprehensive response
                 if additional_explanation_needed:
                     # Generate full AI response that includes both tool context and explanations
-                    return await self._generate_comprehensive_response(user_message, chat_context, successful_tools, stream)
+                    return await self._generate_comprehensive_response(user_message, chat_context, successful_tools, stream, **vision_kwargs)
 
                 # Otherwise, provide brief context
                 return f""
@@ -330,7 +352,7 @@ class ChatAgentSystem:
 
             if additional_explanation_needed:
                 # Generate comprehensive response even for single tool
-                return await self._generate_comprehensive_response(user_message, chat_context, successful_tools, stream)
+                return await self._generate_comprehensive_response(user_message, chat_context, successful_tools, stream, **vision_kwargs)
 
             # Default brief responses for single tools
 
@@ -387,7 +409,7 @@ class ChatAgentSystem:
 
         return False
 
-    async def _generate_comprehensive_response(self, user_message: str, chat_context: Dict[str, Any], tool_results: List[ToolResult], stream: bool = False) -> str:
+    async def _generate_comprehensive_response(self, user_message: str, chat_context: Dict[str, Any], tool_results: List[ToolResult], stream: bool = False, **kwargs) -> str:
         """
         Generate a comprehensive AI response that addresses both tool results and additional explanations
         """
@@ -429,14 +451,16 @@ Focus especially on explaining any concepts, definitions, or "what is" questions
                 # Return the stream object for streaming responses
                 return await self.ai_service.get_ai_response_stream(
                     messages=messages_for_comprehensive,
-                    max_tokens=800,
-                    temperature=0.7
+                    max_tokens=1500,  # Increased for vision
+                    temperature=0.7,
+                    **kwargs
                 )
             else:
                 response = await self.ai_service.get_ai_response(
                     messages=messages_for_comprehensive,
-                    max_tokens=800,
-                    temperature=0.7
+                    max_tokens=1500,  # Increased for vision
+                    temperature=0.7,
+                    **kwargs
                 )
                 logger.info(
                     f"Generated comprehensive response for mixed tool scenario with explanations")

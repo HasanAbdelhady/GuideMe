@@ -1,13 +1,14 @@
 {% load static %}
 <!DOCTYPE html>
-<html lang="en" class=""> {# Start with no specific mode, JS will set it #}
-<head>
-    <meta charset="UTF-8" />
-    <title>Cybernetic Flashcards</title>
-    <meta name="description" content="Instantly create interactive flashcards for any topic with the power of Gemini! Learn smarter, not harder.">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
+<html lang="en" class> {# Start with no specific mode, JS will set it #}
+    <head>
+        <meta charset="UTF-8" />
+        <title>Cybernetic Flashcards</title>
+        <meta name="description"
+            content="Instantly create interactive flashcards for any topic with the power of Gemini! Learn smarter, not harder.">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <script src="https://cdn.tailwindcss.com"></script>
+        <script>
         tailwind.config = {
             darkMode: "class", // Enable class-based dark mode
             theme: {
@@ -70,7 +71,7 @@
             document.documentElement.classList.remove('dark');
         }
     </script>
-    <style>
+        <style>
         /* Basic styles for 3D flip - Tailwind's 'transform-style' and 'backface-visibility' are helpful */
         .flashcard {
             perspective: 1000px; /* For 3D effect */
@@ -102,45 +103,53 @@
             transform: rotateY(180deg);
         }
     </style>
-</head>
-<body class="bg-light-bg dark:bg-dark-bg text-text-light-primary dark:text-text-dark-primary min-h-screen flex flex-col items-center justify-center p-4 transition-colors duration-300 font-sans">
+    </head>
+    <body
+        class="bg-light-bg dark:bg-dark-bg text-text-light-primary dark:text-text-dark-primary min-h-screen flex flex-col items-center justify-center p-4 transition-colors duration-300 font-sans">
 
-    <div class="fixed top-4 right-4 z-50">
-        <button onclick="toggleTheme()" class="px-4 py-2 bg-midnight-blue text-white rounded-lg shadow-md hover:bg-ocean-blue transition-all duration-300 transform hover:scale-105">
-            Toggle Theme
-        </button>
-    </div>
-
-    <div class="fixed top-4 left-4 z-50">
-         <a href="{% url 'chat' %}" 
-            class="px-4 py-2 bg-aqua-cyan text-dark-bg rounded-lg shadow-md hover:bg-ocean-blue hover:text-white transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-silver-accent">
-            &larr; Back to Chat
-         </a>
-    </div>
-
-    <div class="w-full max-w-3xl mx-auto p-6 md:p-8 bg-card-light dark:bg-card-dark rounded-xl shadow-xl dark:shadow-cyber-glow-dark transition-colors duration-300">
-        <header class="mb-8 text-center">
-            <h1 class="text-4xl md:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-ocean-blue via-aqua-cyan to-silver-accent mb-2 p-2">Learn With Flashcards</h1>
-            <p class="text-sm md:text-base text-text-light-secondary dark:text-text-dark-secondary">Digitize your knowledge. Interface with information.</p>
-        </header>
-        
-        <textarea id="topicInput" placeholder="Enter topic (e.g., Astrophysics, Algorithms, Art History)..." class="w-full p-4 mb-4 bg-gray-200 dark:bg-gray-700 border-2 border-midnight-blue dark:border-aqua-cyan rounded-lg text-text-light-primary dark:text-text-dark-primary focus:ring-2 focus:ring-ocean-blue focus:border-transparent outline-none transition-all duration-300 min-h-[80px] resize-none placeholder-gray-500 dark:placeholder-gray-400"></textarea>
-        <button id="generateButton" class="w-full py-3 mb-6 bg-gradient-to-r from-ocean-blue via-aqua-cyan to-midnight-blue text-white font-bold rounded-lg shadow-lg hover:shadow-cyber-glow-light dark:hover:shadow-cyber-glow-dark transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-silver-accent disabled:opacity-50 disabled:cursor-not-allowed">
-            Generate Flashcards
-        </button>
-        
-        <div id="errorMessage" class="text-center text-red-500 dark:text-red-400 mb-4 min-h-[1.5em]"></div>
-        
-        <div id="flashcardsContainer" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-            <!-- Flashcards will be dynamically inserted here -->
+        <div class="fixed top-4 right-4 z-50">
+            <button onclick="toggleTheme()"
+                class="px-4 py-2 bg-midnight-blue text-white rounded-lg shadow-md hover:bg-ocean-blue transition-all duration-300 transform hover:scale-105">
+                Toggle Theme
+            </button>
         </div>
 
-        <footer class="mt-12 text-center text-xs text-text-light-secondary dark:text-text-dark-secondary">
-            Powered by Gemini API &bull; MentorAI Project &bull; Cybernetic Theme
-        </footer>
-    </div>
+        <div class="fixed top-4 left-4 z-50">
+            <a href="{% url 'chat' %}"
+                class="px-4 py-2 bg-aqua-cyan text-dark-bg rounded-lg shadow-md hover:bg-ocean-blue hover:text-white transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-silver-accent">
+                &larr; Back to Chat
+            </a>
+        </div>
 
-    <script>
+        <div
+            class="w-full max-w-3xl mx-auto p-6 md:p-8 bg-card-light dark:bg-card-dark rounded-xl shadow-xl dark:shadow-cyber-glow-dark transition-colors duration-300">
+            <header class="mb-8 text-center">
+                <h1
+                    class="text-4xl md:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-ocean-blue via-aqua-cyan to-silver-accent mb-2 p-2">Learn
+                    With Flashcards</h1>
+                <p
+                    class="text-sm md:text-base text-text-light-secondary dark:text-text-dark-secondary">Digitize
+                    your knowledge. Interface with information.</p>
+            </header>
+
+            <textarea id="topicInput"
+                placeholder="Enter topic (e.g., Astrophysics, Algorithms, Art History)..."
+                class="w-full p-4 mb-4 bg-gray-200 dark:bg-gray-700 border-2 border-midnight-blue dark:border-aqua-cyan rounded-lg text-text-light-primary dark:text-text-dark-primary focus:ring-2 focus:ring-ocean-blue focus:border-transparent outline-none transition-all duration-300 min-h-[80px] resize-none placeholder-gray-500 dark:placeholder-gray-400"></textarea>
+            <button id="generateButton"
+                class="w-full py-3 mb-6 bg-gradient-to-r from-ocean-blue via-aqua-cyan to-midnight-blue text-white font-bold rounded-lg shadow-lg hover:shadow-cyber-glow-light dark:hover:shadow-cyber-glow-dark transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-silver-accent disabled:opacity-50 disabled:cursor-not-allowed">
+                Generate Flashcards
+            </button>
+
+            <div id="errorMessage"
+                class="text-center text-red-500 dark:text-red-400 mb-4 min-h-[1.5em]"></div>
+
+            <div id="flashcardsContainer"
+                class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+                <!-- Flashcards will be dynamically inserted here -->
+            </div>
+        </div>
+
+        <script>
         const topicInput = document.getElementById('topicInput');
         const generateButton = document.getElementById('generateButton');
         const flashcardsContainer = document.getElementById('flashcardsContainer');
@@ -237,5 +246,5 @@
         });
 
     </script>
-</body>
+    </body>
 </html>
