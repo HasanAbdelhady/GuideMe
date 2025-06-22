@@ -2,6 +2,7 @@ from django.db import models
 from django.conf import settings
 from users.models import CustomUser
 import uuid
+from pgvector.django import VectorField
 
 
 class Chat(models.Model):
@@ -187,3 +188,39 @@ class ChatQuestionBank(models.Model):
         if self.times_answered == 0:
             return 0
         return (self.times_correct / self.times_answered) * 100
+
+
+class DocumentChunk(models.Model):
+    """Store document chunks with their vector embeddings"""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    chat = models.ForeignKey(Chat, on_delete=models.CASCADE, related_name='document_chunks')
+    rag_file = models.ForeignKey(ChatRAGFile, on_delete=models.CASCADE, related_name='chunks')
+    
+    # Text content
+    content = models.TextField()
+    chunk_index = models.IntegerField()
+    
+    # Vector embedding (384 dimensions for all-MiniLM-L6-v2)
+    embedding = VectorField(dimensions=384)
+    
+    # Metadata
+    metadata = models.JSONField(default=dict)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = 'chat_document_chunks'
+        indexes = [
+            models.Index(fields=['chat', 'chunk_index']),
+            models.Index(fields=['rag_file']),
+        ]
+
+
+class ChatVectorIndex(models.Model):
+    """Track vector index status for chats"""
+    chat = models.OneToOneField(Chat, on_delete=models.CASCADE, related_name='vector_index')
+    total_chunks = models.IntegerField(default=0)
+    last_updated = models.DateTimeField(auto_now=True)
+    embedding_model = models.CharField(max_length=100, default='all-MiniLM-L6-v2')
+    
+    class Meta:
+        db_table = 'chat_vector_index'

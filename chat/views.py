@@ -5,7 +5,7 @@ import time
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import StreamingHttpResponse, HttpResponse, JsonResponse
 from django.contrib.auth.decorators import login_required
-from .models import Chat, Message, ChatRAGFile, DiagramImage
+from .models import Chat, Message, ChatRAGFile, DiagramImage, DocumentChunk, ChatVectorIndex
 from groq import Groq, APIStatusError
 from django.utils.safestring import mark_safe
 import html
@@ -266,6 +266,7 @@ class ChatStreamView(View):
 
                 if active_rag_files:
                     file_paths_and_types_for_rag = []
+                    rag_files_map = {}  # Map file paths to ChatRAGFile objects
                     for rag_file_entry in active_rag_files:
                         file_path = rag_file_entry.file.path
                         _, file_ext = os.path.splitext(
@@ -276,6 +277,8 @@ class ChatStreamView(View):
                                 (file_path, file_type))
                             attached_file_names_for_rag_context.append(
                                 rag_file_entry.original_filename)
+                            # Map file path to ChatRAGFile object
+                            rag_files_map[file_path] = rag_file_entry
                         else:
                             logger.warning(
                                 f"Skipping RAG file {rag_file_entry.original_filename} due to unsupported type: {file_type}")
@@ -285,7 +288,11 @@ class ChatStreamView(View):
                             f"Building RAG index from persisted files: {attached_file_names_for_rag_context}")
                         files_rag_instance = LangChainRAG()
                         try:
-                            await sync_to_async(files_rag_instance.build_index)(file_paths_and_types_for_rag)
+                            await sync_to_async(files_rag_instance.build_index)(
+                                file_paths_and_types_for_rag, 
+                                chat_id=chat_id,
+                                rag_files_map=rag_files_map  # Pass the mapping
+                            )
                             logger.info(
                                 f"Successfully built RAG index from {len(file_paths_and_types_for_rag)} persisted files.")
                         except Exception as e:
@@ -1173,6 +1180,14 @@ class ChatRAGFilesView(View):
             )
             rag_file.save()  # This will call the upload_to logic in the model
 
+            # After successful file save, clear vector index to force rebuild
+            try:
+                DocumentChunk.objects.filter(chat_id=chat_id).delete()
+                ChatVectorIndex.objects.filter(chat_id=chat_id).delete()
+                logger.info(f"Cleared vector index for chat {chat_id}, will rebuild on next query")
+            except Exception as e:
+                logger.error(f"Error clearing vector index: {e}")
+
             return JsonResponse({
                 'success': True,
                 'file': {'id': str(rag_file.id), 'name': rag_file.original_filename}
@@ -1218,6 +1233,14 @@ class ChatRAGFilesView(View):
             rag_file.delete()
             logger.info(
                 f"Successfully deleted ChatRAGFile record for '{rag_file_name_for_log}' (ID: {file_id}) from chat {chat_id}")
+
+            # After file deletion, clear and rebuild vector index
+            try:
+                DocumentChunk.objects.filter(chat_id=chat_id).delete()
+                ChatVectorIndex.objects.filter(chat_id=chat_id).delete()
+                logger.info(f"Cleared vector index for chat {chat_id} after file deletion")
+            except Exception as e:
+                logger.error(f"Error clearing vector index after deletion: {e}")
 
             return JsonResponse({'success': True, 'message': 'File removed from RAG context successfully.'}, status=200)
 

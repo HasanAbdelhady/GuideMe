@@ -16,7 +16,6 @@ from .views import (
 from . import views
 
 urlpatterns = [
-   # path('', ChatListView.as_view(), name='chat_list'),
     path('new/', ChatView.as_view(), name='new_chat'),
     path('create/', views.create_chat, name='create_chat'),
     path('<uuid:chat_id>/', ChatView.as_view(), name='chat_detail'),
