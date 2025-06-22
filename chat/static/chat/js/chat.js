@@ -43,23 +43,32 @@ function openImageModal(imgSrc) {
 		modalOverlay.className =
 			"fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50";
 		modalOverlay.innerHTML = `
-			<div id="image-container" class="relative overflow-hidden rounded-lg shadow-xl bg-gray-900 max-w-[90vw] max-h-[90vh]">
+			<div id="image-container" class="relative bg-gray-900 w-full h-full flex items-center justify-center">
 				<img id="modal-image" src="" alt="Enlarged diagram"
 					class="max-w-full max-h-full object-contain transition-transform duration-200 ease-in-out">
-				<div class="absolute top-2 left-2 flex gap-2">
-					<button id="zoom-reset-btn" class="bg-gray-800 text-white rounded-full p-2 hover:bg-gray-700 focus:outline-none transition-colors">
-						<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+				
+				<!-- Control buttons positioned on the left -->
+				<div class="absolute left-4 top-1/2 transform -translate-y-1/2 flex flex-col gap-3 z-10">
+					<button id="zoom-in-btn" class="bg-gray-800/90 text-white rounded-full p-3 hover:bg-gray-700 focus:outline-none transition-colors shadow-lg" title="Zoom In">
+						<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
 							<path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
 						</svg>
 					</button>
-					<button id="zoom-out-btn" class="bg-gray-800 text-white rounded-full p-2 hover:bg-gray-700 focus:outline-none transition-colors">
-						<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+					<button id="zoom-out-btn" class="bg-gray-800/90 text-white rounded-full p-3 hover:bg-gray-700 focus:outline-none transition-colors shadow-lg" title="Zoom Out">
+						<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
 							<path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM13 10H7" />
 						</svg>
 					</button>
+					<button id="zoom-reset-btn" class="bg-gray-800/90 text-white rounded-full p-3 hover:bg-gray-700 focus:outline-none transition-colors shadow-lg" title="Reset Zoom">
+						<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+							<path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+						</svg>
+					</button>
 				</div>
-				<button id="close-image-modal" class="absolute top-0 right-0 -mt-4 -mr-4 bg-red-600 text-white rounded-full p-2 hover:bg-red-700 focus:outline-none transition-colors">
-					<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+				
+				<!-- Close button in top right -->
+				<button id="close-image-modal" class="absolute top-4 right-4 bg-red-600/90 text-white rounded-full p-3 hover:bg-red-700 focus:outline-none transition-colors shadow-lg" title="Close">
+					<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
 					</svg>
 				</button>
@@ -227,12 +236,14 @@ function initializeImageZoom() {
 	};
 
 	// Set up event listeners
-	const zoomResetBtn = document.getElementById("zoom-reset-btn");
+	const zoomInBtn = document.getElementById("zoom-in-btn");
 	const zoomOutBtn = document.getElementById("zoom-out-btn");
+	const zoomResetBtn = document.getElementById("zoom-reset-btn");
 
-	if (zoomResetBtn && zoomOutBtn) {
-		zoomResetBtn.addEventListener("click", resetImageZoom);
+	if (zoomInBtn && zoomOutBtn && zoomResetBtn) {
+		zoomInBtn.addEventListener("click", () => zoomInAtPoint());
 		zoomOutBtn.addEventListener("click", zoomOut);
+		zoomResetBtn.addEventListener("click", resetImageZoom);
 	}
 
 	imageContainer.addEventListener("wheel", (e) => {
