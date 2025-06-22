@@ -2,7 +2,6 @@ from groq import Groq
 import logging
 import os
 import google.generativeai as genai
-from .agent_system import AIModelException
 
 logger = logging.getLogger(__name__)
 
@@ -62,19 +61,57 @@ class AIService:
                 )
 
                 if stream:
-                    # Adapt the Gemini stream to look like Groq's for compatibility
-                    async def gemini_stream_adapter():
-                        async for chunk in response:
-                            mock_choice = type('Choice', (object,), {
-                                'delta': type('Delta', (object,), {'content': chunk.text})
-                            })
-                            mock_chunk = type('Chunk', (object,), {
-                                'choices': [mock_choice]
-                            })
-                            yield mock_chunk
-                    return gemini_stream_adapter()
+                    # For Gemini vision, consume the stream first, then simulate streaming
+                    complete_response = ""
+                    try:
+                        # Consume the streaming response
+                        for chunk in response:
+                            if chunk.text:
+                                complete_response += chunk.text
+                    except Exception as e:
+                        # Fallback to resolve method if streaming fails
+                        logger.warning(
+                            f"Stream consumption failed, using resolve: {e}")
+                        response.resolve()
+                        complete_response = response.text
+
+                    # Create a simple generator that yields the complete response at once
+                    class SimpleStreamAdapter:
+                        def __init__(self, content):
+                            self.content = content
+                            self.sent = False
+
+                        def __iter__(self):
+                            return self
+
+                        def __next__(self):
+                            if not self.sent:
+                                self.sent = True
+                                mock_choice = type('Choice', (object,), {
+                                    'delta': type('Delta', (object,), {'content': self.content})
+                                })
+                                mock_chunk = type('Chunk', (object,), {
+                                    'choices': [mock_choice]
+                                })
+                                return mock_chunk
+                            else:
+                                raise StopIteration
+
+                    return SimpleStreamAdapter(complete_response)
                 else:
-                    return response.text
+                    # For non-streaming, resolve the response first
+                    try:
+                        response.resolve()
+                        return response.text
+                    except Exception as e:
+                        # Fallback: consume the response manually
+                        logger.warning(
+                            f"Direct .text access failed, consuming stream: {e}")
+                        complete_response = ""
+                        for chunk in response:
+                            if chunk.text:
+                                complete_response += chunk.text
+                        return complete_response
 
             # Fallback to original Groq logic for text-only
             logger.info("Using default text model for response.")
