@@ -495,26 +495,24 @@ Focus especially on explaining any concepts, definitions, or "what is" questions
         # Convert response to string if it's not already
         response_text = str(ai_response) if ai_response else ""
 
-        # Patterns that indicate the AI wants to create a diagram
+        # Only very specific patterns that clearly indicate the AI wants to create a diagram
+        # These should be explicit placeholders or clear diagram creation statements
         diagram_suggestion_patterns = [
-            r'\[insert.*?diagram.*?\]',
-            r'\[show.*?diagram.*?\]',
-            r'\[create.*?diagram.*?\]',
-            r'\[add.*?diagram.*?\]',
-            r'\[display.*?diagram.*?\]',
-            r'\[draw.*?diagram.*?\]',
-            r'\[include.*?diagram.*?\]',
-            r'\[insert.*?chart.*?\]',
-            r'\[show.*?chart.*?\]',
-            r'\[create.*?flowchart.*?\]',
-            r'\[insert.*?visual.*?\]',
-            r'\[show.*?visual.*?\]',
-            r'let me create a diagram',
-            r'i\'ll create a diagram',
-            r'i can create a diagram',
-            r'here\'s a diagram',
-            r'let me draw.*?diagram',
-            r'i\'ll draw.*?diagram',
+            r'\[insert a.*?diagram.*?\]',
+            r'\[create a.*?diagram.*?\]',
+            r'\[add a.*?diagram.*?\]',
+            r'\[display a.*?diagram.*?\]',
+            r'\[draw a.*?diagram.*?\]',
+            r'\[include a.*?diagram.*?\]',
+            r'\[insert a.*?chart.*?\]',
+            r'\[create a.*?chart.*?\]',
+            r'\[create a.*?flowchart.*?\]',
+            r'\[insert a.*?visual.*?\]',
+            # Be very specific with action statements to avoid false positives
+            r'let me create a specific diagram',
+            r'i\'ll create a diagram showing',
+            r'here\'s a diagram that shows',
+            r'i\'ll draw a diagram to illustrate',
         ]
 
         import re
@@ -533,6 +531,19 @@ Focus especially on explaining any concepts, definitions, or "what is" questions
                 })
 
         if not diagram_suggestions:
+            return []
+
+        # Additional filter: Skip if the original user message was just expressing preference about diagrams
+        user_message_lower = user_message.lower()
+        preference_indicators = [
+            'i would like', 'i\'d like', 'i want to see', 'i prefer', 'i enjoy',
+            'i appreciate', 'i love', 'more diagrams', 'throughout the session',
+            'in general', 'going forward', 'from now on', 'in the future'
+        ]
+
+        if any(indicator in user_message_lower for indicator in preference_indicators):
+            logger.info(
+                "Skipping auto-diagram generation - user was expressing preference, not requesting specific diagram")
             return []
 
         logger.info(
