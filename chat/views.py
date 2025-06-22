@@ -225,10 +225,17 @@ class ChatStreamView(View):
                     uploaded_file)
                 llm_query_content = (
                     f"{user_typed_prompt}\n\n"
-                    f"[Content from uploaded file '{file_info_for_llm['filename']}':]\n"
+                    f"Here is the complete text content extracted from the uploaded file '{file_info_for_llm['filename']}':\n\n"
+                    f"--- START OF FILE CONTENT ---\n"
                     f"{file_info_for_llm['text_content']}\n"
+                    f"--- END OF FILE CONTENT ---\n\n"
+                    f"Please analyze this content and answer the question above."
                     if user_typed_prompt
-                    else f"[Content from uploaded file '{file_info_for_llm['filename']}':]\n{file_info_for_llm['text_content']}\n"
+                    else f"Here is the complete text content extracted from the uploaded file '{file_info_for_llm['filename']}':\n\n"
+                    f"--- START OF FILE CONTENT ---\n"
+                    f"{file_info_for_llm['text_content']}\n"
+                    f"--- END OF FILE CONTENT ---\n\n"
+                    f"Please analyze and summarize this content."
                 )
                 logger.info(
                     f"LLM query content augmented with file text from: {file_info_for_llm['filename']}")

@@ -64,6 +64,17 @@ class ChatAgentSystem:
                 user_message, chat_context, stream=should_stream
             )
 
+        # Check if AI response suggests creating diagrams and auto-generate them
+        additional_tool_results = await self._auto_generate_suggested_diagrams(
+            ai_response, user_message, chat_context
+        )
+
+        if additional_tool_results:
+            # Add the auto-generated diagrams to the results
+            all_results.extend(additional_tool_results)
+            logger.info(
+                f"Auto-generated {len(additional_tool_results)} diagrams from AI suggestions")
+
         logger.info(
             f"Processed message. Tools: {len(successful_tools)}, AI response: {'stream' if should_stream else 'string'}")
         return ai_response, all_results
@@ -471,6 +482,127 @@ Focus especially on explaining any concepts, definitions, or "what is" questions
                 f"Error generating comprehensive response: {e}", exc_info=True)
             # Fallback to brief response
             return "I've provided the requested tools. Let me know if you need any clarification!"
+
+    async def _auto_generate_suggested_diagrams(self, ai_response, user_message: str, chat_context: Dict[str, Any]) -> List[ToolResult]:
+        """
+        Detect when AI response suggests creating diagrams and automatically generate them.
+        Returns list of additional tool results.
+        """
+        if not ai_response or hasattr(ai_response, '__iter__'):
+            # Skip if no response or if it's a stream object
+            return []
+
+        # Convert response to string if it's not already
+        response_text = str(ai_response) if ai_response else ""
+
+        # Patterns that indicate the AI wants to create a diagram
+        diagram_suggestion_patterns = [
+            r'\[insert.*?diagram.*?\]',
+            r'\[show.*?diagram.*?\]',
+            r'\[create.*?diagram.*?\]',
+            r'\[add.*?diagram.*?\]',
+            r'\[display.*?diagram.*?\]',
+            r'\[draw.*?diagram.*?\]',
+            r'\[include.*?diagram.*?\]',
+            r'\[insert.*?chart.*?\]',
+            r'\[show.*?chart.*?\]',
+            r'\[create.*?flowchart.*?\]',
+            r'\[insert.*?visual.*?\]',
+            r'\[show.*?visual.*?\]',
+            r'let me create a diagram',
+            r'i\'ll create a diagram',
+            r'i can create a diagram',
+            r'here\'s a diagram',
+            r'let me draw.*?diagram',
+            r'i\'ll draw.*?diagram',
+        ]
+
+        import re
+        response_lower = response_text.lower()
+        diagram_suggestions = []
+
+        for pattern in diagram_suggestion_patterns:
+            matches = re.finditer(pattern, response_lower,
+                                  re.IGNORECASE | re.DOTALL)
+            for match in matches:
+                suggestion_text = match.group(0)
+                diagram_suggestions.append({
+                    'text': suggestion_text,
+                    'start': match.start(),
+                    'end': match.end()
+                })
+
+        if not diagram_suggestions:
+            return []
+
+        logger.info(
+            f"Found {len(diagram_suggestions)} diagram suggestions in AI response")
+
+        # Get the diagram tool
+        diagram_tool = next(
+            (tool for tool in self.tools if tool.name == 'diagram_generator'), None)
+        if not diagram_tool:
+            logger.warning("Diagram tool not found for auto-generation")
+            return []
+
+        additional_results = []
+
+        for suggestion in diagram_suggestions:
+            try:
+                # Extract context around the suggestion for better diagram generation
+                suggestion_context = self._extract_diagram_context(
+                    response_text, suggestion)
+
+                # Create a diagram query based on the context
+                diagram_query = f"Create a diagram for: {suggestion_context}. Based on the discussion: {user_message}"
+
+                logger.info(
+                    f"Auto-generating diagram for: {suggestion['text'][:50]}...")
+
+                # Execute the diagram tool
+                result = await diagram_tool.execute(diagram_query, chat_context)
+                if result.success:
+                    result.execution_order = 999  # Put auto-generated diagrams at the end
+                    additional_results.append(result)
+                    logger.info("Successfully auto-generated diagram")
+                else:
+                    logger.warning(
+                        f"Failed to auto-generate diagram: {result.error}")
+
+            except Exception as e:
+                logger.error(
+                    f"Error auto-generating diagram: {e}", exc_info=True)
+
+        return additional_results
+
+    def _extract_diagram_context(self, response_text: str, suggestion: Dict[str, Any]) -> str:
+        """Extract relevant context around a diagram suggestion for better diagram generation"""
+        start_pos = max(0, suggestion['start'] - 200)  # 200 chars before
+        # 200 chars after
+        end_pos = min(len(response_text), suggestion['end'] + 200)
+
+        context = response_text[start_pos:end_pos]
+
+        # Clean up the context
+        context = context.replace(suggestion['text'], '').strip()
+
+        # Extract the most relevant sentence
+        sentences = context.split('.')
+        if sentences:
+            # Find the sentence that mentions key diagram-related words
+            diagram_keywords = ['structure', 'process', 'flow', 'relationship',
+                                'hierarchy', 'model', 'framework', 'architecture']
+
+            for sentence in sentences:
+                if any(keyword in sentence.lower() for keyword in diagram_keywords):
+                    return sentence.strip()
+
+            # If no specific sentence found, return the first non-empty sentence
+            for sentence in sentences:
+                if sentence.strip() and len(sentence.strip()) > 10:
+                    return sentence.strip()
+
+        return context[:100] + "..." if len(context) > 100 else context
 
     def get_available_tools(self) -> List[Dict[str, str]]:
         """Get information about available tools"""

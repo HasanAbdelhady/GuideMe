@@ -35,39 +35,31 @@ window.getCookie = function (name) {
 
 // Image modal functions - global scope for inline event handlers
 function openImageModal(imgSrc) {
-	// Create modal overlay if it doesn't exist
+	// Create modal if it doesn't exist
 	let modalOverlay = document.getElementById("image-modal-overlay");
 	if (!modalOverlay) {
 		modalOverlay = document.createElement("div");
 		modalOverlay.id = "image-modal-overlay";
 		modalOverlay.className =
-			"fixed inset-0 bg-black bg-opacity-80 z-50 flex items-center justify-center opacity-0 pointer-events-none transition-opacity duration-300";
+			"fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50";
 		modalOverlay.innerHTML = `
-			<div class="relative max-w-full max-h-full p-4 m-4">
-				<div id="image-container" class="relative overflow-hidden rounded-lg shadow-xl bg-gray-900 max-w-[90vw] max-h-[90vh]">
-					<img id="modal-image" src="" alt="Enlarged diagram" 
-						 class="transition-transform duration-200 cursor-zoom-in" 
-						 style="transform-origin: center;">
-					<div id="zoom-controls" class="absolute top-4 left-4 flex flex-col gap-2">
-						<button id="zoom-in-btn" class="bg-gray-800 hover:bg-gray-700 text-white rounded-full p-2 shadow-lg transition-colors">
-							<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7"></path>
-							</svg>
-						</button>
-						<button id="zoom-out-btn" class="bg-gray-800 hover:bg-gray-700 text-white rounded-full p-2 shadow-lg transition-colors">
-							<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM7 10h6"></path>
-							</svg>
-						</button>
-						<button id="zoom-reset-btn" class="bg-gray-800 hover:bg-gray-700 text-white rounded-full p-2 shadow-lg transition-colors" title="Reset zoom">
-							<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
-							</svg>
-						</button>
-					</div>
+			<div id="image-container" class="relative overflow-hidden rounded-lg shadow-xl bg-gray-900 max-w-[90vw] max-h-[90vh]">
+				<img id="modal-image" src="" alt="Enlarged diagram"
+					class="max-w-full max-h-full object-contain transition-transform duration-200 ease-in-out">
+				<div class="absolute top-2 left-2 flex gap-2">
+					<button id="zoom-reset-btn" class="bg-gray-800 text-white rounded-full p-2 hover:bg-gray-700 focus:outline-none transition-colors">
+						<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+							<path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
+						</svg>
+					</button>
+					<button id="zoom-out-btn" class="bg-gray-800 text-white rounded-full p-2 hover:bg-gray-700 focus:outline-none transition-colors">
+						<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+							<path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM13 10H7" />
+						</svg>
+					</button>
 				</div>
 				<button id="close-image-modal" class="absolute top-0 right-0 -mt-4 -mr-4 bg-red-600 text-white rounded-full p-2 hover:bg-red-700 focus:outline-none transition-colors">
-					<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+					<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
 					</svg>
 				</button>
@@ -75,20 +67,21 @@ function openImageModal(imgSrc) {
 		`;
 		document.body.appendChild(modalOverlay);
 
-		// Initialize zoom functionality
+		// Set up zoom functionality first
 		initializeImageZoom();
 
-		// Add event listener to close when clicked outside or on close button
-		modalOverlay.addEventListener("click", (e) => {
+		// Add event listeners
+		modalOverlay.addEventListener("click", function (e) {
 			if (e.target === modalOverlay) {
 				closeImageModal();
 			}
 		});
+
 		document
 			.getElementById("close-image-modal")
 			.addEventListener("click", closeImageModal);
 
-		// Add keyboard controls
+		// Add keydown listener
 		document.addEventListener("keydown", handleImageModalKeydown);
 	}
 
@@ -99,25 +92,25 @@ function openImageModal(imgSrc) {
 	// Reset zoom when opening new image - REMOVED, now handled by event listener in initializeImageZoom
 	// resetImageZoom();
 
-	// Show the modal with animation
-	modalOverlay.classList.remove("opacity-0", "pointer-events-none");
-	setTimeout(() => {
-		const container = document.getElementById("image-container");
-		container.style.transform = "scale(1)";
-	}, 10);
+	modalOverlay.style.display = "flex";
+
+	// Prevent body scroll when modal is open
+	const container = document.getElementById("image-container");
+	container.focus();
+	document.body.style.overflow = "hidden";
 }
 
 function closeImageModal() {
 	const modalOverlay = document.getElementById("image-modal-overlay");
 	if (modalOverlay) {
+		modalOverlay.style.display = "none";
 		const container = document.getElementById("image-container");
-		container.style.transform = "scale(0.95)";
-		modalOverlay.classList.add("opacity-0");
-		setTimeout(() => {
-			modalOverlay.classList.add("pointer-events-none");
-		}, 300);
-
-		// Remove keyboard listener
+		if (container) {
+			container.blur();
+		}
+		// Restore body scroll
+		document.body.style.overflow = "";
+		// Remove keydown listener
 		document.removeEventListener("keydown", handleImageModalKeydown);
 	}
 }
@@ -125,35 +118,31 @@ function closeImageModal() {
 function initializeImageZoom() {
 	const modalImage = document.getElementById("modal-image");
 	const imageContainer = document.getElementById("image-container");
-	const zoomInBtn = document.getElementById("zoom-in-btn");
-	const zoomOutBtn = document.getElementById("zoom-out-btn");
-	const zoomResetBtn = document.getElementById("zoom-reset-btn");
+
+	if (!modalImage || !imageContainer) return;
 
 	let currentScale = 1;
+	let translateX = 0;
+	let translateY = 0;
 	let isDragging = false;
 	let startX = 0;
 	let startY = 0;
-	let translateX = 0;
-	let translateY = 0;
+	let dragStartTranslateX = 0;
+	let dragStartTranslateY = 0;
+
 	let originalImageWidth = 0;
 	let originalImageHeight = 0;
 
-	const minScale = 0.1;
-	const maxScale = 5; // Increased max zoom
-	const scaleStep = 0.1;
-
-	// Calculate initial fit-to-container scale
 	function calculateFitScale() {
 		// Use naturalWidth/Height for the true image size.
 		originalImageWidth = modalImage.naturalWidth;
 		originalImageHeight = modalImage.naturalHeight;
 
-		// If dimensions are not yet available, cannot calculate scale.
 		if (!originalImageWidth || !originalImageHeight) {
-			return 1; // Default to 1 to avoid errors
+			// Image not loaded yet or invalid
+			return 1;
 		}
 
-		// Use clientWidth/Height for robust container dimensions.
 		const containerWidth = imageContainer.clientWidth;
 		const containerHeight = imageContainer.clientHeight;
 
@@ -165,11 +154,8 @@ function initializeImageZoom() {
 		return Math.min(scaleX, scaleY);
 	}
 
-	// Update cursor based on zoom level
 	function updateCursor() {
-		// Allow grabbing if scale is anything larger than the initial fit
-		if (currentScale > calculateFitScale() + 0.01) {
-			// Added tolerance
+		if (currentScale <= calculateFitScale()) {
 			modalImage.style.cursor = isDragging ? "grabbing" : "grab";
 		} else {
 			modalImage.style.cursor = "zoom-in";
@@ -193,81 +179,64 @@ function initializeImageZoom() {
 			(imageHeight - containerRect.height) / 2 / currentScale
 		);
 
-		// Constrain translation within bounds, but allow user override for Y
+		// Clamp translation values
 		translateX = Math.max(-maxTranslateX, Math.min(maxTranslateX, translateX));
-		// translateY is not constrained here to allow the user's initial override
-		// translateY = Math.max(-maxTranslateY, Math.min(maxTranslateY, translateY));
+		translateY = Math.max(-maxTranslateY, Math.min(maxTranslateY, translateY));
 
 		modalImage.style.transform = `scale(${currentScale}) translate(${translateX}px, ${translateY}px)`;
 		updateCursor();
-
-		// Update button states
-		zoomInBtn.disabled = currentScale >= maxScale;
-		zoomOutBtn.disabled = currentScale <= minScale;
-		zoomInBtn.style.opacity = currentScale >= maxScale ? "0.5" : "1";
-		zoomOutBtn.style.opacity = currentScale <= minScale ? "0.5" : "1";
 	}
 
-	// Zoom in at specific point
 	function zoomInAtPoint(clientX = null, clientY = null) {
-		if (currentScale >= maxScale) return;
+		if (currentScale >= 3) return; // Max zoom
 
 		const oldScale = currentScale;
-		currentScale = Math.min(currentScale + scaleStep, maxScale);
+		currentScale *= 1.3;
 
-		// If zoom point is specified, adjust translation to zoom at that point
 		if (clientX !== null && clientY !== null) {
+			// Zoom at the specified point
 			const containerRect = imageContainer.getBoundingClientRect();
 			// Point relative to image container center
 			const pointX = clientX - containerRect.left - containerRect.width / 2;
 			const pointY = clientY - containerRect.top - containerRect.height / 2;
 
-			const scaleFactor = (currentScale - oldScale) / oldScale;
-
-			translateX -=
-				((pointX - translateX * oldScale) * scaleFactor) / currentScale;
-			translateY -=
-				((pointY - translateY * oldScale) * scaleFactor) / currentScale;
+			// Adjust translation to keep the point under the cursor
+			const scaleFactor = currentScale / oldScale;
+			translateX =
+				(translateX - pointX / oldScale) * scaleFactor + pointX / currentScale;
+			translateY =
+				(translateY - pointY / oldScale) * scaleFactor + pointY / currentScale;
 		}
 
 		applyTransform();
 	}
 
-	// Zoom out
 	function zoomOut() {
-		if (currentScale <= minScale) return;
-
-		const fitScale = calculateFitScale();
-		currentScale = Math.max(currentScale - scaleStep, minScale);
-
-		// Reset position when zooming out to fit or smaller
-		if (currentScale <= fitScale) {
-			currentScale = fitScale;
-			translateX = 0;
-			translateY = 0;
-		}
+		if (currentScale <= calculateFitScale()) return; // Don't zoom out beyond fit
+		currentScale /= 1.3;
 		applyTransform();
 	}
 
-	// Reset zoom to fit container
+	// Create the resetImageZoom function and make it globally accessible
 	window.resetImageZoom = function () {
 		// Calculate the proper scale to fit the image in the container
-		const fitScale = calculateFitScale();
-		currentScale = fitScale;
+		currentScale = calculateFitScale();
 		translateX = 0;
 		translateY = 0;
 		applyTransform();
 	};
 
-	// Button event listeners
-	zoomInBtn.addEventListener("click", () => zoomInAtPoint());
-	zoomOutBtn.addEventListener("click", zoomOut);
-	zoomResetBtn.addEventListener("click", resetImageZoom);
+	// Set up event listeners
+	const zoomResetBtn = document.getElementById("zoom-reset-btn");
+	const zoomOutBtn = document.getElementById("zoom-out-btn");
 
-	// Mouse wheel zoom at cursor position
+	if (zoomResetBtn && zoomOutBtn) {
+		zoomResetBtn.addEventListener("click", resetImageZoom);
+		zoomOutBtn.addEventListener("click", zoomOut);
+	}
+
 	imageContainer.addEventListener("wheel", (e) => {
 		e.preventDefault();
-
 		if (e.deltaY < 0) {
 			zoomInAtPoint(e.clientX, e.clientY);
 		} else {
@@ -275,11 +244,10 @@ function initializeImageZoom() {
 		}
 	});
 
-	// Click to zoom at clicked point
+	// Click to zoom in at the clicked point
 	modalImage.addEventListener("click", (e) => {
 		// Only zoom in on click if image is at its fitted size
-		if (Math.abs(currentScale - calculateFitScale()) < 0.01) {
-			e.stopPropagation();
+		if (currentScale <= calculateFitScale()) {
 			zoomInAtPoint(e.clientX, e.clientY);
 		}
 	});
@@ -287,20 +255,23 @@ function initializeImageZoom() {
 	// Mouse drag - allow dragging when image is larger than container
 	modalImage.addEventListener("mousedown", (e) => {
 		// Allow dragging only if the image is larger than its container
-		if (currentScale > calculateFitScale() + 0.01) {
+		if (currentScale > calculateFitScale()) {
 			e.preventDefault();
 			isDragging = true;
-			startX = e.clientX - translateX * currentScale;
-			startY = e.clientY - translateY * currentScale;
+			startX = e.clientX;
+			startY = e.clientY;
+			dragStartTranslateX = translateX;
+			dragStartTranslateY = translateY;
 			modalImage.style.cursor = "grabbing";
 		}
 	});
 
 	document.addEventListener("mousemove", (e) => {
 		if (isDragging) {
-			e.preventDefault();
-			translateX = (e.clientX - startX) / currentScale;
-			translateY = (e.clientY - startY) / currentScale;
+			const deltaX = e.clientX - startX;
+			const deltaY = e.clientY - startY;
+			translateX = dragStartTranslateX + deltaX / currentScale;
+			translateY = dragStartTranslateY + deltaY / currentScale;
 			applyTransform();
 		}
 	});
@@ -320,27 +291,15 @@ function initializeImageZoom() {
 	// If image is already loaded from cache
 	if (modalImage.complete && modalImage.naturalHeight > 0) {
 		window.resetImageZoom();
-	} else {
-		// Fallback for initial state before load
-		applyTransform();
 	}
+
+	updateCursor();
 }
 
 function handleImageModalKeydown(e) {
-	switch (e.key) {
-		case "Escape":
-			closeImageModal();
-			break;
-		case "+":
-		case "=":
-			document.getElementById("zoom-in-btn").click();
-			break;
-		case "-":
-			document.getElementById("zoom-out-btn").click();
-			break;
-		case "0":
-			document.getElementById("zoom-reset-btn").click();
-			break;
+	if (e.key === "Escape") {
+		e.preventDefault();
+		closeImageModal();
 	}
 }
 
@@ -1225,18 +1184,28 @@ document.addEventListener("DOMContentLoaded", function () {
 		e.preventDefault();
 		let promptText = textarea.value.trim();
 		const fileData = fileInput.files[0];
+		const imageData = document.getElementById("image-upload").files[0];
+
 		if (fileData) {
 			promptText = promptText
 				? `${promptText}\n\n[Attached file: ${fileData.name}]`
 				: `[Attached file: ${fileData.name}]`;
 		}
-		if (!promptText && !fileData) return;
+
+		if (imageData) {
+			promptText = promptText
+				? `${promptText}\n\n[Attached image: ${imageData.name}]`
+				: `[Attached image: ${imageData.name}]`;
+		}
+
+		if (!promptText && !fileData && !imageData) return;
 
 		// --- Start of UI state change ---
 		window.appendMessage("user", promptText);
 		textarea.value = "";
 		window.adjustMainTextareaHeight();
 		if (fileData) clearFileSelection();
+		if (imageData && window.clearImageSelection) window.clearImageSelection();
 		window.createTypingIndicator();
 
 		// Swap send button for stop button
@@ -1253,6 +1222,7 @@ document.addEventListener("DOMContentLoaded", function () {
 				document.querySelector("[name=csrfmiddlewaretoken]").value
 			);
 			if (fileData) formData.append("file", fileData);
+			if (imageData) formData.append("image_file", imageData);
 
 			console.log("Submitting form with states:", {
 				isRAGActive,
@@ -2822,6 +2792,9 @@ document.addEventListener("DOMContentLoaded", function () {
 		}
 	}
 
+	// Initialize image upload functionality
+	initializeImageUpload();
+
 	// Removed duplicate appendUserMessage function - using window.appendMessage("user", content) instead
 });
 
@@ -2959,4 +2932,75 @@ function fixFirstLineQuizPreCode(quizMsgElement) {
 			}
 		}
 	});
+}
+
+// Image upload functionality
+function initializeImageUpload() {
+	const imageUploadInput = document.getElementById("image-upload");
+	const imagePreviewContainer = document.getElementById(
+		"image-preview-container"
+	);
+	const imagePreview = document.getElementById("image-preview");
+	const removeImageBtn = document.getElementById("remove-image-btn");
+
+	if (
+		!imageUploadInput ||
+		!imagePreviewContainer ||
+		!imagePreview ||
+		!removeImageBtn
+	) {
+		console.warn("Image upload elements not found");
+		return;
+	}
+
+	// Handle image file selection
+	imageUploadInput.addEventListener("change", function (e) {
+		const file = e.target.files[0];
+		if (file) {
+			// Validate file type
+			const allowedTypes = [
+				"image/jpeg",
+				"image/png",
+				"image/gif",
+				"image/webp"
+			];
+			if (!allowedTypes.includes(file.type)) {
+				alert("Please select a valid image file (JPEG, PNG, GIF, or WebP)");
+				imageUploadInput.value = "";
+				return;
+			}
+
+			// Validate file size (max 10MB)
+			const maxSize = 10 * 1024 * 1024; // 10MB
+			if (file.size > maxSize) {
+				alert("Image file is too large. Please select an image under 10MB.");
+				imageUploadInput.value = "";
+				return;
+			}
+
+			// Create preview URL
+			const reader = new FileReader();
+			reader.onload = function (e) {
+				imagePreview.src = e.target.result;
+				imagePreviewContainer.classList.remove("hidden");
+				imagePreviewContainer.classList.add("flex");
+			};
+			reader.readAsDataURL(file);
+		}
+	});
+
+	// Handle image removal
+	removeImageBtn.addEventListener("click", function () {
+		clearImageSelection();
+	});
+
+	function clearImageSelection() {
+		imageUploadInput.value = "";
+		imagePreview.src = "#";
+		imagePreviewContainer.classList.add("hidden");
+		imagePreviewContainer.classList.remove("flex");
+	}
+
+	// Make clearImageSelection available globally for use in form submission
+	window.clearImageSelection = clearImageSelection;
 }
