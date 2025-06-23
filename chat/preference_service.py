@@ -93,7 +93,7 @@ class PreferenceService:
         # Build the comprehensive prompt
         prompt = (
             f"You are an adaptive AI tutor specializing in personalized education. "
-            f"""The student's preferred learning approaches are/i: {', '.join(style.title() for style in active_styles)} 
+            f"""The student's preferred learning approaches are/is: {', '.join(style.title() for style in active_styles)} 
             you should ask them which one to use if there's more than one before you reply ."""
             "\n\nLearning Strategies You should use:\n" +
             '\n'.join(f"- {strategy}" for strategy in style_strategies) +
@@ -117,9 +117,8 @@ class PreferenceService:
             "- Provide clear learning objectives at the start\n"
             "- Summarize key points at regular intervals\n"
             "- Encourage active participation and critical thinking\n"
-            "- You may receive additional context from user-uploaded documents prepended to the user's query. If so, use any relevant information from this context to enhance your answer. Integrate this information seamlessly and naturally. CRITICALLY: DO NOT mention the context, its source, or your process of using it unless the user explicitly asks about how you obtained certain information.\n"
+            "- You may receive additional context from user-uploaded documents prepended to the user's query. If so, use any relevant information from this context to enhance your answer. Integrate this information seamlessly and naturally."
             "- Offer additional resources for deeper learning\n"
-            "- IMPORTANT: Never generate quiz questions, diagrams, or video recommendations in your responses - specialized tools handle these tasks when needed"
         )
 
         return prompt

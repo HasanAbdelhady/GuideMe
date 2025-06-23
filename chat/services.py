@@ -3,7 +3,7 @@ import datetime
 import json
 from .models import Message, DiagramImage
 from users.models import CustomUser
-from .preference_service import PreferenceService, prompt_description, prompt_code_graphviz, prompt_fix_code
+from .preference_service import prompt_description, prompt_code_graphviz, prompt_fix_code
 from django.core.files.storage import default_storage
 from io import StringIO
 import logging
