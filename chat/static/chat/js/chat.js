@@ -855,6 +855,46 @@ document.addEventListener("DOMContentLoaded", function () {
 		window.smoothScrollToBottom();
 	}
 
+	function simulateTypingByCharacter(text, container) {
+		if (!container || !text) {
+			// If there's no text, ensure the typing indicator is gone.
+			const indicator = document.getElementById("typing-indicator");
+			if (indicator) indicator.remove();
+			return;
+		}
+		let charIndex = 0;
+
+		// Ensure container is empty before starting and has a buffer for parsing later
+		container.textContent = "";
+		if (container.dataset) {
+			container.dataset.rawTextBuffer = text;
+		}
+
+		function showNextCharacter() {
+			if (charIndex < text.length) {
+				container.textContent += text.charAt(charIndex);
+				charIndex++;
+				window.smoothScrollToBottom(true); // Force scroll
+				// Use a short delay for a fast, smooth typing effect
+				setTimeout(showNextCharacter, 2);
+			} else {
+				// Typing finished, parse the whole thing as markdown
+				if (typeof marked !== "undefined") {
+					const finalContent =
+						container.dataset.rawTextBuffer || container.textContent;
+					container.innerHTML = marked.parse(finalContent);
+					if (typeof hljs !== "undefined") {
+						container.querySelectorAll("pre code").forEach((block) => {
+							hljs.highlightElement(block);
+						});
+					}
+					initializeCodeBlockFeatures(container);
+				}
+			}
+		}
+		showNextCharacter();
+	}
+
 	function updateAssistantMessage(container, contentChunk) {
 		// container is now expected to be the specific div holding the content
 		// e.g., the .markdown-content div for text, or .quiz-message for quizzes
@@ -870,43 +910,9 @@ document.addEventListener("DOMContentLoaded", function () {
 				fixFirstLineQuizPreCode(container);
 				// Initialize quiz forms within this specific container
 				initializeQuizForms(container);
-			} else if (container.classList.contains("markdown-content")) {
-				// For markdown text, append and re-parse
-				// Update markdown content with new chunk
-
-				// Use a data attribute to buffer raw text
-				if (typeof container.dataset.rawTextBuffer === "undefined") {
-					// This case should ideally be covered by appendMessage initializing the buffer
-					container.dataset.rawTextBuffer = "";
-				}
-				container.dataset.rawTextBuffer += contentChunk; // Use contentChunk directly
-
-				// Re-parse the entire accumulated content with marked
-				if (typeof marked !== "undefined" && typeof hljs !== "undefined") {
-					marked.setOptions({
-						breaks: false,
-						gfm: true
-					});
-					const parsedHtml = marked.parse(container.dataset.rawTextBuffer);
-					container.innerHTML = parsedHtml;
-
-					// Re-apply syntax highlighting and code block features
-					container.querySelectorAll("pre code").forEach((block) => {
-						hljs.highlightElement(block);
-					});
-					initializeCodeBlockFeatures(container);
-				} else {
-					container.textContent = container.dataset.rawTextBuffer;
-				}
-			} else {
-				// Fallback for other types or if container is not what's expected
-				// This case should ideally not be hit if appendMessage returns the correct element.
-				// For safety, we can append if it seems like a text container.
-				container.textContent += contentChunk;
 			}
-
-			// Only scroll if user is near the bottom to avoid interrupting reading
-			window.smoothScrollToBottom();
+			// The text content is now handled by the `simulateTypingByCharacter` function,
+			// so the logic for .markdown-content has been removed from here.
 		}
 	}
 
@@ -916,6 +922,7 @@ document.addEventListener("DOMContentLoaded", function () {
 		let buffer = "";
 		let currentMessageContainer = null; // This will hold the .markdown-content div for the current assistant message
 		let isFirstTextChunk = true;
+		let accumulatedText = ""; // Accumulate all text content here
 		let isMixedContentMessage = false; // Track if we're building a mixed content message
 		let mixedContentElements = []; // Store elements for mixed content with order info
 		let toolResultCount = 0; // Track how many tool results we've received
@@ -1023,17 +1030,13 @@ document.addEventListener("DOMContentLoaded", function () {
 							}
 
 							if (isFirstTextChunk) {
-								// Transform the typing indicator into the response message
+								// Transform the typing indicator into an empty message container
 								currentMessageContainer =
-									window.transformTypingIndicatorToMessage(
-										data.content,
-										"text"
-									);
+									window.transformTypingIndicatorToMessage("", "text");
 								isFirstTextChunk = false;
-							} else {
-								// Update the existing message with subsequent chunks
-								updateAssistantMessage(currentMessageContainer, data.content);
 							}
+							// Don't update the DOM, just collect the text
+							accumulatedText += data.content;
 						} else if (data.type === "error") {
 							appendSystemNotification(data.content, "error");
 						} else if (data.type === "diagram_image") {
@@ -1104,8 +1107,7 @@ document.addEventListener("DOMContentLoaded", function () {
 								isFirstTextChunk = true;
 								toolResultCount = 0;
 							}
-							// Remove any remaining typing indicator (in case no content was streamed)
-							window.removeTypingIndicator();
+							// Do not remove typing indicator here, it's handled in the finally block
 							streamFinished = true; // Set flag to terminate the stream
 						} else if (data.type === "youtube_recommendations") {
 							toolResultCount++;
@@ -1182,10 +1184,14 @@ document.addEventListener("DOMContentLoaded", function () {
 			console.error("Error in handleStreamResponse:", error);
 			window.removeTypingIndicator();
 		} finally {
-			clearTimeout(streamTimeout); // Clear final timeout
-			console.log(
-				"Exiting handleStreamResponse. The submit handler's finally block should run now."
-			);
+			clearTimeout(streamTimeout);
+			if (currentMessageContainer && accumulatedText) {
+				// Start the fake typing animation with the fully collected text
+				simulateTypingByCharacter(accumulatedText, currentMessageContainer);
+			} else {
+				// If no text was received, ensure the typing indicator is removed.
+				window.removeTypingIndicator();
+			}
 		}
 	};
 
