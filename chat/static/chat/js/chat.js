@@ -674,7 +674,7 @@ document.addEventListener("DOMContentLoaded", function () {
 					<!-- User icon - right side -->
 					<!-- Message content -->
 					<div class="overflow-x-auto max-w-[75%]">
-						<div class="user-message text-gray-100 bg-[#444654] p-3 rounded-lg message-text-container" data-message-id="${
+						<div class="user-message text-gray-100 bg-[#334155] p-3 rounded-lg message-text-container" data-message-id="${
 							messageId || ""
 						}" data-created-at="${new Date().toISOString()}">
 							<p class="whitespace-pre-wrap message-content-text">${content}</p>
