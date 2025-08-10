@@ -16,7 +16,8 @@ from django.core.files.storage import default_storage
 import io
 import os
 import json
-from .services import ChatService, LangChainRAG
+from .services import ChatService
+from .rag import RAG_pipeline
 from .preference_service import PreferenceService
 from .agent_system import ChatAgentSystem
 from .ai_models import AIService
@@ -45,7 +46,7 @@ FLASHCARD_API_KEY = os.environ.get("FLASHCARD")
 
 # Configure the generative AI model for flashcards
 genai.configure(api_key=FLASHCARD_API_KEY)
-flashcard_model = genai.GenerativeModel("gemini-2.5-flash-preview-04-17")
+flashcard_model = genai.GenerativeModel("gemini-2.5-flash")
 
 
 def custom_404_view(request, exception):
@@ -286,7 +287,7 @@ class ChatStreamView(View):
                     if file_paths_and_types_for_rag:
                         logger.info(
                             f"Building RAG index from persisted files: {attached_file_names_for_rag_context}")
-                        files_rag_instance = LangChainRAG()
+                        files_rag_instance = RAG_pipeline()
                         try:
                             await sync_to_async(files_rag_instance.build_index)(
                                 file_paths_and_types_for_rag, 
@@ -608,7 +609,7 @@ class ChatStreamView(View):
                         diagram_image_id = tool_result.structured_data.get(
                             'diagram_image_id')
                         if diagram_image_id:
-                            await sync_to_async(close_old_connections)()
+                            await syanc_to_async(close_old_connections)()
                             new_diagram_message = await sync_to_async(Message.objects.create)(
                                 chat=chat, role='assistant', content=tool_result.content,
                                 type='diagram', diagram_image_id=diagram_image_id
@@ -779,7 +780,7 @@ class ChatStreamView(View):
 
             # Set flags for different content types
             has_diagram = False
-            has_youtube = False
+            has_youtube = Falseu
             has_quiz = False
             has_code = False
             diagram_image_id = None
