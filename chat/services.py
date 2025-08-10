@@ -1,34 +1,15 @@
 import os
-import datetime
-import json
 from .models import Message, DiagramImage
 from users.models import CustomUser
 from .preference_service import prompt_description, prompt_code_graphviz, prompt_fix_code
 from django.core.files.storage import default_storage
-from io import StringIO
 import logging
-import copy
-from functools import lru_cache
 import time
 # import base64 # No longer needed if generate_mindmap_image_data_url is removed
-import asyncio
 from asgiref.sync import sync_to_async
-import traceback  # Added for error logging in retry logic
 import sys
 import locale
 from typing import List, Dict, Any
-
-# --- LangChain Imports ---
-from langchain_community.document_loaders import TextLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-try:
-    from langchain_huggingface import HuggingFaceEmbeddings
-except ImportError:
-    from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain_community.vectorstores import FAISS
-from langchain.chains import RetrievalQA
-from langchain.prompts.example_selector import LengthBasedExampleSelector
-from langchain.docstore.document import Document
 
 # --- PDFMiner for PDF Loading ---
 from pdfminer.high_level import extract_text
@@ -46,7 +27,6 @@ from django.conf import settings  # Added for MEDIA_ROOT
 import google.generativeai as genai
 from .agent_service import run_youtube_agent
 
-from pgvector.django import CosineDistance
 from .rag import RAG_pipeline
 
 def sanitize_filename(filename):

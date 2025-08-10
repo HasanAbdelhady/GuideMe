@@ -31,13 +31,13 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'django.contrib.sites',  # Required for allauth
-    
+
     # Third party apps
     'allauth',
     'allauth.account',
     'allauth.socialaccount',
     'allauth.socialaccount.providers.google',
-    
+
     # Local apps
     'chat',
     'users'
@@ -86,18 +86,18 @@ WSGI_APPLICATION = 'chatgpt.wsgi.application'
 tmpPostgres = urlparse(os.getenv("DATABASE_URL"))
 
 DATABASES = {
-   'default': {
-       'ENGINE': 'django.db.backends.postgresql',
-       'NAME': tmpPostgres.path.replace('/', ''),
-       'USER': tmpPostgres.username,
-       'PASSWORD': tmpPostgres.password,
-       'HOST': tmpPostgres.hostname,
-      'PORT': 5432,
-      'CONN_MAX_AGE': 0,  # Close connection after each request
-      'OPTIONS': {
-          'connect_timeout': 10,
-      }
-  }
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': tmpPostgres.path.replace('/', ''),
+        'USER': tmpPostgres.username,
+        'PASSWORD': tmpPostgres.password,
+        'HOST': tmpPostgres.hostname,
+        'PORT': 5432,
+        'CONN_MAX_AGE': 0,  # Close connection after each request
+        'OPTIONS': {
+            'connect_timeout': 10,
+        }
+    }
 }
 
 
@@ -115,7 +115,7 @@ DATABASES = {
 #       }
 #   }
 # }
-#If you want to go back to sqlite3
+# If you want to go back to sqlite3
 # DATABASES = {
 #      'default': {
 #          'ENGINE': 'django.db.backends.sqlite3',
@@ -164,6 +164,8 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 
 STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+
 
 # Add these settings for authentication
 LOGIN_URL = 'login'  # Name of our login URL pattern
@@ -188,10 +190,13 @@ AUTHENTICATION_BACKENDS = [
 ]
 
 # Allauth settings (updated to new format)
-ACCOUNT_EMAIL_VERIFICATION = 'none'  # Change to 'mandatory' if you want email verification
-ACCOUNT_SIGNUP_FIELDS = ['email*', 'username*', 'password1*', 'password2*']  # Required signup fields
+# Change to 'mandatory' if you want email verification
+ACCOUNT_EMAIL_VERIFICATION = 'none'
+ACCOUNT_SIGNUP_FIELDS = ['email*', 'username*',
+                         'password1*', 'password2*']  # Required signup fields
 ACCOUNT_LOGIN_METHODS = {'email'}  # Allow login with email
-ACCOUNT_SIGNUP_REDIRECT_URL = '/users/register-preferences/'  # Redirect to preferences after Google signup
+# Redirect to preferences after Google signup
+ACCOUNT_SIGNUP_REDIRECT_URL = '/users/register-preferences/'
 ACCOUNT_LOGOUT_ON_GET = True  # Allow logout via GET request (no confirmation)
 LOGIN_REDIRECT_URL = '/chat/new/'
 LOGOUT_REDIRECT_URL = '/users/login/'
