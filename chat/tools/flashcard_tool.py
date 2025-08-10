@@ -81,7 +81,7 @@ class FlashcardTool(BaseTool):
         educational_indicators = [
             'definition', 'means', 'refers to', 'concept', 'theory', 'principle',
             'process', 'mechanism', 'algorithm', 'formula', 'equation',
-            'structure', 'function', 'property', 'characteristic'
+            'structure', 'function', 'property', 'characteristic', 'flashcards', 'explain', 'flashcards'
         ]
         if any(indicator in message_lower for indicator in educational_indicators):
             return 0.8

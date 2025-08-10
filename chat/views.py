@@ -290,7 +290,7 @@ class ChatStreamView(View):
                         files_rag_instance = RAG_pipeline()
                         try:
                             await sync_to_async(files_rag_instance.build_index)(
-                                file_paths_and_types_for_rag, 
+                                file_paths_and_types_for_rag,
                                 chat_id=chat_id,
                                 rag_files_map=rag_files_map  # Pass the mapping
                             )
@@ -609,12 +609,13 @@ class ChatStreamView(View):
                         diagram_image_id = tool_result.structured_data.get(
                             'diagram_image_id')
                         if diagram_image_id:
-                            await syanc_to_async(close_old_connections)()
+                            await sync_to_async(close_old_connections)()
                             new_diagram_message = await sync_to_async(Message.objects.create)(
                                 chat=chat, role='assistant', content=tool_result.content,
                                 type='diagram', diagram_image_id=diagram_image_id
                             )
-                            yield f"data: {json.dumps({'type': 'diagram_image', 'diagram_image_id': str(diagram_image_id), 'message_id': new_diagram_message.id, 'text_content': tool_result.content})}\n\n"
+                            yield f"data: {json.dumps({'type': 'diagram_image', 'diagram_image_id': str(diagram_image_id), 
+                                                       'message_id': new_diagram_message.id, 'text_content': tool_result.content})}\n\n"
 
                     elif tool_result.message_type == "youtube":
                         if tool_result.structured_data and 'videos' in tool_result.structured_data:
@@ -780,7 +781,7 @@ class ChatStreamView(View):
 
             # Set flags for different content types
             has_diagram = False
-            has_youtube = Falseu
+            has_youtube = False
             has_quiz = False
             has_code = False
             diagram_image_id = None
@@ -1185,7 +1186,8 @@ class ChatRAGFilesView(View):
             try:
                 DocumentChunk.objects.filter(chat_id=chat_id).delete()
                 ChatVectorIndex.objects.filter(chat_id=chat_id).delete()
-                logger.info(f"Cleared vector index for chat {chat_id}, will rebuild on next query")
+                logger.info(
+                    f"Cleared vector index for chat {chat_id}, will rebuild on next query")
             except Exception as e:
                 logger.error(f"Error clearing vector index: {e}")
 
@@ -1239,9 +1241,11 @@ class ChatRAGFilesView(View):
             try:
                 DocumentChunk.objects.filter(chat_id=chat_id).delete()
                 ChatVectorIndex.objects.filter(chat_id=chat_id).delete()
-                logger.info(f"Cleared vector index for chat {chat_id} after file deletion")
+                logger.info(
+                    f"Cleared vector index for chat {chat_id} after file deletion")
             except Exception as e:
-                logger.error(f"Error clearing vector index after deletion: {e}")
+                logger.error(
+                    f"Error clearing vector index after deletion: {e}")
 
             return JsonResponse({'success': True, 'message': 'File removed from RAG context successfully.'}, status=200)
 

@@ -1,0 +1,40 @@
+# Git version control
+.git
+.gitignore
+
+# Docker files
+Dockerfile
+docker-compose.yml
+
+# Environment variables
+.env
+
+# Database
+db.sqlite3
+
+# Python cache
+__pycache__
+*.pyc
+
+# Virtual environment
+venv
+
+# Processed outputs
+processed_outputs
+uploaded_files
+media/chat_uploaed
+media/profile_images
+media
+faiss_index
+
+# Documentation
+doc.tex
+
+# Other
+Books
+API.env
+mentor
+media/diagrams
+media/rag_files
+media/*
+.qodo 

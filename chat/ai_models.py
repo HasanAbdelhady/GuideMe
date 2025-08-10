@@ -23,7 +23,7 @@ class AIService:
 
     def __init__(self):
         self.client = Groq()
-        self.default_model = "llama3-8b-8192"
+        self.default_model = "gemma2-9b-it"
         # Initialize vision model if API key is available
         if FLASHCARD_API_KEY:
             self.vision_model = genai.GenerativeModel(
