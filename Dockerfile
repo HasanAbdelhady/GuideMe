@@ -9,18 +9,24 @@ ENV PYTHONUNBUFFERED 1
 # Set work directory
 WORKDIR /app
 
-# Install dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    graphviz \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies
 COPY requirements.txt /app/
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy project
 COPY . /app/
 
-# Collect static files
-RUN python manage.py collectstatic --noinput
+# Make entrypoint executable
+RUN chmod +x /app/entrypoint.sh
 
 # Expose port 8000
 EXPOSE 8000
 
-# Run the application
-CMD ["gunicorn", "chatgpt.wsgi:application", "--bind", "0.0.0.0:8000"] 
+# Run the application (Heroku provides $PORT)
+ENV PORT=8000
+ENTRYPOINT ["/app/entrypoint.sh"]
+CMD ["gunicorn", "chatgpt.wsgi:application", "--bind", "0.0.0.0:${PORT}", "--workers", "3", "--threads", "2", "--timeout", "60"]
