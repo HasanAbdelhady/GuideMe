@@ -29,4 +29,4 @@ EXPOSE 8000
 # Run the application (Heroku provides $PORT)
 ENV PORT=8000
 ENTRYPOINT ["/app/entrypoint.sh"]
-CMD ["gunicorn", "chatgpt.wsgi:application", "--bind", "0.0.0.0:${PORT}", "--workers", "3", "--threads", "2", "--timeout", "60"]
+CMD ["sh","-c","gunicorn chatgpt.wsgi:application --bind 0.0.0.0:${PORT:-8000} --workers 3 --threads 2 --timeout 60"]
