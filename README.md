@@ -151,6 +151,136 @@ GITHUB_CLIENT_ID=your-github-oauth-id
 GITHUB_CLIENT_SECRET=your-github-oauth-secret
 ```
 
+## 🌿 Branch Strategy & CI/CD Pipeline
+
+### Branch Structure
+
+Our project follows a **GitFlow-inspired** branching strategy with automated CI/CD pipelines:
+
+#### **Main Branches**
+
+- **`main`** - Production-ready code
+
+  - ✅ Auto-deploys to production
+  - ✅ Creates GitHub releases
+  - ✅ Database backups
+  - ✅ Full security scans
+
+- **`develop`** - Integration branch
+  - ✅ Auto-deploys to staging
+  - ✅ Integration testing
+  - ✅ Pre-production validation
+
+#### **Special Purpose Branches**
+
+- **`hotfix/*`** - Emergency production fixes
+  - ⚡ Fast-track pipeline
+  - ⚠️ Manual approval required
+  - 🔄 Automatic rollback on failure
+  - 📢 Immediate team notifications
+
+### 🚀 Deployment Flow
+
+```
+Feature Branch → develop → Staging → Integration Tests → main → Production
+
+hotfix/* → Emergency Approval → Production Hotfix
+
+Pull Request → PR Checks → Quality Gates
+```
+
+### 🔄 Workflow Triggers
+
+| Branch Pattern | Triggers           | Deployment         | Status Checks |
+| -------------- | ------------------ | ------------------ | ------------- |
+| `main`         | Full CI/CD         | ✅ Production      | All required  |
+| `develop`      | Full CI/CD         | ✅ Staging         | All required  |
+| `hotfix/*`     | Emergency Pipeline | ⚠️ Manual Approval | Critical only |
+| `feature/*`    | PR Checks          | ❌ None            | Quality gates |
+| Pull Requests  | Quality Gates      | ❌ None            | Comprehensive |
+
+### 🛡️ CI/CD Pipeline Features
+
+#### **Automated Testing**
+
+- **Unit Tests**: Full test suite with PostgreSQL + Redis
+- **Integration Tests**: End-to-end testing on staging
+- **Performance Tests**: Load testing with Locust
+- **Security Scans**: Multiple security tools (CodeQL, Bandit, Safety)
+- **Code Quality**: Linting, formatting, complexity analysis
+
+#### **Security & Compliance**
+
+- **Daily Security Scans**: Automated vulnerability detection
+- **Dependency Updates**: Weekly automated dependency checks
+- **Secret Detection**: TruffleHog and GitLeaks scanning
+- **Container Security**: Trivy and Snyk container scanning
+- **SAST Analysis**: Static application security testing
+
+#### **Deployment Safety**
+
+- **Health Checks**: Automated endpoint verification
+- **Rollback Capability**: Automatic rollback on failure
+- **Database Backups**: Automated before each deployment
+- **Staging Validation**: All changes tested on staging first
+
+#### **Monitoring & Maintenance**
+
+- **Scheduled Maintenance**: Daily health checks and cleanup
+- **Weekly Reports**: Comprehensive system status reports
+- **Performance Monitoring**: Automated performance audits
+- **Artifact Cleanup**: Automated cleanup of old builds
+
+## 🚀 Development Workflow
+
+### **Feature Development**
+
+```bash
+# Start from develop branch
+git checkout develop
+git pull origin develop
+
+# Create feature branch
+git checkout -b feature/new-chat-feature
+
+# Develop your feature
+# ... make changes ...
+
+# Push and create PR
+git push origin feature/new-chat-feature
+# Create PR to develop → triggers comprehensive checks
+```
+
+### **Emergency Hotfix**
+
+```bash
+# Start from main for hotfixes
+git checkout main
+git pull origin main
+
+# Create hotfix branch
+git checkout -b hotfix/urgent-security-fix
+
+# Make minimal, focused fix
+# ... critical fix only ...
+
+# Push hotfix
+git push origin hotfix/urgent-security-fix
+# → Triggers emergency pipeline
+# → Creates approval issue in GitHub
+# → Comment "APPROVED" to deploy to production
+```
+
+### **Release Process**
+
+```bash
+# Normal release flow
+develop → staging deployment → testing → main → production
+
+# Emergency release flow
+hotfix/* → manual approval → production deployment
+```
+
 ## 🔧 Local Development Setup
 
 ### Prerequisites
@@ -158,6 +288,7 @@ GITHUB_CLIENT_SECRET=your-github-oauth-secret
 - Python 3.11+
 - PostgreSQL 13+ with pgvector extension
 - Node.js (for Tailwind CSS, optional)
+- Docker & Docker Compose (optional)
 
 ### Installation Steps
 
@@ -302,7 +433,62 @@ python manage.py test users
 # Run with coverage
 coverage run manage.py test
 coverage report
+
+# Run critical tests only (for hotfixes)
+python manage.py test --tag=critical
 ```
+
+## ⚙️ CI/CD Setup
+
+### GitHub Secrets Required
+
+Add these secrets to your GitHub repository settings:
+
+```bash
+# Railway Deployment
+RAILWAY_STAGING_TOKEN=your-staging-token
+RAILWAY_PRODUCTION_TOKEN=your-production-token
+
+# Database
+PRODUCTION_DATABASE_URL=your-production-db-url
+
+# Notifications (Optional)
+SLACK_WEBHOOK_URL=your-slack-webhook-url
+
+# Security Scanning (Optional)
+SNYK_TOKEN=your-snyk-token
+```
+
+### Repository Configuration
+
+1. **Branch Protection Rules**:
+
+   - Enable for `main` and `develop` branches
+   - Require status checks to pass
+   - Require branches to be up to date
+   - Require pull request reviews
+
+2. **Environments**:
+
+   - Create `staging`, `production`, and `emergency-production` environments
+   - Configure environment protection rules
+   - Add environment-specific secrets
+
+3. **Security Settings**:
+   - Enable Dependabot security updates
+   - Enable secret scanning
+   - Enable code scanning (CodeQL)
+
+### Workflow Files Overview
+
+| Workflow        | Purpose                 | Triggers                   |
+| --------------- | ----------------------- | -------------------------- |
+| `ci.yml`        | Main CI/CD pipeline     | Push to main/develop, PRs  |
+| `pr-checks.yml` | Pull request validation | PR open/sync/reopen        |
+| `deploy.yml`    | Production deployments  | Push to main, tags         |
+| `security.yml`  | Security scanning       | Push, PR, schedule, manual |
+| `scheduled.yml` | Maintenance tasks       | Daily/weekly schedule      |
+| `hotfix.yml`    | Emergency deployments   | Push to hotfix/\*          |
 
 ## 🚀 Performance Features
 
