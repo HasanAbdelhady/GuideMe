@@ -11,7 +11,6 @@
 ## 🌐 Live Demo
 
 - **Production URL**: [https://guideme-eg.duckdns.org](https://guideme-eg.duckdns.org)
-- **Railway Deployment**: [https://guideme.up.railway.app](https://guideme.up.railway.app)
 
 ## ✨ Key Features
 
