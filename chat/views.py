@@ -614,8 +614,8 @@ class ChatStreamView(View):
                                 chat=chat, role='assistant', content=tool_result.content,
                                 type='diagram', diagram_image_id=diagram_image_id
                             )
-                            yield f"data: {json.dumps({'type': 'diagram_image', 'diagram_image_id': str(diagram_image_id), 
-                                                       'message_id': new_diagram_message.id, 'text_content': tool_result.content})}\n\n"
+                            yield f"""data: {json.dumps({'type': 'diagram_image', 'diagram_image_id': str(diagram_image_id), 
+                                                       'message_id': new_diagram_message.id, 'text_content': tool_result.content})}\n\n"""
 
                     elif tool_result.message_type == "youtube":
                         if tool_result.structured_data and 'videos' in tool_result.structured_data:

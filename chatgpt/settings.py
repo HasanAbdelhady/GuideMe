@@ -16,8 +16,7 @@ load_dotenv(BASE_DIR / ".env")
 SECRET_KEY = os.getenv("SECRET_KEY")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv("DEBUG", "0") == "1"
-
+DEBUG = True
 ALLOWED_HOSTS = ["*"]
 
 
@@ -78,7 +77,7 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'chatgpt.wsgi.application'
+# WSGI_APPLICATION = 'chatgpt.wsgi.application'
 
 
 # Database
@@ -219,14 +218,10 @@ SOCIALACCOUNT_PROVIDERS = {
             'access_type': 'online',
         },
         'OAUTH_PKCE_ENABLED': True,
+        'APP': {
+            'client_id': os.getenv('GOOGLE_CLIENT_ID'),
+            'secret': os.getenv('GOOGLE_CLIENT_SECRET'),
+            'key': ''
+        }
     }
 }
-
-# Google OAuth credentials (using admin interface instead of settings)
-# Commented out to avoid conflicts with admin-configured social applications
-# if os.getenv('GOOGLE_CLIENT_ID') and os.getenv('GOOGLE_CLIENT_SECRET'):
-#     SOCIALACCOUNT_PROVIDERS['google']['APP'] = {
-#         'client_id': os.getenv('GOOGLE_CLIENT_ID'),
-#         'secret': os.getenv('GOOGLE_CLIENT_SECRET'),
-#         'key': ''
-#     }
