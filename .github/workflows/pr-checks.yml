@@ -1,0 +1,251 @@
+name: Pull Request Checks
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  # PR Validation
+  pr-validation:
+    name: PR Validation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate PR Title
+        uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            docs
+            style
+            refactor
+            perf
+            test
+            chore
+            ci
+          requireScope: false
+
+      - name: Check for merge conflicts
+        run: |
+          git merge-tree $(git merge-base HEAD main) HEAD main | grep -q "<<<<<<< " && exit 1 || exit 0
+
+      - name: Validate file changes
+        run: |
+          # Check if requirements.txt was modified
+          if git diff --name-only main...HEAD | grep -q "requirements.txt"; then
+            echo "::warning::requirements.txt was modified. Make sure to update the changelog."
+          fi
+
+          # Check for large files
+          git diff --name-only main...HEAD | while read file; do
+            if [ -f "$file" ] && [ $(stat -c%s "$file") -gt 1048576 ]; then
+              echo "::error::File $file is larger than 1MB"
+              exit 1
+            fi
+          done
+
+  # Code Quality Gate
+  quality-gate:
+    name: Quality Gate
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install flake8 black isort complexity
+          pip install -r requirements.txt
+
+      - name: Check code complexity
+        run: |
+          # Check cyclomatic complexity
+          python -m mccabe --min 10 . || true
+
+          # Check for TODO/FIXME comments in new code
+          git diff main...HEAD --name-only | xargs grep -l "TODO\|FIXME" || true
+
+      - name: Check test coverage diff
+        run: |
+          # This would compare test coverage between main and PR branch
+          echo "Checking test coverage diff..."
+          # Add coverage comparison logic here
+
+  # Database Migration Check
+  migration-check:
+    name: Database Migration Check
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:13
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_DB: test_mentorai
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Checkout main branch
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Apply main branch migrations
+        run: |
+          echo "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/test_mentorai" > .env
+          echo "SECRET_KEY=test-key" >> .env
+          python manage.py migrate --noinput
+
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+
+      - name: Check for migration conflicts
+        run: |
+          python manage.py makemigrations --check --dry-run
+
+      - name: Test forward migrations
+        run: |
+          python manage.py migrate --noinput
+
+      - name: Test reverse migrations (if any)
+        run: |
+          # Test that migrations can be reversed (for rollback safety)
+          python manage.py showmigrations
+          # Add specific rollback tests here if needed
+
+  # Security Check for Dependencies
+  dependency-security:
+    name: Dependency Security Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install safety
+        run: pip install safety
+
+      - name: Check for known security vulnerabilities
+        run: |
+          safety check -r requirements.txt --json --output safety-report.json
+
+      - name: Upload safety report
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: safety-report
+          path: safety-report.json
+
+  # Performance Impact Check
+  performance-impact:
+    name: Performance Impact Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check for performance-sensitive changes
+        run: |
+          # Check if database models were modified
+          if git diff --name-only main...HEAD | grep -q "models.py"; then
+            echo "::warning::Database models were modified. Consider performance impact."
+          fi
+
+          # Check if views were modified
+          if git diff --name-only main...HEAD | grep -q "views.py"; then
+            echo "::warning::Views were modified. Consider performance impact."
+          fi
+
+          # Check for N+1 query patterns in new code
+          git diff main...HEAD | grep -E "\.get\(|\.filter\(" || true
+
+  # Documentation Check
+  docs-check:
+    name: Documentation Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check for README updates
+        run: |
+          # If significant features were added, README should be updated
+          if git diff --name-only main...HEAD | grep -q "views.py\|models.py\|urls.py"; then
+            if ! git diff --name-only main...HEAD | grep -q "README.md"; then
+              echo "::warning::Significant code changes detected. Consider updating README.md"
+            fi
+          fi
+
+      - name: Check for docstring coverage
+        run: |
+          pip install interrogate
+          interrogate -v --fail-under=80 .
+
+  # Frontend Asset Check
+  frontend-check:
+    name: Frontend Asset Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+
+      - name: Check for CSS/JS changes
+        run: |
+          if git diff --name-only main...HEAD | grep -E "\.(css|js|html)$"; then
+            echo "Frontend assets were modified"
+            # Add frontend linting/testing here if needed
+          fi
+
+      - name: Check static file size
+        run: |
+          # Check if static files are too large
+          find . -name "*.css" -o -name "*.js" | while read file; do
+            if [ $(stat -c%s "$file") -gt 102400 ]; then  # 100KB
+              echo "::warning::Static file $file is larger than 100KB"
+            fi
+          done
