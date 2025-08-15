@@ -1,0 +1,383 @@
+name: Security Scanning
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  schedule:
+    # Run security scan daily at 3 AM UTC
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
+jobs:
+  # CodeQL Analysis
+  codeql:
+    name: CodeQL Analysis
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ["python", "javascript"]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v2
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-extended,security-and-quality
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v2
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v2
+        with:
+          category: "/language:${{matrix.language}}"
+
+  # Dependency Scanning
+  dependency-scan:
+    name: Dependency Security Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install safety pip-audit
+
+      - name: Run Safety check
+        run: |
+          safety check -r requirements.txt --json --output safety-report.json
+        continue-on-error: true
+
+      - name: Run pip-audit
+        run: |
+          pip-audit -r requirements.txt --format=json --output=pip-audit-report.json
+        continue-on-error: true
+
+      - name: Upload dependency scan results
+        uses: actions/upload-artifact@v3
+        with:
+          name: dependency-scan-results
+          path: |
+            safety-report.json
+            pip-audit-report.json
+
+  # Container Security Scanning
+  container-scan:
+    name: Container Security Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build Docker image for scanning
+        run: |
+          docker build -t mentorai:scan .
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: "mentorai:scan"
+          format: "sarif"
+          output: "trivy-results.sarif"
+
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: "trivy-results.sarif"
+
+      - name: Run Snyk Container scan
+        if: env.SNYK_TOKEN != ''
+        uses: snyk/actions/docker@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          image: mentorai:scan
+          args: --severity-threshold=high
+
+  # SAST (Static Application Security Testing)
+  sast:
+    name: Static Application Security Testing
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install SAST tools
+        run: |
+          pip install bandit semgrep
+
+      - name: Run Bandit security linter
+        run: |
+          bandit -r . -f json -o bandit-report.json
+        continue-on-error: true
+
+      - name: Run Semgrep
+        run: |
+          semgrep --config=auto --json --output=semgrep-report.json .
+        continue-on-error: true
+
+      - name: Upload SAST results
+        uses: actions/upload-artifact@v3
+        with:
+          name: sast-results
+          path: |
+            bandit-report.json
+            semgrep-report.json
+
+  # Secrets Scanning
+  secrets-scan:
+    name: Secrets Scanning
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run TruffleHog
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: main
+          head: HEAD
+          extra_args: --debug --only-verified
+
+      - name: Run GitLeaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Infrastructure Security
+  infrastructure-scan:
+    name: Infrastructure Security Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Checkov (Infrastructure as Code security)
+        uses: bridgecrewio/checkov-action@master
+        with:
+          directory: .
+          framework: dockerfile
+          output_format: sarif
+          output_file_path: checkov-results.sarif
+
+      - name: Upload Checkov results
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: "checkov-results.sarif"
+
+  # Web Application Security Testing
+  web-security-test:
+    name: Web Application Security Test
+    runs-on: ubuntu-latest
+    needs: []
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+
+    services:
+      postgres:
+        image: postgres:13
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_DB: test_mentorai
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Set up test environment
+        run: |
+          echo "DEBUG=False" >> .env
+          echo "SECRET_KEY=test-secret-key" >> .env
+          echo "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/test_mentorai" >> .env
+          python manage.py migrate --noinput
+          python manage.py collectstatic --noinput
+
+      - name: Start Django server
+        run: |
+          python manage.py runserver &
+          sleep 10
+
+      - name: Run OWASP ZAP Baseline Scan
+        uses: zaproxy/action-baseline@v0.7.0
+        with:
+          target: "http://localhost:8000"
+          rules_file_name: ".zap/rules.tsv"
+          cmd_options: "-a"
+
+  # Security Report Generation
+  security-report:
+    name: Generate Security Report
+    runs-on: ubuntu-latest
+    needs: [codeql, dependency-scan, container-scan, sast, secrets-scan]
+    if: always()
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+
+      - name: Generate security summary
+        run: |
+          echo "# 🔒 Security Scan Summary" > security-summary.md
+          echo "" >> security-summary.md
+          echo "**Scan Date:** $(date)" >> security-summary.md
+          echo "**Repository:** ${{ github.repository }}" >> security-summary.md
+          echo "**Branch:** ${{ github.ref }}" >> security-summary.md
+          echo "**Commit:** ${{ github.sha }}" >> security-summary.md
+          echo "" >> security-summary.md
+
+          echo "## 📊 Scan Results" >> security-summary.md
+          echo "" >> security-summary.md
+
+          # Check if artifacts exist and summarize
+          if [ -d "dependency-scan-results" ]; then
+            echo "- ✅ Dependency scan completed" >> security-summary.md
+          else
+            echo "- ❌ Dependency scan failed" >> security-summary.md
+          fi
+
+          if [ -d "sast-results" ]; then
+            echo "- ✅ SAST scan completed" >> security-summary.md
+          else
+            echo "- ❌ SAST scan failed" >> security-summary.md
+          fi
+
+          echo "" >> security-summary.md
+          echo "## 🔍 Detailed Results" >> security-summary.md
+          echo "Check the Security tab in GitHub for detailed findings." >> security-summary.md
+          echo "" >> security-summary.md
+          echo "---" >> security-summary.md
+          echo "*This report was automatically generated by the security scanning workflow.*" >> security-summary.md
+
+      - name: Upload security summary
+        uses: actions/upload-artifact@v3
+        with:
+          name: security-summary
+          path: security-summary.md
+
+      - name: Comment on PR (if applicable)
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            const summary = fs.readFileSync('security-summary.md', 'utf8');
+
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: summary
+            });
+
+  # Critical Security Alert
+  security-alert:
+    name: Critical Security Alert
+    runs-on: ubuntu-latest
+    needs: [dependency-scan, sast, container-scan]
+    if: failure()
+
+    steps:
+      - name: Create critical security issue
+        uses: actions/github-script@v6
+        with:
+          script: |
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `🚨 CRITICAL SECURITY ALERT - ${new Date().toISOString().split('T')[0]}`,
+              body: `## 🚨 Critical Security Alert
+              
+              **Alert Time:** ${new Date().toISOString()}
+              **Repository:** ${context.repo.full_name}
+              **Branch:** ${context.ref}
+              **Commit:** ${context.sha}
+              
+              ### ⚠️ Security Scan Failures Detected
+              
+              One or more security scans have failed or detected critical vulnerabilities.
+              
+              **Failed Scans:**
+              - Dependency scan: ${{ needs.dependency-scan.result }}
+              - SAST scan: ${{ needs.sast.result }}
+              - Container scan: ${{ needs.container-scan.result }}
+              
+              ### 🔧 Immediate Actions Required:
+              
+              1. **Review Security Tab** - Check GitHub Security tab for detailed findings
+              2. **Download Artifacts** - Review scan reports from the workflow artifacts
+              3. **Assess Impact** - Determine the severity and impact of findings
+              4. **Create Remediation Plan** - Plan fixes for identified vulnerabilities
+              5. **Block Deployment** - Do not deploy until issues are resolved
+              
+              ### 📋 Investigation Checklist:
+              - [ ] Reviewed all security scan results
+              - [ ] Assessed vulnerability severity
+              - [ ] Created remediation tickets
+              - [ ] Updated dependencies if needed
+              - [ ] Re-ran security scans
+              - [ ] Verified fixes
+              
+              **This is an automated alert. Please investigate immediately.**
+              `,
+              labels: ['security', 'critical', 'alert', 'immediate-action-required'],
+              assignees: ['HasanAbdelhady']
+            });
+
+      - name: Send emergency notification
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          if [ -n "$SLACK_WEBHOOK_URL" ]; then
+            curl -X POST -H 'Content-type: application/json' \
+              --data '{"text":"🚨 CRITICAL SECURITY ALERT: Security scans have failed for MentorAI. Immediate investigation required!"}' \
+              $SLACK_WEBHOOK_URL
+          fi
