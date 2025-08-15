@@ -139,7 +139,7 @@ jobs:
           # pytest integration_tests/ --base-url=$STAGING_URL
 
       - name: Upload test results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: always()
         with:
           name: integration-test-results
@@ -194,7 +194,7 @@ jobs:
           echo "Commit: ${{ github.sha }}" >> deployment-record.txt
 
       - name: Upload deployment record
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: deployment-record
           path: deployment-record.txt
