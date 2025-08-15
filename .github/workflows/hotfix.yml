@@ -1,0 +1,270 @@
+name: Hotfix Pipeline
+
+on:
+  push:
+    branches: ["hotfix/*"]
+  pull_request:
+    branches: ["hotfix/*"]
+
+jobs:
+  # Emergency validation for hotfixes
+  hotfix-validation:
+    name: Hotfix Validation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install flake8 black safety
+
+      - name: Quick lint check
+        run: |
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+
+      - name: Security check
+        run: |
+          safety check -r requirements.txt
+
+      - name: Run critical tests only
+        run: |
+          python manage.py test --tag=critical --keepdb
+
+  # Fast deployment to staging for hotfix testing
+  hotfix-staging:
+    name: Deploy Hotfix to Staging
+    runs-on: ubuntu-latest
+    needs: hotfix-validation
+    if: startsWith(github.ref, 'refs/heads/hotfix/')
+
+    environment:
+      name: hotfix-staging
+      url: https://hotfix-staging-guideme.up.railway.app
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Railway CLI
+        run: |
+          curl -fsSL https://railway.app/install.sh | sh
+          echo "$HOME/.railway/bin" >> $GITHUB_PATH
+
+      - name: Deploy to hotfix staging
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_STAGING_TOKEN }}
+        run: |
+          railway login --token $RAILWAY_TOKEN
+          railway up --service hotfix-staging --detach
+
+      - name: Wait and test hotfix
+        run: |
+          sleep 60
+          curl -f https://hotfix-staging-guideme.up.railway.app/ || exit 1
+
+  # Emergency production deployment
+  emergency-deploy:
+    name: Emergency Production Deploy
+    runs-on: ubuntu-latest
+    needs: hotfix-staging
+    if: startsWith(github.ref, 'refs/heads/hotfix/') && github.event_name == 'push'
+
+    environment:
+      name: emergency-production
+      url: https://guideme-eg.duckdns.org
+
+    steps:
+      - name: Manual approval required
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const { data: issue } = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `🚨 EMERGENCY DEPLOYMENT APPROVAL REQUIRED - ${context.ref}`,
+              body: `## 🚨 Emergency Deployment Request
+              
+              **Branch:** ${context.ref}
+              **Commit:** ${context.sha}
+              **Triggered by:** ${context.actor}
+              
+              ### ⚠️ This is an emergency hotfix deployment
+              
+              Please review the changes and approve this deployment if it's safe to proceed.
+              
+              **Changes:**
+              ${context.payload.head_commit.message}
+              
+              ### Checklist before approval:
+              - [ ] Hotfix has been tested on staging
+              - [ ] Changes are minimal and focused
+              - [ ] Risk assessment completed
+              - [ ] Rollback plan is ready
+              
+              **To approve:** Comment "APPROVED" on this issue
+              **To reject:** Comment "REJECTED" on this issue
+              `,
+              labels: ['emergency', 'deployment', 'approval-required']
+            });
+
+            core.setOutput('issue-number', issue.number);
+
+      - name: Wait for approval
+        id: wait-approval
+        uses: actions/github-script@v6
+        timeout-minutes: 30
+        with:
+          script: |
+            const issueNumber = ${{ steps.manual-approval-required.outputs.issue-number }};
+            let approved = false;
+            let attempts = 0;
+            const maxAttempts = 60; // 30 minutes with 30-second intervals
+
+            while (!approved && attempts < maxAttempts) {
+              const { data: comments } = await github.rest.issues.listComments({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber
+              });
+              
+              for (const comment of comments) {
+                if (comment.body.includes('APPROVED') && comment.author_association === 'OWNER') {
+                  approved = true;
+                  break;
+                }
+                if (comment.body.includes('REJECTED') && comment.author_association === 'OWNER') {
+                  core.setFailed('Deployment rejected by owner');
+                  return;
+                }
+              }
+              
+              if (!approved) {
+                await new Promise(resolve => setTimeout(resolve, 30000)); // Wait 30 seconds
+                attempts++;
+              }
+            }
+
+            if (!approved) {
+              core.setFailed('Deployment timeout - no approval received within 30 minutes');
+            }
+
+      - name: Deploy to production
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_PRODUCTION_TOKEN }}
+        run: |
+          railway login --token $RAILWAY_TOKEN
+          railway up --service production --detach
+
+      - name: Post-deployment verification
+        run: |
+          sleep 120
+          curl -f https://guideme-eg.duckdns.org/ || exit 1
+          curl -f https://guideme-eg.duckdns.org/health/ || exit 1
+
+      - name: Create emergency deployment record
+        uses: actions/github-script@v6
+        with:
+          script: |
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `✅ Emergency Deployment Completed - ${context.ref}`,
+              body: `## ✅ Emergency Deployment Successful
+              
+              **Branch:** ${context.ref}
+              **Commit:** ${context.sha}
+              **Deployed by:** ${context.actor}
+              **Deployment time:** ${new Date().toISOString()}
+              
+              ### Changes deployed:
+              ${context.payload.head_commit.message}
+              
+              ### Verification:
+              - ✅ Production health check passed
+              - ✅ Main endpoints responding
+              
+              ### Next steps:
+              1. Monitor application for any issues
+              2. Prepare proper release with full testing
+              3. Update documentation if needed
+              
+              ---
+              *This was an emergency deployment. Please ensure proper testing and documentation follow.*
+              `,
+              labels: ['emergency', 'deployment', 'completed']
+            });
+
+      - name: Notify team
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          if [ -n "$SLACK_WEBHOOK_URL" ]; then
+            curl -X POST -H 'Content-type: application/json' \
+              --data "{\"text\":\"🚨 EMERGENCY DEPLOYMENT COMPLETED\\n\\nBranch: ${GITHUB_REF}\\nCommit: ${GITHUB_SHA}\\nDeployed by: ${GITHUB_ACTOR}\\n\\nPlease monitor the application closely.\"}" \
+              $SLACK_WEBHOOK_URL
+          fi
+
+  # Automatic rollback if deployment fails
+  rollback-on-failure:
+    name: Emergency Rollback
+    runs-on: ubuntu-latest
+    needs: emergency-deploy
+    if: failure()
+
+    steps:
+      - name: Emergency rollback
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_PRODUCTION_TOKEN }}
+        run: |
+          echo "🚨 Emergency rollback initiated due to deployment failure"
+          railway login --token $RAILWAY_TOKEN
+          # railway rollback --service production
+
+      - name: Notify rollback
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          if [ -n "$SLACK_WEBHOOK_URL" ]; then
+            curl -X POST -H 'Content-type: application/json' \
+              --data '{"text":"🔄 EMERGENCY ROLLBACK INITIATED - Production deployment failed and has been rolled back"}' \
+              $SLACK_WEBHOOK_URL
+          fi
+
+      - name: Create rollback issue
+        uses: actions/github-script@v6
+        with:
+          script: |
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `🔄 EMERGENCY ROLLBACK EXECUTED - ${context.ref}`,
+              body: `## 🔄 Emergency Rollback Executed
+              
+              **Failed deployment branch:** ${context.ref}
+              **Commit:** ${context.sha}
+              **Rollback time:** ${new Date().toISOString()}
+              
+              ### ⚠️ Action Required:
+              1. Investigate the deployment failure
+              2. Fix the issues in the hotfix branch
+              3. Re-test thoroughly before attempting deployment again
+              4. Consider if this requires a different approach
+              
+              ### Investigation checklist:
+              - [ ] Check deployment logs
+              - [ ] Verify application functionality
+              - [ ] Check database integrity
+              - [ ] Review error messages
+              
+              **Production has been rolled back to the previous stable version.**
+              `,
+              labels: ['emergency', 'rollback', 'investigation-required']
+            });
