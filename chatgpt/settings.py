@@ -23,14 +23,18 @@ ALLOWED_HOSTS = ["*"]
 CSRF_TRUSTED_ORIGINS = [
     "https://*.railway.app",
     "https://*.up.railway.app",
+    "https://guideme-eg.duckdns.org",
     "http://localhost:8000",
     "http://127.0.0.1:8000",
 ]
 
 # Security settings for production
 if not DEBUG:
-    SECURE_SSL_REDIRECT = False  # Railway handles SSL termination
+    SECURE_SSL_REDIRECT = True  # Force HTTPS
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SECURE_HSTS_SECONDS = 31536000  # Enable HSTS
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
     USE_TZ = True
 
 
