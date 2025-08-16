@@ -330,7 +330,7 @@ class FlashcardTool(BaseTool):
             json_end = response_text.rfind("}")
 
             if json_start != -1 and json_end > json_start:
-                json_string = response_text[json_start: json_end + 1].strip()
+                json_string = response_text[json_start : json_end + 1].strip()
                 concepts = json.loads(json_string)
 
                 # Additional filtering for quality control
@@ -341,8 +341,7 @@ class FlashcardTool(BaseTool):
                     if self._is_valid_educational_concept(term, definition):
                         filtered_concepts[term] = definition
                     else:
-                        logger.info(
-                            f"Filtered out non-educational concept: {term}")
+                        logger.info(f"Filtered out non-educational concept: {term}")
 
                 return filtered_concepts
 

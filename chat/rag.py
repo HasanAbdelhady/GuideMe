@@ -9,6 +9,8 @@ from langchain_huggingface.embeddings import HuggingFaceEndpointEmbeddings
 from pdfminer.high_level import extract_text
 from pgvector.django import CosineDistance
 
+from chat.models import ChatRAGFile
+
 BASE_DIR = Path(os.path.dirname(os.path.abspath(__file__)))
 env_path = os.path.join(BASE_DIR, ".env")
 load_dotenv(env_path)
