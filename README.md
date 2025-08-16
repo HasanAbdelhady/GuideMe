@@ -309,7 +309,11 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 3. **Install Dependencies**
 
 ```bash
+# Production dependencies only
 pip install -r requirements.txt
+
+# Development dependencies (includes testing, linting, security tools)
+pip install -r requirements-dev.txt
 ```
 
 4. **Database Setup**
@@ -437,6 +441,45 @@ coverage report
 # Run critical tests only (for hotfixes)
 python manage.py test --tag=critical
 ```
+
+## 🎨 Code Formatting & Quality
+
+### **Quick Formatting Check**
+
+```bash
+# Check what formatting issues exist (summary only)
+python scripts/check-formatting.py
+
+# Interactive formatting with preview
+python scripts/format-code.py
+
+# Auto-format everything
+black .
+isort .
+```
+
+### **Pre-commit Hooks (Recommended)**
+
+```bash
+# Install pre-commit hooks to catch issues early
+pip install pre-commit
+pre-commit install
+
+# Run hooks on all files
+pre-commit run --all-files
+```
+
+### **Understanding Black Output**
+
+When Black shows many changes, here's what they typically mean:
+
+- **Import formatting**: Reorganizing import statements
+- **Whitespace/blank lines**: Adding/removing blank lines for PEP 8 compliance
+- **String formatting**: Standardizing quote usage
+- **Bracket/parentheses**: Formatting function calls and data structures
+- **Line length**: Breaking long lines to fit 88 character limit
+
+**💡 Tip**: Run `python scripts/check-formatting.py` to get a summary instead of overwhelming diff output.
 
 ## ⚙️ CI/CD Setup
 
