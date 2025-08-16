@@ -209,11 +209,11 @@ jobs:
 
     services:
       postgres:
-        image: postgres:13
+        image: pgvector/pgvector:pg17
         env:
           POSTGRES_PASSWORD: postgres
           POSTGRES_USER: postgres
-          POSTGRES_DB: test_mentorai
+          POSTGRES_DB: test_guideme
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
@@ -239,7 +239,7 @@ jobs:
         run: |
           echo "DEBUG=False" >> .env
           echo "SECRET_KEY=test-secret-key" >> .env
-          echo "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/test_mentorai" >> .env
+          echo "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/test_guideme" >> .env
           python manage.py migrate --noinput
           python manage.py collectstatic --noinput
 
@@ -380,6 +380,6 @@ jobs:
         run: |
           if [ -n "$SLACK_WEBHOOK_URL" ]; then
             curl -X POST -H 'Content-type: application/json' \
-              --data '{"text":"🚨 CRITICAL SECURITY ALERT: Security scans have failed for MentorAI. Immediate investigation required!"}' \
+              --data '{"text":"🚨 CRITICAL SECURITY ALERT: Security scans have failed for GuideMe. Immediate investigation required!"}' \
               $SLACK_WEBHOOK_URL
           fi

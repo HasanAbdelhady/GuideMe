@@ -307,6 +307,6 @@ jobs:
         run: |
           if [ -n "$SLACK_WEBHOOK_URL" ]; then
             curl -X POST -H 'Content-type: application/json' \
-              --data '{"text":"📊 Weekly maintenance report generated for MentorAI"}' \
+              --data '{"text":"📊 Weekly maintenance report generated for GuideMe"}' \
               $SLACK_WEBHOOK_URL
           fi
