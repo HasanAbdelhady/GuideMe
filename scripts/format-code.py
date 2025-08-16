@@ -14,7 +14,13 @@ def run_command(cmd, description):
     print(f"🔄 {description}...")
     try:
         result = subprocess.run(
-            cmd, shell=True, capture_output=True, text=True, check=False
+            cmd,
+            shell=True,
+            capture_output=True,
+            text=True,
+            check=False,
+            encoding="utf-8",
+            errors="replace",
         )
         return result
     except Exception as e:
@@ -37,7 +43,8 @@ def format_with_black():
 
     # Count files that need formatting
     count_result = run_command(
-        "black --check . 2>&1 | grep -c 'would reformat'", "Counting files")
+        "black --check . 2>&1 | grep -c 'would reformat'", "Counting files"
+    )
 
     if count_result and count_result.stdout.strip():
         file_count = count_result.stdout.strip()
@@ -45,7 +52,7 @@ def format_with_black():
 
     # Show preview of changes (first 20 lines)
     if check_result and check_result.stdout:
-        lines = check_result.stdout.split('\n')
+        lines = check_result.stdout.split("\n")
         preview_lines = lines[:20]
         print("\n📋 Preview of changes:")
         print("-" * 40)
@@ -60,7 +67,7 @@ def format_with_black():
     # Ask for confirmation
     response = input("\n🤔 Apply these formatting changes? (y/N): ").lower()
 
-    if response in ['y', 'yes']:
+    if response in ["y", "yes"]:
         format_result = run_command("black .", "Applying Black formatting")
         if format_result and format_result.returncode == 0:
             print("✅ Black formatting applied successfully!")
@@ -80,8 +87,7 @@ def format_with_isort():
     print("=" * 60)
 
     # Check what would be changed
-    check_result = run_command(
-        "isort --check-only --diff .", "Checking imports")
+    check_result = run_command("isort --check-only --diff .", "Checking imports")
 
     if check_result and check_result.returncode == 0:
         print("✅ All imports are already properly sorted!")
@@ -90,7 +96,7 @@ def format_with_isort():
     if check_result and check_result.stdout:
         print("\n📋 Import changes needed:")
         print("-" * 40)
-        lines = check_result.stdout.split('\n')[:15]  # Show first 15 lines
+        lines = check_result.stdout.split("\n")[:15]  # Show first 15 lines
         for line in lines:
             if line.strip():
                 print(line)
@@ -99,7 +105,7 @@ def format_with_isort():
     # Ask for confirmation
     response = input("\n🤔 Apply import sorting? (y/N): ").lower()
 
-    if response in ['y', 'yes']:
+    if response in ["y", "yes"]:
         sort_result = run_command("isort .", "Applying import sorting")
         if sort_result and sort_result.returncode == 0:
             print("✅ Import sorting applied successfully!")
@@ -121,6 +127,7 @@ def main():
     # Change to project root
     project_root = Path(__file__).parent.parent
     import os
+
     os.chdir(project_root)
 
     success = True

@@ -3,10 +3,10 @@
 Quick formatting checker that summarizes Black's findings.
 """
 
+import re
 import subprocess
 import sys
 from collections import defaultdict
-import re
 
 
 def analyze_black_output():
@@ -16,7 +16,9 @@ def analyze_black_output():
         result = subprocess.run(
             ["black", "--check", "--diff", "."],
             capture_output=True,
-            text=True
+            text=True,
+            encoding="utf-8",
+            errors="replace",
         )
 
         if result.returncode == 0:
@@ -30,25 +32,25 @@ def analyze_black_output():
         change_types = defaultdict(int)
 
         current_file = None
-        for line in output.split('\n'):
-            if line.startswith('---') and '.py' in line:
+        for line in output.split("\n"):
+            if line.startswith("---") and ".py" in line:
                 # Extract filename
-                match = re.search(r'--- (.+\.py)', line)
+                match = re.search(r"--- (.+\.py)", line)
                 if match:
                     current_file = match.group(1)
                     files_to_format.append(current_file)
-            elif line.startswith('+') or line.startswith('-'):
+            elif line.startswith("+") or line.startswith("-"):
                 # Analyze the type of change
-                if 'import' in line.lower():
-                    change_types['Import formatting'] += 1
-                elif line.strip() in ['', '+', '-']:
-                    change_types['Whitespace/blank lines'] += 1
+                if "import" in line.lower():
+                    change_types["Import formatting"] += 1
+                elif line.strip() in ["", "+", "-"]:
+                    change_types["Whitespace/blank lines"] += 1
                 elif '"' in line or "'" in line:
-                    change_types['String formatting'] += 1
-                elif '(' in line or ')' in line or '[' in line or ']' in line:
-                    change_types['Bracket/parentheses formatting'] += 1
+                    change_types["String formatting"] += 1
+                elif "(" in line or ")" in line or "[" in line or "]" in line:
+                    change_types["Bracket/parentheses formatting"] += 1
                 else:
-                    change_types['Other formatting'] += 1
+                    change_types["Other formatting"] += 1
 
         # Print summary
         print("📊 BLACK FORMATTING SUMMARY")
@@ -58,7 +60,9 @@ def analyze_black_output():
         print()
 
         print("📋 Types of changes needed:")
-        for change_type, count in sorted(change_types.items(), key=lambda x: x[1], reverse=True):
+        for change_type, count in sorted(
+            change_types.items(), key=lambda x: x[1], reverse=True
+        ):
             print(f"  • {change_type}: {count} changes")
         print()
 

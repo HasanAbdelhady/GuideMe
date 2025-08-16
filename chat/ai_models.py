@@ -1,7 +1,8 @@
-from groq import Groq
 import logging
 import os
+
 import google.generativeai as genai
+from groq import Groq
 
 logger = logging.getLogger(__name__)
 
@@ -12,7 +13,8 @@ try:
         genai.configure(api_key=FLASHCARD_API_KEY)
     else:
         logger.warning(
-            "FLASHCARD API key for Gemini not found. Vision features will be disabled.")
+            "FLASHCARD API key for Gemini not found. Vision features will be disabled."
+        )
 except Exception as e:
     logger.error(f"Error configuring Gemini: {e}")
     FLASHCARD_API_KEY = None
@@ -26,12 +28,20 @@ class AIService:
         self.default_model = "gemma2-9b-it"
         # Initialize vision model if API key is available
         if FLASHCARD_API_KEY:
-            self.vision_model = genai.GenerativeModel(
-                "gemini-1.5-flash-latest")
+            self.vision_model = genai.GenerativeModel("gemini-1.5-flash-latest")
         else:
             self.vision_model = None
 
-    async def get_ai_response(self, messages, max_tokens=1000, temperature=0.7, model=None, stream=False, image_data=None, image_mime_type=None):
+    async def get_ai_response(
+        self,
+        messages,
+        max_tokens=1000,
+        temperature=0.7,
+        model=None,
+        stream=False,
+        image_data=None,
+        image_mime_type=None,
+    ):
         """Get AI response for agent system - now supports streaming and vision"""
         try:
             # If there's image data, we must use a vision model
@@ -41,23 +51,21 @@ class AIService:
                 # Convert message history to Gemini's format
                 gemini_messages = []
                 for msg in messages[:-1]:
-                    role = 'model' if msg['role'] == 'assistant' else 'user'
-                    gemini_messages.append(
-                        {'role': role, 'parts': [msg['content']]})
+                    role = "model" if msg["role"] == "assistant" else "user"
+                    gemini_messages.append({"role": role, "parts": [msg["content"]]})
 
                 # Create the multimodal prompt for the last message
                 last_message = messages[-1]
-                image_part = {'mime_type': image_mime_type, 'data': image_data}
-                prompt_parts = [last_message['content'], image_part]
-                gemini_messages.append({'role': 'user', 'parts': prompt_parts})
+                image_part = {"mime_type": image_mime_type, "data": image_data}
+                prompt_parts = [last_message["content"], image_part]
+                gemini_messages.append({"role": "user", "parts": prompt_parts})
 
                 response = self.vision_model.generate_content(
                     gemini_messages,
                     stream=stream,
                     generation_config=genai.types.GenerationConfig(
-                        max_output_tokens=max_tokens,
-                        temperature=temperature
-                    )
+                        max_output_tokens=max_tokens, temperature=temperature
+                    ),
                 )
 
                 if stream:
@@ -70,8 +78,7 @@ class AIService:
                                 complete_response += chunk.text
                     except Exception as e:
                         # Fallback to resolve method if streaming fails
-                        logger.warning(
-                            f"Stream consumption failed, using resolve: {e}")
+                        logger.warning(f"Stream consumption failed, using resolve: {e}")
                         response.resolve()
                         complete_response = response.text
 
@@ -87,12 +94,20 @@ class AIService:
                         def __next__(self):
                             if not self.sent:
                                 self.sent = True
-                                mock_choice = type('Choice', (object,), {
-                                    'delta': type('Delta', (object,), {'content': self.content})
-                                })
-                                mock_chunk = type('Chunk', (object,), {
-                                    'choices': [mock_choice]
-                                })
+                                mock_choice = type(
+                                    "Choice",
+                                    (object,),
+                                    {
+                                        "delta": type(
+                                            "Delta",
+                                            (object,),
+                                            {"content": self.content},
+                                        )
+                                    },
+                                )
+                                mock_chunk = type(
+                                    "Chunk", (object,), {"choices": [mock_choice]}
+                                )
                                 return mock_chunk
                             else:
                                 raise StopIteration
@@ -106,7 +121,8 @@ class AIService:
                     except Exception as e:
                         # Fallback: consume the response manually
                         logger.warning(
-                            f"Direct .text access failed, consuming stream: {e}")
+                            f"Direct .text access failed, consuming stream: {e}"
+                        )
                         complete_response = ""
                         for chunk in response:
                             if chunk.text:
@@ -120,7 +136,7 @@ class AIService:
                 messages=messages,
                 temperature=temperature,
                 max_tokens=max_tokens,
-                stream=stream
+                stream=stream,
             )
 
             if stream:
@@ -131,9 +147,13 @@ class AIService:
             logger.error(f"AIService error: {e}", exc_info=True)
             raise AIModelException(f"Error getting AI response: {str(e)}")
 
-    async def get_ai_response_stream(self, messages, max_tokens=1000, temperature=0.7, model=None, **kwargs):
+    async def get_ai_response_stream(
+        self, messages, max_tokens=1000, temperature=0.7, model=None, **kwargs
+    ):
         """Get streaming AI response for agent system (now passes vision kwargs)"""
-        return await self.get_ai_response(messages, max_tokens, temperature, model, stream=True, **kwargs)
+        return await self.get_ai_response(
+            messages, max_tokens, temperature, model, stream=True, **kwargs
+        )
 
 
 class AIModelManager:
@@ -162,7 +182,7 @@ class AIModelManager:
             completion = self.get_chat_completion(
                 messages=[{"role": "system", "content": prompt}],
                 stream=False,
-                model=self.quiz_model
+                model=self.quiz_model,
             )
             return completion.choices[0].message.content
         except Exception as e:
@@ -174,7 +194,7 @@ class AIModelManager:
             completion = self.get_chat_completion(
                 messages=[{"role": "user", "content": title_prompt}],
                 stream=False,
-                max_tokens=20
+                max_tokens=20,
             )
             return completion.choices[0].message.content.strip().strip('"')
         except Exception as e:
