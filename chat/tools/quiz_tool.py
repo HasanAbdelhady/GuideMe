@@ -1,10 +1,7 @@
 # chat/tools/quiz_tool.py
-import json
 import logging
 import re
 from typing import Any, Dict, List
-
-from django.utils.html import strip_tags
 
 from asgiref.sync import sync_to_async
 from bs4 import BeautifulSoup
@@ -72,7 +69,8 @@ class QuizTool(BaseTool):
         self, user_message: str, chat_context: Dict[str, Any]
     ) -> ToolResult:
         try:
-            logger.info(f"QuizTool executing for query: {user_message[:100]}...")
+            logger.info(
+                f"QuizTool executing for query: {user_message[:100]}...")
 
             quiz_data = await self.chat_service.generate_quiz_from_query(
                 chat_history_messages=chat_context.get("messages_for_llm", []),
@@ -90,7 +88,8 @@ class QuizTool(BaseTool):
                 )
 
                 # Separate content and quiz_html properly
-                content_text = quiz_data.get("content", "Here's your interactive quiz:")
+                content_text = quiz_data.get(
+                    "content", "Here's your interactive quiz:")
 
                 # Ensure we have clean content text
                 if not content_text or len(content_text.strip()) < 5:
@@ -125,7 +124,8 @@ class QuizTool(BaseTool):
         """Extract and save individual questions to the question bank"""
         try:
             quiz_html = quiz_data.get("quiz_html", "")
-            logger.info(f"Saving quiz to question bank. HTML length: {len(quiz_html)}")
+            logger.info(
+                f"Saving quiz to question bank. HTML length: {len(quiz_html)}")
 
             # Parse quiz HTML to extract individual questions
             questions = self._extract_questions_from_html(quiz_html)
@@ -147,7 +147,8 @@ class QuizTool(BaseTool):
                             question_html=question_data["html"],
                             question_text=question_data["text"],
                             correct_answer=question_data["correct_answer"],
-                            topic=self._extract_topic_from_message(user_message),
+                            topic=self._extract_topic_from_message(
+                                user_message),
                             difficulty="medium",  # Default, could be enhanced
                         )
                         saved_count += 1
@@ -171,7 +172,8 @@ class QuizTool(BaseTool):
             )
 
         except Exception as e:
-            logger.error(f"Error saving quiz to question bank: {e}", exc_info=True)
+            logger.error(
+                f"Error saving quiz to question bank: {e}", exc_info=True)
 
     def _extract_questions_from_html(self, quiz_html: str) -> List[Dict[str, Any]]:
         """Extract individual questions from quiz HTML using BeautifulSoup."""
@@ -179,7 +181,8 @@ class QuizTool(BaseTool):
         try:
             soup = BeautifulSoup(quiz_html, "html.parser")
             question_divs = soup.find_all("div", class_="quiz-question")
-            logger.info(f"Found {len(question_divs)} quiz-question divs in HTML")
+            logger.info(
+                f"Found {len(question_divs)} quiz-question divs in HTML")
 
             for i, div in enumerate(question_divs):
                 # Ensure each question has a unique name for its radio buttons
@@ -188,7 +191,8 @@ class QuizTool(BaseTool):
                     for radio in form.find_all("input", type="radio"):
                         radio["name"] = f"q_{i + 1}"  # Start from q_1
 
-                question_text_div = div.find("div", class_="font-semibold mb-1")
+                question_text_div = div.find(
+                    "div", class_="font-semibold mb-1")
                 if not question_text_div:
                     # Try alternative selectors
                     question_text_div = div.find("div", class_="font-semibold")
@@ -203,7 +207,8 @@ class QuizTool(BaseTool):
 
                 correct_answer = div.get("data-correct", "").upper()
                 if not correct_answer:
-                    logger.warning(f"No correct answer found for question {i + 1}")
+                    logger.warning(
+                        f"No correct answer found for question {i + 1}")
 
                 questions.append(
                     {
