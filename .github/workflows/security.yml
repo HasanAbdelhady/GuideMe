@@ -91,12 +91,12 @@ jobs:
 
       - name: Build Docker image for scanning
         run: |
-          docker build -t mentorai:scan .
+          docker build -t guideme:scan .
 
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: "mentorai:scan"
+          image-ref: "guideme:scan"
           format: "sarif"
           output: "trivy-results.sarif"
 
@@ -113,7 +113,7 @@ jobs:
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
-          image: mentorai:scan
+          image: guideme:scan
           args: --severity-threshold=high
 
   # SAST (Static Application Security Testing)

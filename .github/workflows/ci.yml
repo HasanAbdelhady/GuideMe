@@ -239,13 +239,14 @@ jobs:
         with:
           context: .
           push: false
-          tags: mentorai:test
+          load: true
+          tags: guideme:test
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
 
       - name: Test Docker image
         run: |
-          docker run --rm mentorai:test python manage.py check --deploy
+          docker run --rm guideme:test python manage.py check --deploy
 
       - name: Move cache
         run: |
