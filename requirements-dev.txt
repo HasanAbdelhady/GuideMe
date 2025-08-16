@@ -5,28 +5,28 @@
 -r requirements.txt
 
 # Testing
-coverage==7.6.9
-pytest==8.3.4
-pytest-django==4.9.0
-pytest-cov==6.0.0
-locust==2.32.6
+coverage
+pytest
+pytest-django
+pytest-cov
+locust
 
 # Code Quality
-black==24.10.0
-isort==5.13.2
-flake8==7.1.1
-mccabe==0.7.0
+black
+isort
+flake8
+mccabe
 
 # Security
-bandit==1.8.0
-safety==3.6.0
-pip-audit==2.7.5
-semgrep==1.97.0
+bandit
+safety
+pip-audit
+semgrep
 
 # Documentation
-interrogate==1.7.0
+interrogate
 
 # Development Tools
-pre-commit==4.0.1
-django-extensions==3.2.3
-ipython==8.30.0
+pre-commit
+django-extensions
+ipython
