@@ -3,7 +3,7 @@
 import uuid
 
 import django.db.models.deletion
-from django.db import migrations, models, connection
+from django.db import connection, migrations, models
 
 import pgvector.django.vector
 
