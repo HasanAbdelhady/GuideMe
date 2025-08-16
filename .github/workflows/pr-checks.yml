@@ -41,7 +41,13 @@ jobs:
 
       - name: Check for merge conflicts
         run: |
-          git merge-tree $(git merge-base HEAD main) HEAD main | grep -q "<<<<<<< " && exit 1 || exit 0
+          # Check for merge conflicts
+          if git merge-tree $(git merge-base HEAD main) HEAD main 2>/dev/null | grep -q "<<<<<<< "; then
+            echo "::error::Merge conflicts detected. Please resolve conflicts before merging."
+            exit 1
+          else
+            echo "✅ No merge conflicts detected"
+          fi
 
       - name: Validate file changes
         run: |
@@ -52,9 +58,13 @@ jobs:
 
           # Check for large files
           git diff --name-only main...HEAD | while read file; do
-            if [ -f "$file" ] && [ $(stat -c%s "$file") -gt 1048576 ]; then
-              echo "::error::File $file is larger than 1MB"
-              exit 1
+            if [ -f "$file" ]; then
+              # Use cross-platform file size check
+              size=$(wc -c < "$file" 2>/dev/null || echo 0)
+              if [ "$size" -gt 1048576 ]; then
+                echo "::error::File $file is larger than 1MB ($size bytes)"
+                exit 1
+              fi
             fi
           done
 
@@ -126,6 +136,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
+          pip install -r requirements-dev.txt
 
       - name: Apply main branch migrations
         run: |
@@ -136,8 +147,15 @@ jobs:
       - name: Checkout PR branch
         uses: actions/checkout@v4
 
+      - name: Install PR branch dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
       - name: Check for migration conflicts
         run: |
+          echo "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/test_guideme" > .env
+          echo "SECRET_KEY=test-key" >> .env
           python manage.py makemigrations --check --dry-run
 
       - name: Test forward migrations
@@ -252,7 +270,10 @@ jobs:
         run: |
           # Check if static files are too large
           find . -name "*.css" -o -name "*.js" | while read file; do
-            if [ $(stat -c%s "$file") -gt 102400 ]; then  # 100KB
-              echo "::warning::Static file $file is larger than 100KB"
+            if [ -f "$file" ]; then
+              size=$(wc -c < "$file" 2>/dev/null || echo 0)
+              if [ "$size" -gt 102400 ]; then  # 100KB
+                echo "::warning::Static file $file is larger than 100KB ($size bytes)"
+              fi
             fi
           done
