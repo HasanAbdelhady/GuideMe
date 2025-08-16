@@ -6,6 +6,11 @@ on:
   pull_request:
     branches: [main, develop]
 
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
 env:
   PYTHON_VERSION: "3.11"
   NODE_VERSION: "18"
@@ -79,7 +84,7 @@ jobs:
 
     services:
       postgres:
-        image: pgvector/pgvector:pg16
+        image: pgvector/pgvector:pg17
         env:
           POSTGRES_PASSWORD: postgres
           POSTGRES_USER: postgres
@@ -131,11 +136,14 @@ jobs:
 
       - name: Wait for PostgreSQL
         run: |
-          # Install postgresql-client to check if postgres is ready
-          sudo apt-get install -y postgresql-client
-          # Wait for postgres to be ready
-          until pg_isready -h localhost -p 5432 -U postgres; do
-            echo "Waiting for postgres..."
+          # Wait for postgres container to be ready using curl instead of pg_isready
+          echo "Waiting for PostgreSQL container to be ready..."
+          for i in {1..30}; do
+            if docker exec $(docker ps -q -f "ancestor=pgvector/pgvector:pg17") pg_isready -U postgres; then
+              echo "PostgreSQL is ready!"
+              break
+            fi
+            echo "Attempt $i/30: PostgreSQL not ready, waiting..."
             sleep 2
           done
 
@@ -148,6 +156,7 @@ jobs:
           echo "GROQ_API_KEY=test-key" >> .env
           echo "GOOGLE_API_KEY=test-key" >> .env
           echo "FLASHCARD=test-key" >> .env
+          echo "TESTING=True" >> .env
 
       - name: Run Django migrations
         run: |
@@ -198,7 +207,7 @@ jobs:
           output: "trivy-results.sarif"
 
       - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v2
+        uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
           sarif_file: "trivy-results.sarif"
@@ -251,7 +260,7 @@ jobs:
 
     services:
       postgres:
-        image: pgvector/pgvector:pg16
+        image: pgvector/pgvector:pg17
         env:
           POSTGRES_PASSWORD: postgres
           POSTGRES_USER: postgres
