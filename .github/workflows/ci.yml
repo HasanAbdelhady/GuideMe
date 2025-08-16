@@ -7,7 +7,7 @@ on:
     branches: [main, develop]
 
 permissions:
-  contents: read
+  contents: write
   security-events: write
   actions: read
 
@@ -362,7 +362,14 @@ jobs:
 
       - name: Create GitHub Release
         if: success()
-        uses: actions/create-release@v1
+        run: |
+          gh release create v${{ github.run_number }} \
+            --title "Release v${{ github.run_number }}" \
+            --notes "Automated release from CI/CD pipeline
+
+          Changes in this release:
+          ${{ github.event.head_commit.message }}" \
+            --latest
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
