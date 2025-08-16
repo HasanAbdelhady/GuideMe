@@ -1,8 +1,10 @@
-import re
 import logging
-from .agent_tools import summarize_video, recommend_videos
+import re
+
+from .agent_tools import recommend_videos, summarize_video
 
 logger = logging.getLogger(__name__)
+
 
 def extract_youtube_url(text: str):
     """
@@ -13,12 +15,13 @@ def extract_youtube_url(text: str):
         return None
     # This regex captures standard, shortened, and embed URLs.
     youtube_regex = (
-        r'(https?://)?(www\.)?'
-        r'(youtube|youtu|youtube-nocookie)\.(com|be)/'
+        r"(https?://)?(www\.)?"
+        r"(youtube|youtu|youtube-nocookie)\.(com|be)/"
         r'(watch\?v=|embed/|v/|.+\?v=)?([^"&?\s]{11})'
     )
     match = re.search(youtube_regex, text)
     return match.group(0) if match else None
+
 
 def run_youtube_agent(query: str, chat_history: list):
     """
@@ -28,9 +31,9 @@ def run_youtube_agent(query: str, chat_history: list):
     """
     try:
         logger.info(f"Processing YouTube request with query: {query}")
-        
+
         extracted_url = extract_youtube_url(query)
-        
+
         if extracted_url:
             # If a URL is found anywhere in the query, summarize the video.
             logger.info(f"Extracted YouTube URL: {extracted_url}. Summarizing video...")
@@ -44,7 +47,7 @@ def run_youtube_agent(query: str, chat_history: list):
             # The result is expected to be a JSON string of video data
             logger.info(f"Recommendation result: {result}")
             return result
-            
+
     except Exception as e:
         logger.error(f"Error in YouTube agent router: {e}", exc_info=True)
         return "An error occurred while trying to process your request with the YouTube agent."

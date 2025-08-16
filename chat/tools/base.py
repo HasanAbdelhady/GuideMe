@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional, List
+from typing import Any, Dict, List, Optional
+
 from pydantic import BaseModel
 
 
@@ -37,11 +38,15 @@ class BaseTool(ABC):
         pass
 
     @abstractmethod
-    async def can_handle(self, user_message: str, chat_context: Dict[str, Any]) -> float:
+    async def can_handle(
+        self, user_message: str, chat_context: Dict[str, Any]
+    ) -> float:
         """Return confidence score (0-1) that this tool should be used"""
         pass
 
     @abstractmethod
-    async def execute(self, user_message: str, chat_context: Dict[str, Any]) -> ToolResult:
+    async def execute(
+        self, user_message: str, chat_context: Dict[str, Any]
+    ) -> ToolResult:
         """Execute the tool and return results"""
         pass

@@ -1,21 +1,22 @@
-import yt_dlp
-import textwrap
-from groq import Groq
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.docstore.document import Document
-from langchain.chains.summarize import load_summarize_chain
-from langchain_groq import ChatGroq
-import os
-import sys
-import platform
-from langchain.prompts import PromptTemplate
-from langchain.chains import LLMChain
-from googleapiclient.discovery import build
-import isodate
-import traceback
-from dotenv import load_dotenv
-import imageio_ffmpeg
 import json
+import os
+import platform
+import sys
+import textwrap
+import traceback
+
+import imageio_ffmpeg
+import isodate
+import yt_dlp
+from dotenv import load_dotenv
+from googleapiclient.discovery import build
+from groq import Groq
+from langchain.chains import LLMChain
+from langchain.chains.summarize import load_summarize_chain
+from langchain.docstore.document import Document
+from langchain.prompts import PromptTemplate
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_groq import ChatGroq
 
 load_dotenv(".env")
 
@@ -60,18 +61,20 @@ def summarize_video(url, filename="audio"):
 
         # Download video
         ydl_opts = {
-            'format': 'bestaudio/best',
-            'postprocessors': [{
-                'key': 'FFmpegExtractAudio',
-                'preferredcodec': 'mp3',
-                'preferredquality': '168',
-            }],
-            'outtmpl': filename,
+            "format": "bestaudio/best",
+            "postprocessors": [
+                {
+                    "key": "FFmpegExtractAudio",
+                    "preferredcodec": "mp3",
+                    "preferredquality": "168",
+                }
+            ],
+            "outtmpl": filename,
         }
 
         # Add FFmpeg location if found
         if ffmpeg_location:
-            ydl_opts['ffmpeg_location'] = ffmpeg_location
+            ydl_opts["ffmpeg_location"] = ffmpeg_location
         else:
             print("Warning: FFmpeg not found. Video processing may fail.")
 
@@ -81,9 +84,11 @@ def summarize_video(url, filename="audio"):
         except Exception as e:
             error_msg = str(e).lower()
             if "ffmpeg" in error_msg or "ffprobe" in error_msg:
-                return ("Error: FFmpeg is required for video processing but was not found. "
-                        "Please install FFmpeg and ensure it's in your system PATH, or try: "
-                        "pip install imageio-ffmpeg")
+                return (
+                    "Error: FFmpeg is required for video processing but was not found. "
+                    "Please install FFmpeg and ensure it's in your system PATH, or try: "
+                    "pip install imageio-ffmpeg"
+                )
             return f"Error downloading video: {str(e)}"
 
         # Transcribe audio
@@ -125,10 +130,10 @@ def summarize_video(url, filename="audio"):
 
 SUMMARY:"""
             summary_prompt = PromptTemplate(
-                template=prompt_template, input_variables=["text"])
+                template=prompt_template, input_variables=["text"]
+            )
 
-            chain = load_summarize_chain(
-                llm, chain_type="stuff", prompt=summary_prompt)
+            chain = load_summarize_chain(llm, chain_type="stuff", prompt=summary_prompt)
             summary = chain.run(docs)
             return textwrap.fill(summary, width=1000)
         except Exception as e:
@@ -146,37 +151,40 @@ MAX_RESULTS = 10
 
 def get_video_details(video_id):
     try:
-        youtube = build('youtube', 'v3',
-                        developerKey=youtube_api, cache_discovery=False)
+        youtube = build(
+            "youtube", "v3", developerKey=youtube_api, cache_discovery=False
+        )
 
-        response = youtube.videos().list(
-            part="snippet,contentDetails,statistics,status",
-            id=video_id
-        ).execute()
+        response = (
+            youtube.videos()
+            .list(part="snippet,contentDetails,statistics,status", id=video_id)
+            .execute()
+        )
 
-        if not response['items']:
+        if not response["items"]:
             return None
 
-        video = response['items'][0]
+        video = response["items"][0]
 
         # Check if video is available
-        if video['status'].get('privacyStatus') != 'public':
+        if video["status"].get("privacyStatus") != "public":
             return None
 
         # Check if video is not deleted
-        if video['status'].get('uploadStatus') != 'processed':
+        if video["status"].get("uploadStatus") != "processed":
             return None
 
         data = {
-            'title': video['snippet']['title'],
-            'url': f"https://www.youtube.com/watch?v={video_id}",
-            'thumbnail': f"https://i.ytimg.com/vi/{video_id}/mqdefault.jpg",
+            "title": video["snippet"]["title"],
+            "url": f"https://www.youtube.com/watch?v={video_id}",
+            "thumbnail": f"https://i.ytimg.com/vi/{video_id}/mqdefault.jpg",
         }
         # We are removing duration and other stats to keep it simple as requested.
         return data
     except Exception as e:
         print(f"Error getting video details: {str(e)}")
         return None
+
 
 # Function to format video metadata
 
@@ -188,6 +196,7 @@ def formate_videos_metadata(videos):
         metadata += f"{idx}. Title: {vid['title']}\n Link: {vid['url']}\n\n"
 
     return metadata
+
 
 # Function to create a prompt for the LLM
 
@@ -214,7 +223,7 @@ def prompt(user_query, video_metadata_list):
 
         Here is the list of videos to choose from:
         {video_metadata_list}
-        """
+        """,
     )
 
     return prompt_template
@@ -224,19 +233,25 @@ def recommend_videos(user_query, chat_history):
     try:
         # Create a combined text of previous messages for context
         history_text = "\n".join(
-            [f"{msg['role']}: {msg['content']}" for msg in chat_history])
+            [f"{msg['role']}: {msg['content']}" for msg in chat_history]
+        )
 
         # The agent should search based on the full context
         search_query = f"{history_text}\n\nUser Query: {user_query}"
 
-        youtube = build("youtube", "v3",
-                        developerKey=youtube_api, cache_discovery=False)
-        response = youtube.search().list(
-            q=user_query,  # We still use the user_query for the keyword search on youtube
-            part="snippet",
-            maxResults=MAX_RESULTS,  # Reduced from * 2
-            type="video",  # Only search for videos
-        ).execute()
+        youtube = build(
+            "youtube", "v3", developerKey=youtube_api, cache_discovery=False
+        )
+        response = (
+            youtube.search()
+            .list(
+                q=user_query,  # We still use the user_query for the keyword search on youtube
+                part="snippet",
+                maxResults=MAX_RESULTS,  # Reduced from * 2
+                type="video",  # Only search for videos
+            )
+            .execute()
+        )
 
         videos = []
         video_map = {}
@@ -246,7 +261,7 @@ def recommend_videos(user_query, chat_history):
                 video_data = get_video_details(video_id)
                 if video_data:
                     videos.append(video_data)
-                    video_map[video_data['title']] = video_data
+                    video_map[video_data["title"]] = video_data
 
         # Only proceed if we have enough valid videos
         if len(videos) >= 3:
@@ -273,11 +288,7 @@ def recommend_videos(user_query, chat_history):
             """
 
             try:
-                llm = ChatGroq(
-                    model="llama3-8b-8192",
-                    temperature=0.5,
-                    max_retries=3
-                )
+                llm = ChatGroq(model="llama3-8b-8192", temperature=0.5, max_retries=3)
 
                 response = llm.invoke(prompt_text)
 
@@ -286,11 +297,13 @@ def recommend_videos(user_query, chat_history):
                     raw_response_content = response.content.strip()
 
                     # Find the start and end of the JSON object to isolate it
-                    json_start = raw_response_content.find('{')
-                    json_end = raw_response_content.rfind('}')
+                    json_start = raw_response_content.find("{")
+                    json_end = raw_response_content.rfind("}")
 
                     if json_start != -1 and json_end > json_start:
-                        json_string = raw_response_content[json_start:json_end+1].strip()
+                        json_string = raw_response_content[
+                            json_start : json_end + 1
+                        ].strip()
 
                         # Remove markdown backticks if they are wrapping the JSON
                         if json_string.startswith("```json"):
@@ -299,8 +312,7 @@ def recommend_videos(user_query, chat_history):
                             json_string = json_string[:-3].strip()
 
                         response_data = json.loads(json_string)
-                        recommended_indices = response_data.get(
-                            "recommendations", [])
+                        recommended_indices = response_data.get("recommendations", [])
 
                         # Create the final list of video objects from the indices
                         # Note: The prompt gives 1-based indices, so we subtract 1 for 0-based list access.
@@ -314,7 +326,8 @@ def recommend_videos(user_query, chat_history):
                     else:
                         # If we can't find a JSON object, raise an error
                         raise ValueError(
-                            "Could not find a valid JSON object in the LLM response.")
+                            "Could not find a valid JSON object in the LLM response."
+                        )
 
                 except (json.JSONDecodeError, KeyError, ValueError) as e:
                     return f"Error processing LLM response: {e}. Raw response: {response.content}"

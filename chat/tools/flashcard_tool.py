@@ -1,15 +1,18 @@
 # chat/tools/flashcard_tool.py
-from .base import BaseTool, ToolResult
-from typing import Dict, Any, List
-import re
-import logging
-from ..models import ChatFlashcard
-import json
-from django.db import IntegrityError
 import asyncio
+import json
+import logging
 import os
+import re
+from typing import Any, Dict, List
+
+from django.db import IntegrityError
+
 import google.generativeai as genai
 from asgiref.sync import sync_to_async
+
+from ..models import ChatFlashcard
+from .base import BaseTool, ToolResult
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +26,8 @@ try:
     else:
         gemini_model = None
         logger.warning(
-            "FLASHCARD API key for Gemini not found. FlashcardTool will be disabled.")
+            "FLASHCARD API key for Gemini not found. FlashcardTool will be disabled."
+        )
 except Exception as e:
     gemini_model = None
     logger.error(f"Error configuring Gemini for FlashcardTool: {e}")
@@ -35,12 +39,76 @@ class FlashcardTool(BaseTool):
         self.gemini_model = gemini_model
         # Common words to ignore when detecting concepts
         self.stop_words = {
-            'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by',
-            'from', 'up', 'about', 'into', 'through', 'during', 'before', 'after', 'above', 'below',
-            'this', 'that', 'these', 'those', 'i', 'you', 'he', 'she', 'it', 'we', 'they', 'me',
-            'him', 'her', 'us', 'them', 'my', 'your', 'his', 'her', 'its', 'our', 'their', 'am',
-            'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does',
-            'did', 'will', 'would', 'could', 'should', 'may', 'might', 'must', 'can', 'shall'
+            "the",
+            "a",
+            "an",
+            "and",
+            "or",
+            "but",
+            "in",
+            "on",
+            "at",
+            "to",
+            "for",
+            "of",
+            "with",
+            "by",
+            "from",
+            "up",
+            "about",
+            "into",
+            "through",
+            "during",
+            "before",
+            "after",
+            "above",
+            "below",
+            "this",
+            "that",
+            "these",
+            "those",
+            "i",
+            "you",
+            "he",
+            "she",
+            "it",
+            "we",
+            "they",
+            "me",
+            "him",
+            "her",
+            "us",
+            "them",
+            "my",
+            "your",
+            "his",
+            "her",
+            "its",
+            "our",
+            "their",
+            "am",
+            "is",
+            "are",
+            "was",
+            "were",
+            "be",
+            "been",
+            "being",
+            "have",
+            "has",
+            "had",
+            "do",
+            "does",
+            "did",
+            "will",
+            "would",
+            "could",
+            "should",
+            "may",
+            "might",
+            "must",
+            "can",
+            "shall",
         }
 
     @property
@@ -55,7 +123,9 @@ class FlashcardTool(BaseTool):
     def triggers(self) -> List[str]:
         return []  # This tool runs in background, no explicit triggers
 
-    async def can_handle(self, user_message: str, chat_context: Dict[str, Any]) -> float:
+    async def can_handle(
+        self, user_message: str, chat_context: Dict[str, Any]
+    ) -> float:
         if not self.gemini_model:
             return 0.0  # Disable if Gemini isn't configured
 
@@ -72,30 +142,62 @@ class FlashcardTool(BaseTool):
 
         # Skip if the message is clearly a command or request
         message_lower = user_message.lower()
-        command_indicators = ['create', 'make', 'generate',
-                              'show me', 'tell me', 'can you', 'please']
+        command_indicators = [
+            "create",
+            "make",
+            "generate",
+            "show me",
+            "tell me",
+            "can you",
+            "please",
+        ]
         if any(message_lower.startswith(indicator) for indicator in command_indicators):
             return 0.0
 
         # Higher confidence for educational/explanatory content
         educational_indicators = [
-            'definition', 'means', 'refers to', 'concept', 'theory', 'principle',
-            'process', 'mechanism', 'algorithm', 'formula', 'equation',
-            'structure', 'function', 'property', 'characteristic', 'flashcards', 'explain', 'flashcards'
+            "definition",
+            "means",
+            "refers to",
+            "concept",
+            "theory",
+            "principle",
+            "process",
+            "mechanism",
+            "algorithm",
+            "formula",
+            "equation",
+            "structure",
+            "function",
+            "property",
+            "characteristic",
+            "flashcards",
+            "explain",
+            "flashcards",
         ]
         if any(indicator in message_lower for indicator in educational_indicators):
             return 0.8
 
         # Look for scientific/technical domains
         scientific_domains = [
-            'biology', 'chemistry', 'physics', 'mathematics', 'computer science',
-            'engineering', 'medical', 'anatomy', 'neuroscience', 'genetics'
+            "biology",
+            "chemistry",
+            "physics",
+            "mathematics",
+            "computer science",
+            "engineering",
+            "medical",
+            "anatomy",
+            "neuroscience",
+            "genetics",
         ]
         if any(domain in message_lower for domain in scientific_domains):
             return 0.7
 
         # Medium confidence for technical or complex discussions with substance
-        if message_length > 20 and not any(word in message_lower for word in ['diagram', 'video', 'quiz', 'flashcard']):
+        if message_length > 20 and not any(
+            word in message_lower for word in ["diagram", "video", "quiz", "flashcard"]
+        ):
             return 0.5
 
         # Lower confidence for shorter technical content
@@ -104,16 +206,21 @@ class FlashcardTool(BaseTool):
 
         return 0.0  # Skip very short messages
 
-    async def execute(self, user_message: str, chat_context: Dict[str, Any]) -> ToolResult:
+    async def execute(
+        self, user_message: str, chat_context: Dict[str, Any]
+    ) -> ToolResult:
         try:
             logger.info(
-                f"FlashcardTool background processing for message: {user_message[:50]}...")
+                f"FlashcardTool background processing for message: {user_message[:50]}..."
+            )
 
             # Get recent conversation history for context
-            recent_messages = chat_context.get(
-                'messages_for_llm', [])[-5:]  # Last 5 messages
+            recent_messages = chat_context.get("messages_for_llm", [])[
+                -5:
+            ]  # Last 5 messages
             conversation_text = "\\n".join(
-                [msg.get('content', '') for msg in recent_messages])
+                [msg.get("content", "") for msg in recent_messages]
+            )
 
             # Extract concepts from the conversation
             concepts = await self._extract_concepts(user_message, conversation_text)
@@ -124,8 +231,8 @@ class FlashcardTool(BaseTool):
                     created = await self._create_flashcard_if_new(
                         term=term,
                         definition=definition,
-                        chat=chat_context['chat'],
-                        context=user_message
+                        chat=chat_context["chat"],
+                        context=user_message,
                     )
                     if created:
                         flashcards_created += 1
@@ -138,26 +245,29 @@ class FlashcardTool(BaseTool):
                     metadata={
                         "tool_used": "flashcard_concept_tracker",
                         "flashcards_created": flashcards_created,
-                        "concepts_added": list(concepts.keys())
-                    }
+                        "concepts_added": list(concepts.keys()),
+                    },
                 )
             else:
                 return ToolResult(
                     success=True,
                     content="",  # Silent background process
                     message_type="background_process",
-                    metadata={"tool_used": "flashcard_concept_tracker",
-                              "flashcards_created": 0}
+                    metadata={
+                        "tool_used": "flashcard_concept_tracker",
+                        "flashcards_created": 0,
+                    },
                 )
 
         except Exception as e:
             logger.error(f"FlashcardTool error: {e}", exc_info=True)
             return ToolResult(
-                success=False,
-                error=f"Flashcard processing error: {str(e)}"
+                success=False, error=f"Flashcard processing error: {str(e)}"
             )
 
-    async def _extract_concepts(self, user_message: str, conversation_context: str) -> Dict[str, str]:
+    async def _extract_concepts(
+        self, user_message: str, conversation_context: str
+    ) -> Dict[str, str]:
         """Use AI to extract key concepts and their definitions from the conversation"""
         if not self.gemini_model:
             return {}
@@ -166,7 +276,8 @@ class FlashcardTool(BaseTool):
             # Filter out obvious meta-instructions and conversational noise
             if self._is_meta_instruction(user_message):
                 logger.info(
-                    f"Skipping flashcard extraction for meta-instruction: {user_message[:50]}...")
+                    f"Skipping flashcard extraction for meta-instruction: {user_message[:50]}..."
+                )
                 return {}
 
             prompt = f"""
@@ -215,26 +326,28 @@ class FlashcardTool(BaseTool):
             response_text = response.text
 
             # Find the start and end of the JSON object to isolate it from surrounding text
-            json_start = response_text.find('{')
-            json_end = response_text.rfind('}')
+            json_start = response_text.find("{")
+            json_end = response_text.rfind("}")
 
             if json_start != -1 and json_end > json_start:
-                json_string = response_text[json_start:json_end+1].strip()
+                json_string = response_text[json_start : json_end + 1].strip()
                 concepts = json.loads(json_string)
 
                 # Additional filtering for quality control
                 filtered_concepts = {}
-                for term, definition in (concepts.items() if isinstance(concepts, dict) else []):
+                for term, definition in (
+                    concepts.items() if isinstance(concepts, dict) else []
+                ):
                     if self._is_valid_educational_concept(term, definition):
                         filtered_concepts[term] = definition
                     else:
-                        logger.info(
-                            f"Filtered out non-educational concept: {term}")
+                        logger.info(f"Filtered out non-educational concept: {term}")
 
                 return filtered_concepts
 
             logger.warning(
-                f"Could not find a valid JSON object in the flashcard LLM response: {response_text}")
+                f"Could not find a valid JSON object in the flashcard LLM response: {response_text}"
+            )
             return {}
 
         except json.JSONDecodeError:
@@ -252,23 +365,49 @@ class FlashcardTool(BaseTool):
         # Common meta-instruction patterns
         meta_patterns = [
             # Tool requests
-            'create a diagram', 'make a diagram', 'show me a diagram', 'generate diagram',
-            'recommend videos', 'find videos', 'youtube videos', 'video recommendations',
-            'create quiz', 'make quiz', 'quiz me', 'generate quiz',
-            'create flashcard', 'make flashcard',
-
+            "create a diagram",
+            "make a diagram",
+            "show me a diagram",
+            "generate diagram",
+            "recommend videos",
+            "find videos",
+            "youtube videos",
+            "video recommendations",
+            "create quiz",
+            "make quiz",
+            "quiz me",
+            "generate quiz",
+            "create flashcard",
+            "make flashcard",
             # Conversation management
-            'explain more', 'tell me more', 'continue explaining', 'go on',
-            'can you', 'could you', 'please', 'i want', 'i need',
-            'show me', 'tell me about', 'what is your', 'how do you',
-
+            "explain more",
+            "tell me more",
+            "continue explaining",
+            "go on",
+            "can you",
+            "could you",
+            "please",
+            "i want",
+            "i need",
+            "show me",
+            "tell me about",
+            "what is your",
+            "how do you",
             # Learning preferences
-            'learning style', 'prefer to learn', 'learning preference',
-            'teaching style', 'explain in a way',
-
+            "learning style",
+            "prefer to learn",
+            "learning preference",
+            "teaching style",
+            "explain in a way",
             # System/interface related
-            'upload file', 'attach file', 'load document', 'use rag',
-            'mode active', 'turn on', 'enable', 'disable',
+            "upload file",
+            "attach file",
+            "load document",
+            "use rag",
+            "mode active",
+            "turn on",
+            "enable",
+            "disable",
         ]
 
         # Check for exact matches or if message starts with these patterns
@@ -277,7 +416,10 @@ class FlashcardTool(BaseTool):
                 return True
 
         # Check if message is very short and likely a command
-        if len(message.split()) <= 3 and any(word in message_lower for word in ['create', 'make', 'show', 'tell', 'explain', 'generate']):
+        if len(message.split()) <= 3 and any(
+            word in message_lower
+            for word in ["create", "make", "show", "tell", "explain", "generate"]
+        ):
             return True
 
         return False
@@ -289,9 +431,22 @@ class FlashcardTool(BaseTool):
 
         # Filter out terms that are clearly not educational concepts
         invalid_terms = [
-            'diagram', 'video', 'quiz', 'recommendation', 'style', 'preference',
-            'user', 'chat', 'conversation', 'request', 'instruction',
-            'mode', 'system', 'tool', 'feature', 'interface'
+            "diagram",
+            "video",
+            "quiz",
+            "recommendation",
+            "style",
+            "preference",
+            "user",
+            "chat",
+            "conversation",
+            "request",
+            "instruction",
+            "mode",
+            "system",
+            "tool",
+            "feature",
+            "interface",
         ]
 
         # Check if the term itself is invalid
@@ -301,9 +456,16 @@ class FlashcardTool(BaseTool):
 
         # Check if definition contains meta-language
         meta_definition_indicators = [
-            'user wants', 'user requests', 'conversation about', 'chat feature',
-            'tool that', 'system that', 'way to', 'method for explaining',
-            'type of request', 'kind of instruction'
+            "user wants",
+            "user requests",
+            "conversation about",
+            "chat feature",
+            "tool that",
+            "system that",
+            "way to",
+            "method for explaining",
+            "type of request",
+            "kind of instruction",
         ]
 
         for indicator in meta_definition_indicators:
@@ -316,33 +478,80 @@ class FlashcardTool(BaseTool):
 
         # Must contain some educational/scientific indicators
         educational_indicators = [
-            'process', 'theory', 'principle', 'law', 'formula', 'equation',
-            'mechanism', 'structure', 'function', 'property', 'characteristic',
-            'concept', 'method', 'technique', 'phenomenon', 'reaction',
-            'system', 'model', 'algorithm', 'protocol', 'procedure'
+            "process",
+            "theory",
+            "principle",
+            "law",
+            "formula",
+            "equation",
+            "mechanism",
+            "structure",
+            "function",
+            "property",
+            "characteristic",
+            "concept",
+            "method",
+            "technique",
+            "phenomenon",
+            "reaction",
+            "system",
+            "model",
+            "algorithm",
+            "protocol",
+            "procedure",
         ]
 
         has_educational_content = any(
-            indicator in definition_lower for indicator in educational_indicators)
+            indicator in definition_lower for indicator in educational_indicators
+        )
 
         # Allow scientific/technical terms even without explicit indicators
         scientific_domains = [
-            'biology', 'chemistry', 'physics', 'mathematics', 'computer', 'engineering',
-            'medical', 'scientific', 'technical', 'academic', 'research', 'computer science',
-            'data science', 'machine learning', 'deep learning', 'artificial intelligence',
-            'neural network', 'reinforcement learning', 'natural language processing',
-            'computer vision', 'robotics', 'cybersecurity', 'blockchain', 'quantum computing',
-            'genetic algorithms', 'evolutionary algorithms', 'fuzzy logic', 'expert systems',
-            'knowledge management', 'knowledge representation', 'knowledge acquisition',
-            'knowledge base', 'knowledge engineering', 'knowledge management system',
+            "biology",
+            "chemistry",
+            "physics",
+            "mathematics",
+            "computer",
+            "engineering",
+            "medical",
+            "scientific",
+            "technical",
+            "academic",
+            "research",
+            "computer science",
+            "data science",
+            "machine learning",
+            "deep learning",
+            "artificial intelligence",
+            "neural network",
+            "reinforcement learning",
+            "natural language processing",
+            "computer vision",
+            "robotics",
+            "cybersecurity",
+            "blockchain",
+            "quantum computing",
+            "genetic algorithms",
+            "evolutionary algorithms",
+            "fuzzy logic",
+            "expert systems",
+            "knowledge management",
+            "knowledge representation",
+            "knowledge acquisition",
+            "knowledge base",
+            "knowledge engineering",
+            "knowledge management system",
         ]
 
         has_scientific_context = any(
-            domain in definition_lower for domain in scientific_domains)
+            domain in definition_lower for domain in scientific_domains
+        )
 
         return has_educational_content or has_scientific_context
 
-    async def _create_flashcard_if_new(self, term: str, definition: str, chat, context: str) -> bool:
+    async def _create_flashcard_if_new(
+        self, term: str, definition: str, chat, context: str
+    ) -> bool:
         """Create a flashcard if the concept doesn't already exist"""
         try:
             # Clean up the term
@@ -354,8 +563,7 @@ class FlashcardTool(BaseTool):
 
             # Check if flashcard already exists
             existing = await ChatFlashcard.objects.filter(
-                chat=chat,
-                term__iexact=term
+                chat=chat, term__iexact=term
             ).afirst()
 
             if not existing:
@@ -364,7 +572,7 @@ class FlashcardTool(BaseTool):
                     term=term,
                     definition=definition,
                     context=context[:500],  # Limit context length
-                    auto_generated=True
+                    auto_generated=True,
                 )
                 logger.info(f"Created flashcard for concept: {term}")
                 return True
