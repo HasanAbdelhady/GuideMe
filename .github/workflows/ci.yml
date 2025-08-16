@@ -131,7 +131,6 @@ jobs:
 
       - name: Install pgvector extension
         run: |
-          sudo apt-get install -y postgresql-contrib
           PGPASSWORD=postgres psql -h localhost -U postgres -d test_mentorai -c "CREATE EXTENSION IF NOT EXISTS vector;"
 
       - name: Set up environment variables
@@ -246,7 +245,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:13
+        image: pgvector/pgvector:pg16
         env:
           POSTGRES_PASSWORD: postgres
           POSTGRES_USER: postgres
