@@ -70,8 +70,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install flake8 black isort complexity
-          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
 
       - name: Check code complexity
         run: |
@@ -160,7 +159,9 @@ jobs:
           python-version: "3.11"
 
       - name: Install safety
-        run: pip install safety
+        run: |
+          pip install safety==3.6.0
+          pip install pydantic==2.9.2
 
       - name: Check for known security vulnerabilities
         run: |

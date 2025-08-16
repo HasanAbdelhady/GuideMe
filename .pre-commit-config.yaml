@@ -1,0 +1,37 @@
+repos:
+  - repo: https://github.com/psf/black
+    rev: 24.10.0
+    hooks:
+      - id: black
+        language_version: python3.11
+        exclude: ^(migrations/|venv/|\.venv/)
+
+  - repo: https://github.com/pycqa/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+        args: ["--profile", "black"]
+        exclude: ^(migrations/|venv/|\.venv/)
+
+  - repo: https://github.com/pycqa/flake8
+    rev: 7.1.1
+    hooks:
+      - id: flake8
+        args: [--max-line-length=88, --extend-ignore=E203, W503, E501]
+        exclude: ^(migrations/|venv/|\.venv/)
+
+  - repo: https://github.com/pycqa/bandit
+    rev: 1.8.0
+    hooks:
+      - id: bandit
+        args: ["-r", ".", "-f", "json", "-o", "/dev/null"]
+        exclude: ^(migrations/|venv/|\.venv/|tests/)
+
+  - repo: local
+    hooks:
+      - id: django-check
+        name: Django Check
+        entry: python manage.py check
+        language: system
+        pass_filenames: false
+        always_run: true
