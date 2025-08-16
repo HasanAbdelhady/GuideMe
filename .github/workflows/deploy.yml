@@ -15,6 +15,11 @@ on:
           - staging
           - production
 
+permissions:
+  contents: write
+  packages: write
+  security-events: write
+
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
@@ -253,30 +258,27 @@ jobs:
 
       - name: Create GitHub release
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: actions/create-release@v1
+        run: |
+          gh release create ${{ github.ref_name }} \
+            --title "Release ${{ github.ref_name }}" \
+            --notes "## 🚀 Release ${{ github.ref_name }}
+
+          ### 🎯 Features
+          - Auto-generated release from CI/CD pipeline
+
+          ### 🔧 Technical Details
+          - Docker Image: ${{ needs.build-and-push.outputs.image-tag }}
+          - Commit: ${{ github.sha }}
+          - Deployed to: https://guideme-eg.duckdns.org
+
+          ### 🧪 Testing
+          - ✅ Unit tests passed
+          - ✅ Integration tests passed
+          - ✅ Security scans passed
+          - ✅ Performance tests passed" \
+            --latest
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ github.ref_name }}
-          release_name: Release ${{ github.ref_name }}
-          body: |
-            ## 🚀 Release ${{ github.ref_name }}
-
-            ### 🎯 Features
-            - Auto-generated release from CI/CD pipeline
-
-            ### 🔧 Technical Details
-            - Docker Image: ${{ needs.build-and-push.outputs.image-tag }}
-            - Commit: ${{ github.sha }}
-            - Deployed to: https://guideme-eg.duckdns.org
-
-            ### 🧪 Testing
-            - ✅ Unit tests passed
-            - ✅ Integration tests passed
-            - ✅ Security scans passed
-            - ✅ Performance tests passed
-          draft: false
-          prerelease: false
 
   # Database backup (production only)
   backup-database:
