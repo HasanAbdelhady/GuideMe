@@ -246,7 +246,15 @@ jobs:
 
       - name: Test Docker image
         run: |
-          docker run --rm guideme:test python manage.py check --deploy
+          docker run --rm \
+            -e DEBUG=False \
+            -e SECRET_KEY=test-secret-key-for-docker \
+            -e GROQ_API_KEY=test-key \
+            -e GOOGLE_API_KEY=test-key \
+            -e FLASHCARD=test-key \
+            -e ALLOWED_HOSTS=localhost,127.0.0.1 \
+            -e DATABASE_URL=sqlite:///test.db \
+            guideme:test python manage.py check --deploy
 
       - name: Move cache
         run: |
