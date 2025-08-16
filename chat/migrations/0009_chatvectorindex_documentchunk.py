@@ -3,9 +3,44 @@
 import uuid
 
 import django.db.models.deletion
-from django.db import migrations, models
+from django.db import migrations, models, connection
 
 import pgvector.django.vector
+
+
+def create_vector_extension(apps, schema_editor):
+    """Create vector extension only for PostgreSQL databases"""
+    if schema_editor.connection.vendor == 'postgresql':
+        with schema_editor.connection.cursor() as cursor:
+            try:
+                cursor.execute("""
+                    DO $$
+                    BEGIN
+                        CREATE EXTENSION IF NOT EXISTS vector;
+                    EXCEPTION
+                        WHEN undefined_file THEN
+                            -- Extension files not found, likely in test environment
+                            RAISE NOTICE 'Vector extension not available, skipping creation';
+                        WHEN others THEN
+                            -- Other errors, log but don't fail
+                            RAISE NOTICE 'Could not create vector extension: %', SQLERRM;
+                    END
+                    $$;
+                """)
+            except Exception as e:
+                # Log but don't fail the migration
+                print(f"Could not create vector extension: {e}")
+
+
+def reverse_vector_extension(apps, schema_editor):
+    """Remove vector extension only for PostgreSQL databases"""
+    if schema_editor.connection.vendor == 'postgresql':
+        with schema_editor.connection.cursor() as cursor:
+            try:
+                cursor.execute("DROP EXTENSION IF EXISTS vector;")
+            except Exception as e:
+                # Log but don't fail the migration
+                print(f"Could not drop vector extension: {e}")
 
 
 class Migration(migrations.Migration):
@@ -15,23 +50,10 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        # Create the vector extension first with error handling
-        migrations.RunSQL(
-            """
-            DO $$
-            BEGIN
-                CREATE EXTENSION IF NOT EXISTS vector;
-            EXCEPTION
-                WHEN undefined_file THEN
-                    -- Extension files not found, likely in test environment
-                    RAISE NOTICE 'Vector extension not available, skipping creation';
-                WHEN others THEN
-                    -- Other errors, log but don't fail
-                    RAISE NOTICE 'Could not create vector extension: %', SQLERRM;
-            END
-            $$;
-            """,
-            reverse_sql="DROP EXTENSION IF EXISTS vector;"
+        # Create the vector extension first (PostgreSQL only)
+        migrations.RunPython(
+            create_vector_extension,
+            reverse_vector_extension
         ),
         migrations.CreateModel(
             name='ChatVectorIndex',

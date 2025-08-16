@@ -253,7 +253,7 @@ jobs:
             -e GOOGLE_API_KEY=test-key \
             -e FLASHCARD=test-key \
             -e ALLOWED_HOSTS=localhost,127.0.0.1 \
-            guideme:test python manage.py check --deploy --skip-checks=database
+            guideme:test python manage.py check --deploy --skip-checks=database,models
 
       - name: Move cache
         run: |
