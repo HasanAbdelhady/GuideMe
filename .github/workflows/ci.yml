@@ -265,9 +265,7 @@ jobs:
             -e GOOGLE_API_KEY=test-key \
             -e FLASHCARD=test-key \
             -e ALLOWED_HOSTS=localhost,127.0.0.1 \
-            -e DATABASE_URL=sqlite:///test.db \
             guideme:test python manage.py check --deploy
-
       - name: Move cache
         run: |
           rm -rf /tmp/.buildx-cache
