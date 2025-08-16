@@ -15,14 +15,22 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
+        # Create the vector extension first
+        migrations.RunSQL(
+            "CREATE EXTENSION IF NOT EXISTS vector;",
+            reverse_sql="DROP EXTENSION IF EXISTS vector;"
+        ),
         migrations.CreateModel(
             name='ChatVectorIndex',
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('id', models.BigAutoField(auto_created=True,
+                 primary_key=True, serialize=False, verbose_name='ID')),
                 ('total_chunks', models.IntegerField(default=0)),
                 ('last_updated', models.DateTimeField(auto_now=True)),
-                ('embedding_model', models.CharField(default='all-MiniLM-L6-v2', max_length=100)),
-                ('chat', models.OneToOneField(on_delete=django.db.models.deletion.CASCADE, related_name='vector_index', to='chat.chat')),
+                ('embedding_model', models.CharField(
+                    default='all-MiniLM-L6-v2', max_length=100)),
+                ('chat', models.OneToOneField(on_delete=django.db.models.deletion.CASCADE,
+                 related_name='vector_index', to='chat.chat')),
             ],
             options={
                 'db_table': 'chat_vector_index',
@@ -31,14 +39,17 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name='DocumentChunk',
             fields=[
-                ('id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
+                ('id', models.UUIDField(default=uuid.uuid4,
+                 editable=False, primary_key=True, serialize=False)),
                 ('content', models.TextField()),
                 ('chunk_index', models.IntegerField()),
                 ('embedding', pgvector.django.vector.VectorField(dimensions=384)),
                 ('metadata', models.JSONField(default=dict)),
                 ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('chat', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='document_chunks', to='chat.chat')),
-                ('rag_file', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='chunks', to='chat.chatragfile')),
+                ('chat', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE,
+                 related_name='document_chunks', to='chat.chat')),
+                ('rag_file', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE,
+                 related_name='chunks', to='chat.chatragfile')),
             ],
             options={
                 'db_table': 'chat_document_chunks',
