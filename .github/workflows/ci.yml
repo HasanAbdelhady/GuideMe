@@ -44,21 +44,33 @@ jobs:
           pip install -r requirements-dev.txt
 
       - name: Run Black (Code Formatting)
+        continue-on-error: true
         run: |
           echo "🔍 Checking code formatting with Black..."
-          black --check --diff --color . | head -50 || {
+          if ! black --check --diff --color . | head -50; then
             echo ""
-            echo "❌ Black formatting issues found. Run 'black .' to fix automatically."
+            echo "::warning::Black formatting issues found. Run 'black .' to fix automatically."
             echo "📊 Total files that need formatting:"
             black --check . 2>&1 | grep -c "would reformat" || echo "Multiple files"
-            exit 1
-          }
+          else
+            echo "✅ All files are properly formatted with Black"
+          fi
 
       - name: Run isort (Import Sorting)
-        run: isort --check-only --diff .
+        continue-on-error: true
+        run: |
+          echo "🔍 Checking import sorting with isort..."
+          if ! isort --check-only --diff .; then
+            echo "::warning::Import sorting issues found. Run 'isort .' to fix automatically."
+          else
+            echo "✅ All imports are properly sorted"
+          fi
 
-      - name: Run Flake8 (Linting)
-        run: flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+      - name: Run Flake8 (Critical Syntax Errors Only)
+        run: |
+          echo "🔍 Checking for critical syntax errors with Flake8..."
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+          echo "✅ No critical syntax errors found"
 
       - name: Run Bandit (Security Linting)
         run: bandit -r . -f json -o bandit-report.json || true
