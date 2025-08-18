@@ -1,17 +1,13 @@
-import json
-
 from django.contrib import messages
-from django.contrib.auth import get_user_model, login, logout, update_session_auth_hash
+from django.contrib.auth import get_user_model, login, update_session_auth_hash
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db import transaction
 from django.shortcuts import redirect, render
 
 # Removed DjangoLogoutView import - using allauth logout instead
-from django.urls import reverse_lazy
 from django.utils.decorators import method_decorator
 from django.views import View
 from django.views.decorators.csrf import csrf_protect
-
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -104,7 +100,6 @@ class UserRegistrationView(View):
                     print(f"Added interest: {interest}")
 
                 # Now log in the user - specify backend for multiple auth backends
-                from django.contrib.auth.backends import ModelBackend
 
                 login(
                     request, user, backend="django.contrib.auth.backends.ModelBackend"
@@ -378,36 +373,7 @@ class TokenRefreshView(APIView):
                 }
             )
         except Exception as e:
-            return Response({"error": "Invalid refresh token"}, status=400)
-
-
-class TokenObtainPairView(APIView):
-    def post(self, request):
-        user = request.user
-        refresh = RefreshToken.for_user(user)
-        return Response(
-            {
-                "refresh": str(refresh),
-                "access": str(refresh.access_token),
-            }
-        )
-
-
-class TokenRefreshView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def post(self, request):
-        try:
-            refresh = request.data.get("refresh")
-            token = RefreshToken(refresh)
-            return Response(
-                {
-                    "access": str(token.access_token),
-                    "refresh": str(token),
-                }
-            )
-        except Exception as e:
-            return Response({"error": "Invalid refresh token"}, status=400)
+            return Response({"error": f"Invalid refresh token\n {e}"}, status=400)
 
 
 # LogoutView removed - using allauth's logout functionality instead
