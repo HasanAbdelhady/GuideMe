@@ -1,24 +1,19 @@
-import json
-
 from django.contrib import messages
-from django.contrib.auth import get_user_model, login, logout, update_session_auth_hash
+from django.contrib.auth import get_user_model, login, update_session_auth_hash
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db import transaction
 from django.shortcuts import redirect, render
 
 # Removed DjangoLogoutView import - using allauth logout instead
-from django.urls import reverse_lazy
 from django.utils.decorators import method_decorator
 from django.views import View
 from django.views.decorators.csrf import csrf_protect
 
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.response import Response
-from rest_framework.views import APIView
-from rest_framework_simplejwt.tokens import RefreshToken
-
 from .forms import CustomUserChangeForm, CustomUserCreationForm, PasswordChangeForm
 from .models import CustomUser, Interest, UserInterest
+
+# Removed unused REST framework and JWT imports
+
 
 User = get_user_model()
 
@@ -104,7 +99,6 @@ class UserRegistrationView(View):
                     print(f"Added interest: {interest}")
 
                 # Now log in the user - specify backend for multiple auth backends
-                from django.contrib.auth.backends import ModelBackend
 
                 login(
                     request, user, backend="django.contrib.auth.backends.ModelBackend"
@@ -128,8 +122,49 @@ class UserRegistrationView(View):
 
 
 class UserLoginView(View):
+    template_name = "users/login.html"
+
+    @method_decorator(csrf_protect)
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
+
     def get(self, request):
-        return render(request, "users/login.html")
+        # Redirect if already authenticated
+        if request.user.is_authenticated:
+            return redirect("chat")
+        return render(request, self.template_name)
+
+    def post(self, request):
+        # Redirect if already authenticated
+        if request.user.is_authenticated:
+            return redirect("chat")
+
+        username = request.POST.get("username", "").strip()
+        password = request.POST.get("password", "")
+
+        if not username or not password:
+            messages.error(request, "Username and password are required.")
+            return render(request, self.template_name)
+
+        # Use authentication system (will try all backends including custom one)
+        from django.contrib.auth import authenticate
+
+        user = authenticate(request, username=username, password=password)
+
+        if user is not None:
+            if user.is_active:
+                login(request, user)
+                messages.success(request, f"Welcome back, {user.username}!")
+
+                # Redirect to next parameter or default
+                next_url = request.GET.get("next", "/chat/new/")
+                return redirect(next_url)
+            else:
+                messages.error(request, "Your account has been disabled.")
+        else:
+            messages.error(request, "Invalid username/email or password.")
+
+        return render(request, self.template_name)
 
 
 class GoogleSignupPreferencesView(LoginRequiredMixin, View):
@@ -352,62 +387,7 @@ class UserProfileView(LoginRequiredMixin, View):
 # Other views remain unchanged unless they interact with interests
 
 
-class TokenObtainPairView(APIView):
-    def post(self, request):
-        user = request.user
-        refresh = RefreshToken.for_user(user)
-        return Response(
-            {
-                "refresh": str(refresh),
-                "access": str(refresh.access_token),
-            }
-        )
-
-
-class TokenRefreshView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def post(self, request):
-        try:
-            refresh = request.data.get("refresh")
-            token = RefreshToken(refresh)
-            return Response(
-                {
-                    "access": str(token.access_token),
-                    "refresh": str(token),
-                }
-            )
-        except Exception as e:
-            return Response({"error": "Invalid refresh token"}, status=400)
-
-
-class TokenObtainPairView(APIView):
-    def post(self, request):
-        user = request.user
-        refresh = RefreshToken.for_user(user)
-        return Response(
-            {
-                "refresh": str(refresh),
-                "access": str(refresh.access_token),
-            }
-        )
-
-
-class TokenRefreshView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def post(self, request):
-        try:
-            refresh = request.data.get("refresh")
-            token = RefreshToken(refresh)
-            return Response(
-                {
-                    "access": str(token.access_token),
-                    "refresh": str(token),
-                }
-            )
-        except Exception as e:
-            return Response({"error": "Invalid refresh token"}, status=400)
+# JWT token views removed - not used in this application
 
 
 # LogoutView removed - using allauth's logout functionality instead

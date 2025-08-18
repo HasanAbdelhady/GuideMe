@@ -5,7 +5,7 @@ from django.contrib.auth.forms import (
     UserCreationForm,
 )
 
-from .models import CustomUser, Interest
+from .models import CustomUser
 
 
 class CustomUserCreationForm(UserCreationForm):
@@ -72,7 +72,7 @@ class CustomUserCreationForm(UserCreationForm):
         ),
     )
 
-    class Meta:
+    class Meta:  # type: ignore[override]
         model = CustomUser
         fields = (
             "username",
@@ -147,7 +147,7 @@ class CustomUserChangeForm(UserChangeForm):
         ),
     )
 
-    class Meta:
+    class Meta:  # type: ignore[override]
         model = CustomUser
         fields = (
             "email",
