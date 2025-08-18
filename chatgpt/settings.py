@@ -19,13 +19,28 @@ SECRET_KEY = os.getenv("SECRET_KEY")
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv("DEBUG", "True").lower() == "true"
-ALLOWED_HOSTS = ["*"]
+# Security: Restrict allowed hosts
+ALLOWED_HOSTS = (
+    [
+        "localhost",
+        "127.0.0.1",
+        "guideme-eg.duckdns.org",
+        "*.railway.app",
+        "*.up.railway.app",
+    ]
+    if DEBUG
+    else [
+        "guideme-eg.duckdns.org",
+        "*.railway.app",
+        "*.up.railway.app",
+    ]
+)
 
 # CSRF and Security Settings for Railway
 CSRF_TRUSTED_ORIGINS = [
+    "https://guideme-eg.duckdns.org",
     "https://*.railway.app",
     "https://*.up.railway.app",
-    "https://guideme-eg.duckdns.org",
     "http://localhost:8000",
     "http://127.0.0.1:8000",
 ]
@@ -198,6 +213,19 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 # Enable WhiteNoise compressed manifest storage for production
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
+
+# Session Security Settings - ChatGPT-like UX with 1-year sessions
+SESSION_COOKIE_AGE = 31536000  # 1 year (365 days * 24 hours * 60 minutes * 60 seconds)
+SESSION_COOKIE_SECURE = not DEBUG  # HTTPS only in production
+SESSION_COOKIE_HTTPONLY = True  # Prevent JavaScript access (XSS protection)
+SESSION_COOKIE_SAMESITE = "Lax"  # CSRF protection while allowing normal navigation
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False  # Stay logged in after browser close
+SESSION_SAVE_EVERY_REQUEST = True  # Refresh session expiry on every request
+
+# Additional Security Headers
+SECURE_BROWSER_XSS_FILTER = True
+SECURE_CONTENT_TYPE_NOSNIFF = True
+X_FRAME_OPTIONS = "DENY"
 
 # Add these settings for authentication
 LOGIN_URL = "login"  # Name of our login URL pattern

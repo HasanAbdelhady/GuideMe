@@ -11,7 +11,6 @@ urlpatterns = [
     path("chat/", include("chat.urls")),
     path("users/", include("users.urls")),
     path("accounts/", include("allauth.urls")),  # Add allauth URLs
-    path("api/", include("rest_framework.urls")),
 ]
 
 handler404 = "chat.views.custom_404_view"
