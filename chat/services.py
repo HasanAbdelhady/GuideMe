@@ -99,17 +99,14 @@ class ChatService:
             )
             return "An error occurred while communicating with the YouTube agent."
 
-    def get_files_rag(self, chat_id):
-        """Return the cached RAG for this chat, if any. (Used by Part 2: Manage RAG Context)"""
-        return self.rag_cache.get(chat_id)
-
-    def build_rag(self, file_path, file_ext, chat_id=None):
-        """Builds a RAG index from a file_path. (Used by Part 2: Manage RAG Context)"""
-        rag = RAG_pipeline(model="llama3-8b-8192")  # Consider making model configurable
-        rag.build_index(file_path, file_type=file_ext)
-        if chat_id:
-            self.rag_cache[chat_id] = rag
-        return rag
+    async def get_files_rag(self, chat_id):
+        """Return the RAG files for this chat instance. (Used by Part 2: Manage RAG Context)"""
+        try:
+            chat = await sync_to_async(Chat.objects.get)(id=chat_id)
+            rag_files = await sync_to_async(list)(chat.rag_files.select_related('user').all())
+            return rag_files
+        except Chat.DoesNotExist:
+            return []
 
     def extract_text_from_uploaded_file(self, uploaded_file, max_chars=15000):
         filename = uploaded_file.name
@@ -163,26 +160,7 @@ class ChatService:
             "final_char_count": len(text_content),
         }
 
-    def process_file(self, uploaded_file):
-        """
-        Save uploaded file (for Part 2 - RAG Context) and return its path and extension.
-        This method is for files intended for persistent RAG indexing.
-        """
-        if not uploaded_file:
-            return "", ""
-        file_name = uploaded_file.name
-        file_ext = file_name.split(".")[-1].lower()
-        # For Part 2, this save_dir should be more robust, e.g., media/rag_files/<chat_id>/
-        save_dir = "uploaded_files_for_rag"
-        os.makedirs(save_dir, exist_ok=True)
 
-        # Consider using Django's FileSystemStorage for unique names if not using a model's FileField
-        # This could have naming collisions
-        file_path = os.path.join(save_dir, file_name)
-        with default_storage.open(file_path, "wb") as f:  # Use default_storage
-            for chunk in uploaded_file.chunks():
-                f.write(chunk)
-        return file_path, file_ext
 
     def enforce_token_limit(self, messages, max_tokens=6000):
         from langchain.prompts import PromptTemplate
@@ -383,11 +361,12 @@ class ChatService:
 
         context_str = ""
         rag_output = ""
-        if files_rag and query:
+        if await self.get_files_rag(chat_id) and query:
             # Assuming files_rag.retrieve is CPU bound or already async; if sync I/O, wrap it
             # For now, let's assume it's okay or needs to be made async separately if it blocks.
             # retrieved_context_val = await sync_to_async(files_rag.retrieve)(query) # Example if it needed wrapping
-            retrieved_context_val = files_rag.retrieve_docs(query)  # Original
+
+            retrieved_context_val = await sync_to_async(RAG_pipeline().retrieve_docs)(query, chat_id=chat_id)  # Fixed async call
             rag_output = retrieved_context_val
             self.logger.info(f"RAG output HERE!!!!!!!!!!! {str(rag_output)[:500]}...")
             if retrieved_context_val:
@@ -462,7 +441,8 @@ class ChatService:
 
         current_messages_copy = [msg.copy() for msg in messages]  # Work with a copy
 
-        if files_rag and query:
+        
+        if await self.get_files_rag(chat_id) and query:
             # Create a history string for better retrieval context
             history_str = "\n".join(
                 [f"{m['role']}: {m['content']}" for m in current_messages_copy[:-1]]
@@ -472,8 +452,11 @@ class ChatService:
                 f"Conversation_history: {history_str}\n\nQuestion: {query}"
             )
 
+            rag_files_debug = await self.get_files_rag(chat_id)
+            print(f"Files RAG From inside the services: {len(rag_files_debug)} files found")
+
             # Pass chat_id to retrieve_docs
-            retrieved_docs = await sync_to_async(files_rag.retrieve_docs)(
+            retrieved_docs = await sync_to_async(RAG_pipeline().retrieve_docs)(
                 full_query_for_retrieval, chat_id=chat_id
             )
 

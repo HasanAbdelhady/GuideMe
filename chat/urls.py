@@ -14,6 +14,7 @@ from .views import (
     serve_diagram_image,
     study_hub_view,
     update_chat_title,
+    list_rag_files,
 )
 
 urlpatterns = [
@@ -26,8 +27,11 @@ urlpatterns = [
     path("<uuid:chat_id>/clear/", clear_chat, name="clear_chat"),
     path("<uuid:chat_id>/quiz/", chat_quiz, name="chat_quiz"),
     path("<uuid:chat_id>/study/", study_hub_view, name="study_hub"),
+    path("<uuid:chat_id>/rag-files/", list_rag_files, name="list_rag_files"),
     path(
-        "<uuid:chat_id>/rag-files/", ChatRAGFilesView.as_view(), name="list_rag_files"
+        "<uuid:chat_id>/rag-files/apply_rag",
+        ChatRAGFilesView.as_view(),
+        name="list_rag_files",
     ),
     path(
         "<uuid:chat_id>/rag-files/<int:file_id>/delete/",
