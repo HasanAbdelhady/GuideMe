@@ -24,7 +24,7 @@ class AIService:
     """Service for AI interactions used by the agent system"""
 
     def __init__(self):
-        self.client = Groq()
+        self.client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
         self.default_model = "gemma2-9b-it"
         # Initialize vision model if API key is available
         if FLASHCARD_API_KEY:
@@ -158,7 +158,7 @@ class AIService:
 
 class AIModelManager:
     def __init__(self):
-        self.client = Groq()
+        self.client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
         self.default_model = "llama3-8b-8192"
         self.quiz_model = "llama-3.3-70b-versatile"
 
