@@ -48,11 +48,15 @@ class RAG_pipeline:
             huggingfacehub_api_token=api_token,
         )
 
-    def build_index(self, file_paths_and_types, chat_id=None, rag_files_map=None):
+    def build_index(
+        self, file_paths_and_types, chat_id=None, rag_files_map=None, incremental=True
+    ):
         """Build index using PostgreSQL instead of FAISS"""
         if not chat_id:
             raise ValueError("chat_id is required for PostgreSQL vector storage")
 
+        print(f"FILE PATHS ADN TYPES {file_paths_and_types}")
+        print(f"RAG FIle Map {rag_files_map} ")
         # Import here to avoid circular imports
         from .models import Chat, ChatVectorIndex, DocumentChunk
 
@@ -62,8 +66,16 @@ class RAG_pipeline:
             print(f"Chat with id {chat_id} not found")
             return
 
-        # Clear existing chunks for this chat
-        DocumentChunk.objects.filter(chat=chat).delete()
+        # Only clear existing chunks if not incremental
+        if not incremental:
+            DocumentChunk.objects.filter(chat=chat).delete()
+        else:
+            # For incremental indexing, only delete chunks for files we're re-indexing
+            if rag_files_map:
+                existing_rag_files = [rag_file for rag_file in rag_files_map.values()]
+                DocumentChunk.objects.filter(
+                    chat=chat, rag_file__in=existing_rag_files
+                ).delete()
 
         all_loaded_docs = []
         file_to_rag_file_map = {}
@@ -72,6 +84,7 @@ class RAG_pipeline:
         for file_path, file_type in file_paths_and_types:
             docs_from_file = []
             if file_type == "pdf":
+                print("HI IM INSIDE FILE_TYPE == PDF")
                 try:
                     if not os.path.exists(file_path) or not os.path.isfile(file_path):
                         print(f"PDF file not found: {file_path}. Skipping.")
