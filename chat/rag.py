@@ -48,7 +48,9 @@ class RAG_pipeline:
             huggingfacehub_api_token=api_token,
         )
 
-    def build_index(self, file_paths_and_types, chat_id=None, rag_files_map=None, incremental=True):
+    def build_index(
+        self, file_paths_and_types, chat_id=None, rag_files_map=None, incremental=True
+    ):
         """Build index using PostgreSQL instead of FAISS"""
         if not chat_id:
             raise ValueError("chat_id is required for PostgreSQL vector storage")
@@ -71,7 +73,9 @@ class RAG_pipeline:
             # For incremental indexing, only delete chunks for files we're re-indexing
             if rag_files_map:
                 existing_rag_files = [rag_file for rag_file in rag_files_map.values()]
-                DocumentChunk.objects.filter(chat=chat, rag_file__in=existing_rag_files).delete()
+                DocumentChunk.objects.filter(
+                    chat=chat, rag_file__in=existing_rag_files
+                ).delete()
 
         all_loaded_docs = []
         file_to_rag_file_map = {}
