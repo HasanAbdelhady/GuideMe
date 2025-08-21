@@ -305,57 +305,7 @@ class ChatStreamView(View):
             youtube_mode_active = youtube_mode_active_str.lower() == "true"
             logger.info(f"YouTube mode active: {youtube_mode_active}")
 
-            files_rag_instance = None
-            attached_file_names_for_rag_context = []
-            if rag_mode_active:
-                logger.info(
-                    "RAG mode is ACTIVE. Attempting to build RAG index from persisted files."
-                )
-                active_rag_files_qs = await sync_to_async(list)(
-                    chat.rag_files.filter(user=user).all().order_by("-uploaded_at")
-                )
-                active_rag_files = active_rag_files_qs
-
-                if active_rag_files:
-                    file_paths_and_types_for_rag = []
-                    rag_files_map = {}  # Map file paths to ChatRAGFile objects
-                    for rag_file_entry in active_rag_files:
-                        file_path = rag_file_entry.file.path
-                        _, file_ext = os.path.splitext(rag_file_entry.original_filename)
-                        file_type = file_ext.lower().strip(".")
-                        if file_type in ["pdf", "txt"]:
-                            file_paths_and_types_for_rag.append((file_path, file_type))
-                            attached_file_names_for_rag_context.append(
-                                rag_file_entry.original_filename
-                            )
-                            # Map file path to ChatRAGFile object
-                            rag_files_map[file_path] = rag_file_entry
-                        else:
-                            logger.warning(
-                                f"Skipping RAG file {rag_file_entry.original_filename} due to unsupported type: {file_type}"
-                            )
-
-                    if file_paths_and_types_for_rag:
-                        logger.info(
-                            f"Building RAG index from persisted files: {attached_file_names_for_rag_context}"
-                        )
-                        files_rag_instance = RAG_pipeline()
-                        try:
-                            await sync_to_async(files_rag_instance.build_index)(
-                                file_paths_and_types_for_rag,
-                                chat_id=chat_id,
-                                rag_files_map=rag_files_map,  # Pass the mapping
-                            )
-                            logger.info(
-                                f"Successfully built RAG index from {len(file_paths_and_types_for_rag)} persisted files."
-                            )
-                        except Exception as e:
-                            logger.error(
-                                f"Failed to build RAG index from persisted files: {e}",
-                                exc_info=True,
-                            )
-            else:
-                logger.info("RAG mode is INACTIVE. Skipping RAG index build.")
+            # RAG indexing is now handled in ChatRAGFilesView when files are uploaded
 
             # Diagram mode takes precedence if active
             if diagram_mode_active:
@@ -455,7 +405,6 @@ class ChatStreamView(View):
                 chat=chat,
                 messages_for_llm=messages_for_llm,
                 query_for_rag=user_typed_prompt if rag_mode_active else None,
-                files_rag_instance=files_rag_instance if rag_mode_active else None,
                 is_new_chat=is_new_chat_bool,
                 current_user_prompt_for_saving=(
                     user_typed_prompt
@@ -464,11 +413,7 @@ class ChatStreamView(View):
                     )
                     else None
                 ),
-                attached_file_name_for_rag=(
-                    ", ".join(attached_file_names_for_rag_context)
-                    if rag_mode_active and attached_file_names_for_rag_context
-                    else None
-                ),
+                attached_file_name_for_rag=None,  # RAG files are now managed separately
                 file_info_for_truncation_warning=file_info_for_llm,
                 diagram_mode_active=diagram_mode_active,  # Pass diagram_mode_active
                 # Pass user_id for diagram path
@@ -492,7 +437,6 @@ class ChatStreamView(View):
         chat,
         messages_for_llm,
         query_for_rag=None,
-        files_rag_instance=None,
         is_new_chat=False,
         current_user_prompt_for_saving=None,
         attached_file_name_for_rag=None,
@@ -547,7 +491,6 @@ class ChatStreamView(View):
                     stream = await chat_service.stream_completion(
                         messages=messages_for_llm,
                         query=query_for_rag,
-                        files_rag=files_rag_instance,
                         max_tokens=max_tokens_for_llm,
                         chat_id=chat.id,
                         is_new_chat=is_new_chat,
@@ -592,17 +535,17 @@ class ChatStreamView(View):
 
                     yield f"data: {json.dumps({'type': 'done'})}\n\n"
 
-                    if files_rag_instance:
-                        rag_stats = {
-                            "file_chunks_used": (
-                                len(files_rag_instance.chunks)
-                                if files_rag_instance
-                                and hasattr(files_rag_instance, "chunks")
-                                else 0
-                            ),
-                        }
-                        yield f"data: {json.dumps({'type': 'metadata', 'content': rag_stats})}\n\n"
-                    return  # End stream for RAG mode
+                    # if files_rag_instance:
+                    #     rag_stats = {
+                    #         "file_chunks_used": (
+                    #             len(files_rag_instance.chunks)
+                    #             if files_rag_instance
+                    #             and hasattr(files_rag_instance, "chunks")
+                    #             else 0
+                    #         ),
+                    #     }
+                    #     yield f"data: {json.dumps({'type': 'metadata', 'content': rag_stats})}\n\n"
+                    # return  # End stream for RAG mode
 
                 # --- Agent System Integration (if not in RAG mode) ---
                 logger.info("RAG mode is inactive. Using agent system.")
@@ -612,7 +555,6 @@ class ChatStreamView(View):
                     "user": user,
                     "messages_for_llm": messages_for_llm[:-1],
                     "chat_service": chat_service,
-                    "files_rag_instance": files_rag_instance,
                     # New: Add image data to chat context if available
                     "image_data": image_data,
                     "image_mime_type": image_mime_type,
@@ -682,7 +624,7 @@ class ChatStreamView(View):
                     )
                     for i, tool_result in enumerate(primary_tools_used):
                         logger.info(
-                            f"Streaming tool result {i+1}: {tool_result.message_type} (order: {getattr(tool_result, 'execution_order', 'unknown')})"
+                            f"Streaming tool result {i + 1}: {tool_result.message_type} (order: {getattr(tool_result, 'execution_order', 'unknown')})"
                         )
 
                         if tool_result.message_type == "diagram":
@@ -778,8 +720,16 @@ class ChatStreamView(View):
                                 type="diagram",
                                 diagram_image_id=diagram_image_id,
                             )
-                            yield f"""data: {json.dumps({'type': 'diagram_image', 'diagram_image_id': str(diagram_image_id), 
-                                                       'message_id': new_diagram_message.id, 'text_content': tool_result.content})}\n\n"""
+                            yield f"""data: {
+                                json.dumps(
+                                    {
+                                        "type": "diagram_image",
+                                        "diagram_image_id": str(diagram_image_id),
+                                        "message_id": new_diagram_message.id,
+                                        "text_content": tool_result.content,
+                                    }
+                                )
+                            }\n\n"""
 
                     elif tool_result.message_type == "youtube":
                         if (
@@ -937,9 +887,7 @@ class ChatStreamView(View):
                             "type"
                         ) == "tokens" or "tokens per minute (TPM)" in error_detail.get(
                             "error", {}
-                        ).get(
-                            "message", ""
-                        ):
+                        ).get("message", ""):
                             user_message = "The request is too large for the model. Please try reducing your message size or shortening the conversation if the history is very long."
                     except json.JSONDecodeError:
                         if "Request too large" in str(
@@ -1043,7 +991,9 @@ class ChatStreamView(View):
             )
 
             await sync_to_async(close_old_connections)()
-            await sync_to_async(Message.objects.create)(
+            await sync_to_async(
+                Message.objects.create
+            )(
                 chat=chat,
                 role="assistant",
                 content=message_content,
@@ -1126,7 +1076,6 @@ class ChatStreamView(View):
 @login_required
 def create_chat(request):
     if request.method == "POST":
-
         new_prompt = PreferenceService.get_system_prompt(request.user)
         request.session["system_prompt"] = new_prompt
         print(new_prompt)
@@ -1371,31 +1320,32 @@ def edit_message(request, chat_id, message_id):
         return JsonResponse({"error": f"Could not edit message: {str(e)}"}, status=500)
 
 
-@method_decorator(login_required, name="dispatch")
-class ChatRAGFilesView(View):
-    def get(self, request, chat_id):
-        try:
-            chat = get_object_or_404(Chat, id=chat_id, user=request.user)
-            rag_files = chat.rag_files.all().order_by("-uploaded_at")
-            files_data = [
-                {"id": str(rag_file.id), "name": rag_file.original_filename}
-                for rag_file in rag_files
-            ]
-            return JsonResponse(files_data, safe=False)
-        except Chat.DoesNotExist:
-            return JsonResponse({"error": "Chat not found"}, status=404)
-        except Exception as e:
-            logger.error(
-                f"Error fetching RAG files for chat {chat_id}: {e}", exc_info=True
-            )
-            return JsonResponse({"error": "Could not retrieve RAG files."}, status=500)
+def list_rag_files(request, chat_id):
+    try:
+        chat = get_object_or_404(Chat, id=chat_id, user=request.user)
+        rag_files = chat.rag_files.all().order_by("-uploaded_at")
+        files_data = [
+            {"id": str(rag_file.id), "name": rag_file.original_filename}
+            for rag_file in rag_files
+        ]
+        return JsonResponse(files_data, safe=False)
+    except Chat.DoesNotExist:
+        return JsonResponse({"error": "Chat not found"}, status=404)
+    except Exception as e:
+        logger.error(f"Error fetching RAG files for chat {chat_id}: {e}", exc_info=True)
+        return JsonResponse({"error": "Could not retrieve RAG files."}, status=500)
 
-    def post(self, request, chat_id):
+
+# @method_decorator(login_required, name="dispatch")
+class ChatRAGFilesView(View):
+    async def post(self, request, chat_id):
         MAX_RAG_FILES = 10
         try:
-            chat = get_object_or_404(Chat, id=chat_id, user=request.user)
+            chat = await sync_to_async(get_object_or_404)(
+                Chat, id=chat_id, user=request.user
+            )
 
-            if chat.rag_files.count() >= MAX_RAG_FILES:
+            if await sync_to_async(chat.rag_files.count)() >= MAX_RAG_FILES:
                 return JsonResponse(
                     {"error": f"RAG file limit ({MAX_RAG_FILES}) reached."}, status=400
                 )
@@ -1420,17 +1370,37 @@ class ChatRAGFilesView(View):
                 file=uploaded_file,
                 original_filename=uploaded_file.name,
             )
-            rag_file.save()  # This will call the upload_to logic in the model
+            files_rag_instance = RAG_pipeline()
 
-            # After successful file save, clear vector index to force rebuild
+            await sync_to_async(
+                rag_file.save
+            )()  # This will call the upload_to logic in the model
+
+            print("Rag file saved")
             try:
-                DocumentChunk.objects.filter(chat_id=chat_id).delete()
-                ChatVectorIndex.objects.filter(chat_id=chat_id).delete()
-                logger.info(
-                    f"Cleared vector index for chat {chat_id}, will rebuild on next query"
+                print(f"files path {rag_file.file.path}")
+                print(f"files extension {file_extension}")
+
+                await sync_to_async(files_rag_instance.build_index)(
+                    file_paths_and_types=[
+                        (
+                            rag_file.file.path,
+                            file_extension[1:],
+                        )
+                    ],  # Pass the original filename
+                    chat_id=chat_id,
+                    rag_files_map={rag_file.file.path: rag_file},  # Pass the mapping
+                    incremental=True,  # Add new file without clearing existing ones
                 )
+
+                logger.info(f"Successfully built RAG index from file{rag_file.file}")
             except Exception as e:
-                logger.error(f"Error clearing vector index: {e}")
+                logger.error(
+                    f"Failed to build RAG index from persisted files: {e}",
+                    exc_info=True,
+                )
+
+            # Index has been built for the new file - no need to clear it
 
             return JsonResponse(
                 {
@@ -1453,10 +1423,12 @@ class ChatRAGFilesView(View):
             )
             return JsonResponse({"error": "Could not upload RAG file."}, status=500)
 
-    def delete(self, request, chat_id, file_id):
+    async def delete(self, request, chat_id, file_id):
         try:
             try:
-                chat = Chat.objects.get(id=chat_id, user=request.user)
+                chat = await sync_to_async(Chat.objects.get)(
+                    id=chat_id, user=request.user
+                )
             except Chat.DoesNotExist:
                 logger.warning(
                     f"Chat not found during RAG file deletion: chat_id={chat_id}, user={request.user.id}"
@@ -1464,7 +1436,7 @@ class ChatRAGFilesView(View):
                 return JsonResponse({"error": "Chat not found"}, status=404)
 
             try:
-                rag_file = ChatRAGFile.objects.get(
+                rag_file = await sync_to_async(ChatRAGFile.objects.get)(
                     id=file_id, chat=chat, user=request.user
                 )
             except ChatRAGFile.DoesNotExist:
@@ -1478,8 +1450,8 @@ class ChatRAGFilesView(View):
             # Delete the actual file from storage
             if rag_file.file:
                 # Ensure the file exists before trying to delete
-                if default_storage.exists(rag_file.file.name):
-                    default_storage.delete(rag_file.file.name)
+                if await sync_to_async(default_storage.exists)(rag_file.file.name):
+                    await sync_to_async(default_storage.delete)(rag_file.file.name)
                     logger.info(
                         f"Successfully deleted file from storage: {rag_file.file.name}"
                     )
@@ -1490,15 +1462,19 @@ class ChatRAGFilesView(View):
 
             # Delete the ChatRAGFile model instance
             rag_file_name_for_log = rag_file.original_filename
-            rag_file.delete()
+            await sync_to_async(rag_file.delete)()
             logger.info(
                 f"Successfully deleted ChatRAGFile record for '{rag_file_name_for_log}' (ID: {file_id}) from chat {chat_id}"
             )
 
             # After file deletion, clear and rebuild vector index
             try:
-                DocumentChunk.objects.filter(chat_id=chat_id).delete()
-                ChatVectorIndex.objects.filter(chat_id=chat_id).delete()
+                await sync_to_async(
+                    DocumentChunk.objects.filter(chat_id=chat_id).delete
+                )()
+                await sync_to_async(
+                    ChatVectorIndex.objects.filter(chat_id=chat_id).delete
+                )()
                 logger.info(
                     f"Cleared vector index for chat {chat_id} after file deletion"
                 )
