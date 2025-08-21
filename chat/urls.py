@@ -11,10 +11,10 @@ from .views import (
     edit_message,
     generate_flashcards_view,
     get_quiz_html,
+    list_rag_files,
     serve_diagram_image,
     study_hub_view,
     update_chat_title,
-    list_rag_files,
 )
 
 urlpatterns = [

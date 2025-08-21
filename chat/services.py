@@ -103,7 +103,9 @@ class ChatService:
         """Return the RAG files for this chat instance. (Used by Part 2: Manage RAG Context)"""
         try:
             chat = await sync_to_async(Chat.objects.get)(id=chat_id)
-            rag_files = await sync_to_async(list)(chat.rag_files.select_related('user').all())
+            rag_files = await sync_to_async(list)(
+                chat.rag_files.select_related("user").all()
+            )
             return rag_files
         except Chat.DoesNotExist:
             return []
@@ -159,8 +161,6 @@ class ChatService:
             "original_char_count": original_char_count,
             "final_char_count": len(text_content),
         }
-
-
 
     def enforce_token_limit(self, messages, max_tokens=6000):
         from langchain.prompts import PromptTemplate
@@ -366,7 +366,9 @@ class ChatService:
             # For now, let's assume it's okay or needs to be made async separately if it blocks.
             # retrieved_context_val = await sync_to_async(files_rag.retrieve)(query) # Example if it needed wrapping
 
-            retrieved_context_val = await sync_to_async(RAG_pipeline().retrieve_docs)(query, chat_id=chat_id)  # Fixed async call
+            retrieved_context_val = await sync_to_async(RAG_pipeline().retrieve_docs)(
+                query, chat_id=chat_id
+            )  # Fixed async call
             rag_output = retrieved_context_val
             self.logger.info(f"RAG output HERE!!!!!!!!!!! {str(rag_output)[:500]}...")
             if retrieved_context_val:
@@ -441,7 +443,6 @@ class ChatService:
 
         current_messages_copy = [msg.copy() for msg in messages]  # Work with a copy
 
-        
         if await self.get_files_rag(chat_id) and query:
             # Create a history string for better retrieval context
             history_str = "\n".join(
@@ -453,7 +454,9 @@ class ChatService:
             )
 
             rag_files_debug = await self.get_files_rag(chat_id)
-            print(f"Files RAG From inside the services: {len(rag_files_debug)} files found")
+            print(
+                f"Files RAG From inside the services: {len(rag_files_debug)} files found"
+            )
 
             # Pass chat_id to retrieve_docs
             retrieved_docs = await sync_to_async(RAG_pipeline().retrieve_docs)(

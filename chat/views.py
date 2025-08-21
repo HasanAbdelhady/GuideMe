@@ -887,7 +887,9 @@ class ChatStreamView(View):
                             "type"
                         ) == "tokens" or "tokens per minute (TPM)" in error_detail.get(
                             "error", {}
-                        ).get("message", ""):
+                        ).get(
+                            "message", ""
+                        ):
                             user_message = "The request is too large for the model. Please try reducing your message size or shortening the conversation if the history is very long."
                     except json.JSONDecodeError:
                         if "Request too large" in str(
@@ -991,9 +993,7 @@ class ChatStreamView(View):
             )
 
             await sync_to_async(close_old_connections)()
-            await sync_to_async(
-                Message.objects.create
-            )(
+            await sync_to_async(Message.objects.create)(
                 chat=chat,
                 role="assistant",
                 content=message_content,
