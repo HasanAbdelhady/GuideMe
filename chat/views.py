@@ -535,18 +535,6 @@ class ChatStreamView(View):
 
                     yield f"data: {json.dumps({'type': 'done'})}\n\n"
 
-                    # if files_rag_instance:
-                    #     rag_stats = {
-                    #         "file_chunks_used": (
-                    #             len(files_rag_instance.chunks)
-                    #             if files_rag_instance
-                    #             and hasattr(files_rag_instance, "chunks")
-                    #             else 0
-                    #         ),
-                    #     }
-                    #     yield f"data: {json.dumps({'type': 'metadata', 'content': rag_stats})}\n\n"
-                    # return  # End stream for RAG mode
-
                 # --- Agent System Integration (if not in RAG mode) ---
                 logger.info("RAG mode is inactive. Using agent system.")
                 user = await sync_to_async(lambda: chat.user)()
@@ -887,9 +875,7 @@ class ChatStreamView(View):
                             "type"
                         ) == "tokens" or "tokens per minute (TPM)" in error_detail.get(
                             "error", {}
-                        ).get(
-                            "message", ""
-                        ):
+                        ).get("message", ""):
                             user_message = "The request is too large for the model. Please try reducing your message size or shortening the conversation if the history is very long."
                     except json.JSONDecodeError:
                         if "Request too large" in str(
@@ -993,7 +979,9 @@ class ChatStreamView(View):
             )
 
             await sync_to_async(close_old_connections)()
-            await sync_to_async(Message.objects.create)(
+            await sync_to_async(
+                Message.objects.create
+            )(
                 chat=chat,
                 role="assistant",
                 content=message_content,
