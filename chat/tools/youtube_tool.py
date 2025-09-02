@@ -10,8 +10,8 @@ logger = logging.getLogger(__name__)
 
 
 class YouTubeTool(BaseTool):
-    def __init__(self, chat_service):
-        self.chat_service = chat_service
+    def __init__(self, youtube_service):
+        self.youtube_service = youtube_service
 
     @property
     def name(self) -> str:
@@ -70,14 +70,9 @@ class YouTubeTool(BaseTool):
         try:
             logger.info(f"YouTubeTool executing for query: {user_message[:100]}...")
 
-            chat_service = chat_context.get("chat_service")
-            if not chat_service:
-                logger.error("Chat service not available in context")
-                return ToolResult(success=False, error="Chat service not available")
-
             # Pass chat history for context
             chat_history = chat_context.get("messages_for_llm", [])
-            response = await chat_service.get_youtube_agent_response(
+            response = await self.youtube_service.get_agent_response(
                 user_message, chat_history
             )
 
