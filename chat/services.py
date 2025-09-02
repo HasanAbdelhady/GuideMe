@@ -26,6 +26,7 @@ from pydantic import PrivateAttr
 from users.models import CustomUser
 
 from .agent_service import run_youtube_agent
+from .config import get_default_model, get_gemini_model, get_model_config
 from .models import Chat, DiagramImage, Message
 from .preference_service import (
     prompt_code_graphviz,
@@ -43,14 +44,15 @@ FLASHCARD_API_KEY = os.environ.get("FLASHCARD")
 
 # Configure the generative AI model for flashcards
 genai.configure(api_key=FLASHCARD_API_KEY)
-flashcard_model = genai.GenerativeModel("gemini-2.5-flash")
+flashcard_model = genai.GenerativeModel(get_gemini_model())
 
 
 class GroqLangChainLLM(LLM):
-    model: str = "llama3-8b-8192"
+    model: str = get_default_model()
     _client: Any = PrivateAttr()
 
-    def __init__(self, model="llama3-8b-8192", **kwargs):
+    def __init__(self, model=None, **kwargs):
+        model = model or get_default_model()
         super().__init__(model=model, **kwargs)
         self._client = Groq()
 
@@ -349,7 +351,7 @@ class ChatService:
             # For now, assuming it's called in a context that can handle this if it blocks briefly,
             # or that this path is less critical for full async behavior if it's just for the first message.
             completion = (groq_client_local.chat.completions.create)(
-                model="llama3-8b-8192",
+                model=get_default_model(),
                 messages=llm_messages,
                 temperature=temperature,
                 max_tokens=max_tokens,
@@ -397,7 +399,7 @@ class ChatService:
 
         # Wrap the synchronous SDK call
         completion = await sync_to_async(groq_client_local.chat.completions.create)(
-            model="llama3-8b-8192",
+            model=get_default_model(),
             messages=trimmed_messages,
             temperature=temperature,
             max_tokens=max_tokens,
@@ -434,7 +436,7 @@ class ChatService:
             ]
 
             return groq_client_local.chat.completions.create(  # Keeping this sync as it returns a generator
-                model="llama3-8b-8192",
+                model=get_default_model(),
                 messages=llm_messages,
                 temperature=0.7,
                 max_tokens=max_tokens,
@@ -492,7 +494,7 @@ class ChatService:
 
         # 3. Generate the streaming response
         return groq_client_local.chat.completions.create(
-            model="llama3-8b-8192",
+            model=get_default_model(),
             messages=trimmed_messages,
             temperature=0.7,
             max_tokens=max_tokens,

@@ -29,6 +29,7 @@ from pydantic import BaseModel
 
 from .agent_system import ChatAgentSystem
 from .ai_models import AIService
+from .config import get_gemini_model
 from .models import (
     Chat,
     ChatRAGFile,
@@ -39,9 +40,59 @@ from .models import (
 )
 from .preference_service import PreferenceService
 from .rag import RAG_pipeline
-from .services import ChatService
+from .services import (
+    AICompletionServiceInterface,
+    FileProcessingServiceInterface,
+    MessageServiceInterface,
+    QuizServiceInterface,
+    RAGServiceInterface,
+    YouTubeServiceInterface,
+    get_service,
+    setup_services,
+)
 
-chat_service = ChatService()
+# Initialize services with dependency injection
+setup_services()
+
+
+# Create legacy chat service adapter for backward compatibility
+class LegacyChatServiceAdapter:
+    """Adapter to maintain backward compatibility with existing code"""
+
+    def __init__(self):
+        self.file_processing = get_service(FileProcessingServiceInterface)
+        self.message = get_service(MessageServiceInterface)
+        self.ai_completion = get_service(AICompletionServiceInterface)
+        self.youtube = get_service(YouTubeServiceInterface)
+        self.rag = get_service(RAGServiceInterface)
+
+    def extract_text_from_uploaded_file(self, *args, **kwargs):
+        return self.file_processing.extract_text_from_uploaded_file(*args, **kwargs)
+
+    def create_message(self, *args, **kwargs):
+        return self.message.create_message(*args, **kwargs)
+
+    def get_chat_history(self, *args, **kwargs):
+        return self.message.get_chat_history(*args, **kwargs)
+
+    def update_chat_title(self, *args, **kwargs):
+        return self.message.update_chat_title(*args, **kwargs)
+
+    async def get_completion(self, *args, **kwargs):
+        return await self.ai_completion.get_completion(*args, **kwargs)
+
+    async def stream_completion(self, *args, **kwargs):
+        return await self.ai_completion.stream_completion(*args, **kwargs)
+
+    async def get_youtube_agent_response(self, *args, **kwargs):
+        return await self.youtube.get_agent_response(*args, **kwargs)
+
+    async def get_files_rag(self, *args, **kwargs):
+        return await self.rag.get_files_rag(*args, **kwargs)
+
+
+# Create service instances
+chat_service = LegacyChatServiceAdapter()
 ai_service = AIService()
 agent_system = ChatAgentSystem(chat_service, ai_service)
 
@@ -55,7 +106,7 @@ FLASHCARD_API_KEY = os.environ.get("FLASHCARD")
 
 # Configure the generative AI model for flashcards
 genai.configure(api_key=FLASHCARD_API_KEY)
-flashcard_model = genai.GenerativeModel("gemini-2.5-flash")
+flashcard_model = genai.GenerativeModel(get_gemini_model())
 
 
 def custom_404_view(request, exception):
@@ -534,18 +585,7 @@ class ChatStreamView(View):
                         )
 
                     yield f"data: {json.dumps({'type': 'done'})}\n\n"
-
-                    # if files_rag_instance:
-                    #     rag_stats = {
-                    #         "file_chunks_used": (
-                    #             len(files_rag_instance.chunks)
-                    #             if files_rag_instance
-                    #             and hasattr(files_rag_instance, "chunks")
-                    #             else 0
-                    #         ),
-                    #     }
-                    #     yield f"data: {json.dumps({'type': 'metadata', 'content': rag_stats})}\n\n"
-                    # return  # End stream for RAG mode
+                    return  # Exit here for RAG mode, don't continue to agent system
 
                 # --- Agent System Integration (if not in RAG mode) ---
                 logger.info("RAG mode is inactive. Using agent system.")
@@ -1094,8 +1134,9 @@ def create_chat(request):
                 title=message[:30] + "..." if len(message) > 30 else message,
             )
 
-            # Create initial message
-            Message.objects.create(chat=chat, content=message.strip(), role="user")
+            # Create initial message using the service
+            message_service = get_service(MessageServiceInterface)
+            message_service.create_message(chat, "user", message.strip())
 
             return JsonResponse(
                 {
@@ -1178,9 +1219,10 @@ def chat_quiz(request, chat_id):
             for msg in chat.messages.all().order_by("created_at")
         ]
 
-        # Call the refactored service function
-        quiz_data = async_to_sync(chat_service.generate_quiz)(
-            chat_history_messages=history_messages, chat_id=chat.id
+        # Use the new quiz service
+        quiz_service = get_service(QuizServiceInterface)
+        quiz_data = async_to_sync(quiz_service.generate_quiz)(
+            chat_history_messages=history_messages, chat_id=str(chat.id)
         )
 
         if quiz_data.get("error"):
@@ -1198,7 +1240,8 @@ def chat_quiz(request, chat_id):
         logger.error(f"Quiz generation call failed: {str(e)}", exc_info=True)
         return JsonResponse({"error": f"Quiz generation failed: {str(e)}"}, status=500)
 
-    # Save as a quiz message with properly separated content
+    # Save as a quiz message with properly separated content using the service
+    message_service = get_service(MessageServiceInterface)
     quiz_msg = Message.objects.create(
         chat=chat,
         role="assistant",
@@ -1211,7 +1254,7 @@ def chat_quiz(request, chat_id):
     try:
         from .tools.quiz_tool import QuizTool
 
-        quiz_tool = QuizTool(chat_service)
+        quiz_tool = QuizTool(quiz_service)
         async_to_sync(quiz_tool._save_quiz_to_question_bank)(
             quiz_data={"quiz_html": processed_quiz_html},
             chat=chat,
