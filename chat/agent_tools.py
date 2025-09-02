@@ -18,10 +18,12 @@ from langchain.prompts import PromptTemplate
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_groq import ChatGroq
 
+from .config import get_default_model
+
 load_dotenv(".env")
 
 # Initialize LLM
-llm = ChatGroq(model="llama3-8b-8192", temperature=0.3)
+llm = ChatGroq(model=get_default_model(), temperature=0.3)
 
 # Function to Download and Transcribe video and summarize text
 
@@ -288,7 +290,9 @@ def recommend_videos(user_query, chat_history):
             """
 
             try:
-                llm = ChatGroq(model="llama3-8b-8192", temperature=0.5, max_retries=3)
+                llm = ChatGroq(
+                    model=get_default_model(), temperature=0.5, max_retries=3
+                )
 
                 response = llm.invoke(prompt_text)
 
