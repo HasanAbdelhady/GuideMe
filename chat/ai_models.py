@@ -4,6 +4,8 @@ import os
 import google.generativeai as genai
 from groq import Groq
 
+from .config import get_default_model
+
 logger = logging.getLogger(__name__)
 
 # Configure Gemini at the module level
@@ -159,8 +161,8 @@ class AIService:
 class AIModelManager:
     def __init__(self):
         self.client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
-        self.default_model = "llama3-8b-8192"
-        self.quiz_model = "llama-3.3-70b-versatile"
+        self.default_model = get_default_model()
+        self.quiz_model = get_default_model()
 
     def get_chat_completion(self, messages, stream=True, model=None, preferences=None):
         try:
