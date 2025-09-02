@@ -2000,15 +2000,22 @@ document.addEventListener("DOMContentLoaded", function () {
   function renderRAGFilesList(files) {
     if (!ragFilesListDiv || !noRagFilesMessage) return;
     currentRAGFiles = files;
-    ragFilesListDiv.innerHTML = "";
-    if (files.length === 0) {
+    
+    // Clear only the actual files, not the uploading files container
+    const existingFiles = ragFilesListDiv.querySelectorAll('.rag-file-item');
+    existingFiles.forEach(file => file.remove());
+    
+    const uploadingFilesList = document.getElementById("uploading-files-list");
+    const hasUploadingFiles = uploadingFilesList && uploadingFilesList.children.length > 0;
+    
+    if (files.length === 0 && !hasUploadingFiles) {
       noRagFilesMessage.classList.remove("hidden");
     } else {
       noRagFilesMessage.classList.add("hidden");
       files.forEach((file) => {
         const fileEl = document.createElement("div");
         fileEl.className =
-          "flex items-center justify-between bg-gray-700 p-2 rounded-md text-sm hover:bg-gray-600/80 transition-colors";
+          "rag-file-item flex items-center justify-between bg-gray-700 p-2 rounded-md text-sm hover:bg-gray-600/80 transition-colors";
         fileEl.innerHTML = `
           <span class=\"text-gray-200 truncate max-w-[80%]\" title=\"${file.name}\">${file.name}</span>
           <button class=\"delete-rag-file-btn p-1 text-red-400 hover:text-red-300 rounded-full focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50\" data-file-id=\"${file.id}\" title=\"Remove from RAG context\">
@@ -2078,6 +2085,82 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   }
 
+  // Helper function to show upload loading state
+  function showUploadingFile(fileName) {
+    const uploadingFilesList = document.getElementById("uploading-files-list");
+    const noFilesMessage = document.getElementById("no-rag-files-message");
+    
+    if (!uploadingFilesList) return;
+    
+    // Hide the "no files" message if it's visible
+    if (noFilesMessage && currentRAGFiles.length === 0) {
+      noFilesMessage.classList.add("hidden");
+    }
+    
+    const uploadingItem = document.createElement("div");
+    uploadingItem.id = `uploading-${fileName.replace(/[^a-zA-Z0-9]/g, '_')}`;
+    uploadingItem.className = "p-3 bg-blue-600/20 border border-blue-500/30 rounded-md";
+    uploadingItem.innerHTML = `
+      <div class="flex items-center justify-between mb-2">
+        <div class="flex items-center space-x-2">
+          <svg class="animate-spin h-4 w-4 text-blue-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          <span class="text-sm text-blue-300 truncate font-medium">${fileName}</span>
+        </div>
+        <span class="text-xs text-blue-400 bg-blue-600/30 px-2 py-1 rounded">Uploading...</span>
+      </div>
+      <div class="w-full bg-gray-700 rounded-full h-2">
+        <div class="bg-blue-500 h-2 rounded-full animate-pulse" style="width: 60%; animation: uploadProgress 2s ease-in-out infinite;"></div>
+      </div>
+    `;
+    
+    uploadingFilesList.appendChild(uploadingItem);
+  }
+  
+  // Helper function to remove upload loading state
+  function hideUploadingFile(fileName) {
+    const uploadingFilesList = document.getElementById("uploading-files-list");
+    const noFilesMessage = document.getElementById("no-rag-files-message");
+    
+    if (!uploadingFilesList) return;
+    
+    const uploadingItem = document.getElementById(`uploading-${fileName.replace(/[^a-zA-Z0-9]/g, '_')}`);
+    if (uploadingItem) {
+      uploadingItem.remove();
+    }
+    
+    // Show "no files" message if no files and no uploads in progress
+    if (noFilesMessage && currentRAGFiles.length === 0 && uploadingFilesList.children.length === 0) {
+      noFilesMessage.classList.remove("hidden");
+    }
+  }
+  
+  // Helper function to set button loading state
+  function setUploadButtonLoading(isLoading) {
+    const uploadBtn = document.getElementById("upload-rag-file-btn");
+    const btnText = document.getElementById("upload-btn-text");
+    const spinner = document.getElementById("upload-spinner");
+    const fileInput = document.getElementById("rag-file-input");
+    
+    if (!uploadBtn || !btnText || !spinner || !fileInput) return;
+    
+    if (isLoading) {
+      uploadBtn.disabled = true;
+      fileInput.disabled = true;
+      btnText.textContent = "Uploading...";
+      spinner.classList.remove("hidden");
+      uploadBtn.classList.add("cursor-not-allowed");
+    } else {
+      uploadBtn.disabled = false;
+      fileInput.disabled = false;
+      btnText.textContent = "Add to RAG";
+      spinner.classList.add("hidden");
+      uploadBtn.classList.remove("cursor-not-allowed");
+    }
+  }
+
   async function handleRAGFileUpload() {
     if (isNewChat || !currentChatId || currentChatId === "new") return;
     const file = ragFileInput.files[0];
@@ -2089,6 +2172,10 @@ document.addEventListener("DOMContentLoaded", function () {
       return;
     }
     console.log("Uploading RAG file:", file.name, "for chat:", currentChatId);
+
+    // Show loading states
+    setUploadButtonLoading(true);
+    showUploadingFile(file.name);
 
     const formData = new FormData();
     formData.append("file", file);
@@ -2122,7 +2209,7 @@ document.addEventListener("DOMContentLoaded", function () {
       if (data.success && data.file) {
         appendSystemNotification(
           `Successfully added '${data.file.name}' to context.`,
-          "info",
+          "success",
         );
         fetchRAGFiles(); // Refresh the list
       } else {
@@ -2133,9 +2220,12 @@ document.addEventListener("DOMContentLoaded", function () {
     } catch (error) {
       console.error("Error uploading RAG file:", error);
       appendSystemNotification(`Upload failed: ${error.message}`, "error");
+    } finally {
+      // Always clean up loading states
+      setUploadButtonLoading(false);
+      hideUploadingFile(file.name);
+      ragFileInput.value = ""; // Clear the input
     }
-
-    ragFileInput.value = ""; // Clear the input
   }
 
   async function handleDeleteRAGFile(fileId) {
