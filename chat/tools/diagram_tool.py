@@ -9,8 +9,8 @@ logger = logging.getLogger(__name__)
 
 
 class DiagramTool(BaseTool):
-    def __init__(self, chat_service):
-        self.chat_service = chat_service
+    def __init__(self, diagram_service):
+        self.diagram_service = diagram_service
 
     @property
     def name(self) -> str:
@@ -70,11 +70,11 @@ class DiagramTool(BaseTool):
         try:
             logger.info(f"DiagramTool executing for query: {user_message[:100]}...")
 
-            diagram_id = await self.chat_service.generate_diagram_image(
+            diagram_id = await self.diagram_service.generate_diagram_image(
                 chat_history_messages=chat_context.get("messages_for_llm", []),
                 user_query=user_message,
-                chat_id=chat_context["chat"].id,
-                user_id=chat_context["user"].id,
+                chat_id=str(chat_context["chat"].id),
+                user_id=str(chat_context["user"].id),
             )
 
             if diagram_id:
