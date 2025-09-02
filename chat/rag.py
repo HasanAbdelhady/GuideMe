@@ -11,15 +11,17 @@ from pgvector.django import CosineDistance
 
 from chat.models import ChatRAGFile
 
+from .config import get_default_model
+
 BASE_DIR = Path(os.path.dirname(os.path.abspath(__file__)))
 env_path = os.path.join(BASE_DIR, ".env")
 load_dotenv(env_path)
 
 
 class RAG_pipeline:
-    def __init__(self, embedding_model_name="all-MiniLM-L6-v2", model="llama3-8b-8192"):
+    def __init__(self, embedding_model_name="all-MiniLM-L6-v2", model=None):
         self.embedding_model_name = embedding_model_name
-        self.model = model
+        self.model = model or get_default_model()
         # Replace FAISS with None since we're using PostgreSQL
         self.vectorstore = None
         self.retriever = None
@@ -30,9 +32,15 @@ class RAG_pipeline:
         # Use Hugging Face Inference API instead of local model to avoid heavy deps (torch/sentence-transformers)
         api_token = os.getenv("HUGGINGFACEHUB_API_TOKEN")
         if not api_token:
-            raise ValueError(
-                "HUGGINGFACEHUB_API_TOKEN is not set. Create a token at https://huggingface.co/settings/tokens and set it in your environment/.env."
+            print(
+                "WARNING: HUGGINGFACEHUB_API_TOKEN is not set. RAG functionality will not work properly."
             )
+            print(
+                "Create a token at https://huggingface.co/settings/tokens and set it in your environment/.env."
+            )
+            # Don't raise an error, just warn and continue with a dummy embeddings object
+            self.embeddings = None
+            return
 
         # Accept either bare model name (e.g., "all-MiniLM-L6-v2") or full repo id
         model_id = (
@@ -197,10 +205,20 @@ class RAG_pipeline:
         if not chat_id:
             return []
 
+        if not self.embeddings:
+            print(
+                "ERROR: Cannot retrieve documents - embeddings not initialized (missing HuggingFace token)"
+            )
+            return []
+
         from .models import DocumentChunk
 
-        # Generate embedding for the query
-        query_embedding = self.embeddings.embed_query(query)
+        try:
+            # Generate embedding for the query
+            query_embedding = self.embeddings.embed_query(query)
+        except Exception as e:
+            print(f"ERROR: Failed to generate query embedding: {e}")
+            return []
 
         # Perform vector similarity search using PostgreSQL
         chunks = (

@@ -13,8 +13,8 @@ logger = logging.getLogger(__name__)
 
 
 class QuizTool(BaseTool):
-    def __init__(self, chat_service):
-        self.chat_service = chat_service
+    def __init__(self, quiz_service):
+        self.quiz_service = quiz_service
 
     @property
     def name(self) -> str:
@@ -27,14 +27,16 @@ class QuizTool(BaseTool):
     @property
     def triggers(self) -> List[str]:
         return [
-            "quiz",
-            "test",
-            "question",
-            "practice",
+            "create quiz",
+            "make quiz",
+            "generate quiz",
+            "quiz me",
+            "test me",
             "check understanding",
             "assess me",
             "make questions",
             "test my knowledge",
+            "practice questions",
         ]
 
     async def can_handle(
@@ -42,7 +44,21 @@ class QuizTool(BaseTool):
     ) -> float:
         message_lower = user_message.lower()
 
-        # High confidence triggers
+        # First, check for exclusion patterns (things that should NOT trigger quiz generation)
+        exclusion_patterns = [
+            r"explain.*question",
+            r"what.*mean",
+            r"help.*with",
+            r"clarify",
+            r"understand.*question",
+            r"answer.*question",
+        ]
+
+        for pattern in exclusion_patterns:
+            if re.search(pattern, message_lower):
+                return 0.0  # Explicitly exclude these
+
+        # High confidence triggers - explicit quiz creation requests
         high_confidence_patterns = [
             r"(create|make|generate)\s+(a\s+)?(quiz|test|questions?)",
             r"test\s+(my\s+)?(knowledge|understanding)",
@@ -54,14 +70,31 @@ class QuizTool(BaseTool):
             if re.search(pattern, message_lower):
                 return 0.9
 
-        # Medium confidence triggers
-        if any(trigger in message_lower for trigger in self.triggers):
+        # Medium confidence triggers - only if they're action-oriented
+        action_oriented_triggers = [
+            "create quiz",
+            "make quiz",
+            "generate quiz",
+            "quiz me",
+            "test me",
+            "assess me",
+            "make questions",
+            "test my knowledge",
+            "practice questions",
+        ]
+
+        if any(trigger in message_lower for trigger in action_oriented_triggers):
             return 0.7
 
-        # Assessment context
+        # Low confidence for assessment context only if not asking for explanation
         assessment_keywords = ["practice", "review", "study", "prepare"]
         if any(keyword in message_lower for keyword in assessment_keywords):
-            return 0.5
+            # But not if they're asking for explanation
+            if not any(
+                word in message_lower
+                for word in ["explain", "what", "how", "why", "clarify"]
+            ):
+                return 0.4
 
         return 0.0
 
@@ -71,11 +104,10 @@ class QuizTool(BaseTool):
         try:
             logger.info(f"QuizTool executing for query: {user_message[:100]}...")
 
-            quiz_data = await self.chat_service.generate_quiz_from_query(
+            quiz_data = await self.quiz_service.generate_quiz_from_query(
                 chat_history_messages=chat_context.get("messages_for_llm", []),
                 user_query=user_message,
-                chat_id=chat_context["chat"].id,
-                user_id=chat_context["user"].id,
+                chat_id=str(chat_context["chat"].id),
             )
 
             if quiz_data and quiz_data.get("quiz_html"):

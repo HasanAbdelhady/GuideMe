@@ -4,6 +4,13 @@ import logging
 from typing import Any, Dict, List, Optional, Tuple
 
 from .ai_models import AIService
+from .services import (
+    DiagramServiceInterface,
+    QuizServiceInterface,
+    YouTubeServiceInterface,
+    get_service,
+    setup_services,
+)
 from .tools import (
     BaseTool,
     DiagramTool,
@@ -20,15 +27,22 @@ class ChatAgentSystem:
     """Intelligent agent system that coordinates tools and decides when to use them"""
 
     def __init__(self, chat_service, ai_service: AIService):
+        """
+        Initialize with legacy chat service for backward compatibility.
+        The tools will use the new service structure internally.
+        """
         self.chat_service = chat_service
         self.ai_service = ai_service
 
-        # Initialize all tools
+        # Ensure services are set up
+        setup_services()
+
+        # Initialize all tools with new services
         self.tools: List[BaseTool] = [
-            DiagramTool(chat_service),
-            YouTubeTool(chat_service),
-            QuizTool(chat_service),
-            FlashcardTool(ai_service),
+            DiagramTool(get_service(DiagramServiceInterface)),
+            YouTubeTool(get_service(YouTubeServiceInterface)),
+            QuizTool(get_service(QuizServiceInterface)),
+            FlashcardTool(ai_service),  # Keep as is for now
         ]
 
         # Tool selection parameters
