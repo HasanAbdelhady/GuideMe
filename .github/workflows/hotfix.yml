@@ -111,7 +111,7 @@ jobs:
 
     steps:
       - name: Manual approval required
-        uses: actions/github-script@v6
+        uses: actions/github-script@v8
         with:
           script: |
             const { data: issue } = await github.rest.issues.create({
@@ -147,7 +147,7 @@ jobs:
 
       - name: Wait for approval
         id: wait-approval
-        uses: actions/github-script@v6
+        uses: actions/github-script@v8
         timeout-minutes: 30
         with:
           script: |
@@ -198,7 +198,7 @@ jobs:
           curl -f https://guideme-eg.duckdns.org/health/ || exit 1
 
       - name: Create emergency deployment record
-        uses: actions/github-script@v6
+        uses: actions/github-script@v8
         with:
           script: |
             await github.rest.issues.create({
@@ -267,7 +267,7 @@ jobs:
           fi
 
       - name: Create rollback issue
-        uses: actions/github-script@v6
+        uses: actions/github-script@v8
         with:
           script: |
             await github.rest.issues.create({
