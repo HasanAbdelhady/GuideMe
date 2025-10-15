@@ -27,7 +27,7 @@ class AIService:
 
     def __init__(self):
         self.client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
-        self.default_model = "gemma2-9b-it"
+        self.default_model = "openai/gpt-oss-120b"
         # Initialize vision model if API key is available
         if FLASHCARD_API_KEY:
             self.vision_model = genai.GenerativeModel("gemini-1.5-flash-latest")

@@ -1,27 +1,37 @@
+# Production Self-Hosted Setup (NOT for Railway)
+# Railway uses Dockerfile directly
 version: "3.8"
 
 services:
   web:
     build: .
-    command: gunicorn chatgpt.wsgi:application --bind 0.0.0.0:8000
+    command: gunicorn chatgpt.wsgi:application --bind 0.0.0.0:8000 --workers 3 --threads 2 --timeout 60
     volumes:
       - static_volume:/app/staticfiles
       - media_volume:/app/media
     expose:
       - 8000
     env_file:
-      - ./.env
+      - .env
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+    restart: unless-stopped
 
   db:
     image: pgvector/pgvector:pg17
     volumes:
-      - postgres_data:/var/lib/postgresql/data/
+      - postgres_data:/var/lib/postgresql/data
     environment:
-      - POSTGRES_DB=${POSTGRES_DB}
-      - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
 
   nginx:
     build: ./nginx
@@ -32,6 +42,7 @@ services:
       - "80:80"
     depends_on:
       - web
+    restart: unless-stopped
 
 volumes:
   postgres_data:
