@@ -1,4 +1,5 @@
 .qodo
+.env.docker
 .env
 db.sqlite3
 __pycache__
