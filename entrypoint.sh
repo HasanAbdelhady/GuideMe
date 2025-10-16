@@ -3,6 +3,9 @@ set -e
 
 echo "🚀 Starting GuideMe application..."
 
+# Set Django settings module
+export DJANGO_SETTINGS_MODULE=chatgpt.settings
+
 # Wait for database to be ready (Railway PostgreSQL)
 echo "⏳ Waiting for database..."
 python << END
