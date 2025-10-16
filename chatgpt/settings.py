@@ -212,14 +212,18 @@ STATICFILES_DIRS = [
 ]
 
 # WhiteNoise configuration (Django 4.2+ format)
+# Use CompressedStaticFilesStorage instead of Manifest version to avoid missing manifest errors
 STORAGES = {
     "default": {
         "BACKEND": "django.core.files.storage.FileSystemStorage",
     },
     "staticfiles": {
-        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+        "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
     },
 }
+
+# WhiteNoise settings for production
+WHITENOISE_AUTOREFRESH = DEBUG  # Auto-refresh in development only
 
 
 # Session Security Settings - ChatGPT-like UX with 1-year sessions
