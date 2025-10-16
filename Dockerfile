@@ -12,7 +12,7 @@ WORKDIR /app
 
 # Install system dependencies
 RUN ["apt-get", "update"]
-RUN ["apt-get", "install", "-y", "--no-install-recommends", "graphviz"]
+RUN ["apt-get", "install", "-y", "--no-install-recommends", "graphviz", "curl"]
 RUN ["apt-get", "clean"]
 RUN ["rm", "-rf", "/var/lib/apt/lists/*"]
 
@@ -29,9 +29,9 @@ RUN ["chmod", "+x", "/app/entrypoint.sh"]
 # Expose port (Railway will override with PORT env var)
 EXPOSE 8000
 
-# Health check
+# Health check (using curl instead of requests library)
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
-    CMD python -c "import requests; requests.get('http://localhost:8000/health/', timeout=5)" || exit 1
+    CMD curl -f http://localhost:8000/ || exit 1
 
 # Run application via entrypoint
 ENTRYPOINT ["/app/entrypoint.sh"]

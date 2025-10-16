@@ -77,7 +77,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
-    "whitenoise.middleware.WhiteNoiseMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",  # Must be after SecurityMiddleware
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -210,8 +210,22 @@ MEDIA_ROOT = BASE_DIR / "media"
 
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
-# Enable WhiteNoise compressed manifest storage for production
-STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+
+# Additional static files directories (for app-specific static files)
+STATICFILES_DIRS = [
+    BASE_DIR / "chat" / "static",
+    BASE_DIR / "users" / "static",
+]
+
+# WhiteNoise configuration (Django 4.2+ format)
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
 
 
 # Session Security Settings - ChatGPT-like UX with 1-year sessions
