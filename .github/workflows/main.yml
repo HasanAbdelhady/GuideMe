@@ -149,18 +149,20 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Deploy to Railway
-        if: ${{ secrets.RAILWAY_TOKEN != '' }}
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
         run: |
+          if [ -z "$RAILWAY_TOKEN" ]; then
+            echo "⚠️  RAILWAY_TOKEN not set, skipping deployment"
+            exit 0
+          fi
           curl -fsSL https://railway.app/install.sh | sh
           export PATH="$HOME/.railway/bin:$PATH"
           railway login --token $RAILWAY_TOKEN
           railway up --detach
 
       - name: Health Check
-        if: ${{ secrets.RAILWAY_TOKEN != '' }}
         run: |
           sleep 60
-          curl -f https://guideme-eg.duckdns.org/health/ || echo "Health check endpoint not available"
+          curl -f https://guideme-eg.duckdns.org/health/ || echo "⚠️  Health check endpoint not available"
 
