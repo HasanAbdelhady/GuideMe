@@ -120,21 +120,15 @@ TEMPLATES = [
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 if DATABASE_URL:
-    tmpPostgres = urlparse(DATABASE_URL)
+    # Use dj-database-url to properly parse DATABASE_URL (handles query params)
+    import dj_database_url
+
     DATABASES = {
-        "default": {
-            "ENGINE": "django.db.backends.postgresql",
-            # Use lstrip instead of replace
-            "NAME": tmpPostgres.path.lstrip("/"),
-            "USER": tmpPostgres.username,
-            "PASSWORD": tmpPostgres.password,
-            "HOST": tmpPostgres.hostname,
-            "PORT": tmpPostgres.port or 5432,
-            "CONN_MAX_AGE": 0,
-            "OPTIONS": {
-                "connect_timeout": 10,
-            },
-        }
+        "default": dj_database_url.config(
+            default=DATABASE_URL,
+            conn_max_age=0,
+            conn_health_checks=True,
+        )
     }
 else:
     # Fallback to SQLite for local development

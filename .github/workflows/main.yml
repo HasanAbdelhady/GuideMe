@@ -9,7 +9,9 @@ on:
 
 permissions:
   contents: write
+  packages: write
   security-events: write
+  actions: read
 
 env:
   PYTHON_VERSION: "3.13"
@@ -147,6 +149,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Deploy to Railway
+        if: secrets.RAILWAY_TOKEN != ''
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
         run: |
@@ -156,6 +159,7 @@ jobs:
           railway up --detach
 
       - name: Health Check
+        if: secrets.RAILWAY_TOKEN != ''
         run: |
           sleep 60
           curl -f https://guideme-eg.duckdns.org/health/ || echo "Health check endpoint not available"
