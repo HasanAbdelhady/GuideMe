@@ -1,0 +1,82 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{titlesec}
+\usepackage{graphicx}
+\usepackage{array}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+
+\setlist{nosep,leftmargin=1.1em}
+\titlespacing*{\section}{0pt}{0.6em}{0.3em}
+\titlespacing*{\subsection}{0pt}{0.5em}{0.25em}
+\setlength{\parskip}{0.3em}
+\setlength{\parindent}{0pt}
+
+\begin{document}
+
+{\LARGE \textbf{GuideMe: AI-Powered Study Companion}}\\[-0.2em]
+\textit{Personalized guidance, interactive diagrams, flashcards, and RAG-backed learning.}\\[0.6em]
+
+\section*{Purpose \& Value}
+GuideMe helps learners understand complex topics faster through conversational AI, on-demand visualizations (diagrams), and spaced-repetition flashcards. It blends chat-based assistance with retrieval-augmented generation (RAG) to ground answers in relevant sources, improving accuracy and trust. The goal is to turn passive reading into active, guided learning—summarize, visualize, quiz, and retain.
+
+\section*{Core Features}
+\begin{itemize}
+  \item \textbf{Conversational Tutor}: Natural language chat that explains, summarizes, and explores topics step-by-step.
+  \item \textbf{Diagram Generation}: Automatically creates Graphviz-based diagrams from descriptions to visualize systems \& flows.
+  \item \textbf{Flashcards \& Quizzes}: Generate flashcards and quick quizzes from content to reinforce knowledge.
+  \item \textbf{RAG (Retrieval-Augmented Generation)}: Pulls from user-provided or referenced documents to ground responses.
+  \item \textbf{YouTube Ingestion}: Extracts and summarizes educational videos into study-ready notes and memory aids.
+  \item \textbf{Study Hub}: Centralized workspace with chat history, flashcards, quizzes, and curated resources.
+  \item \textbf{Inline Code/Diagrams}: Rich messages with code blocks, images, and structured content.
+\end{itemize}
+
+\section*{System Architecture \& Technologies}
+\begin{tabular}{p{0.28\linewidth} p{0.68\linewidth}}
+\textbf{Frontend/UI} & Django templates, Vanilla JS (dynamic chat, streaming), CSS for theming \\
+\textbf{Backend} & Django (Python), Django REST where needed; streaming responses via HTTP chunking \\
+\textbf{LLM Orchestration} & Tool-based agent system for choosing actions (e.g., diagram generator, flashcards) \\
+\textbf{AI Models} & Groq API for chat completions; Google Gemini (e.g., \texttt{gemini-2.5-flash}) for structured tasks/vision \\
+\textbf{RAG} & Document chunking \& retrieval; vector indexing for semantic lookups \\
+\textbf{Storage/DB} & PostgreSQL (Neon in production); media storage for generated diagrams \\
+\textbf{Diagrams} & Graphviz (via \texttt{graphviz} Python package; \texttt{dot} binaries) \\
+\textbf{Auth} & Django auth + Allauth (Google sign-in support) \\
+\textbf{Security} & CSRF, session hardening, HTTPS, static file integrity via WhiteNoise \\
+\textbf{Static Assets} & WhiteNoise (compressed static files), collectstatic in entrypoint \\
+\end{tabular}
+
+\section*{Deployment \& DevOps}
+\begin{itemize}
+  \item \textbf{Containerization}: Docker (Python slim base, system deps for Graphviz).
+  \item \textbf{Platform}: Railway (serverless mode enabled, builds from repo).
+  \item \textbf{CI/CD}: GitHub Actions (lint, test, security scan, image build); Railway auto-deploys from main.
+  \item \textbf{Runtime}: Gunicorn (workers/threads tuned), health checks, entrypoint runs migrations \& collectstatic.
+\end{itemize}
+
+\section*{Security \& Privacy}
+\begin{itemize}
+  \item Environment-based secrets, least-privilege tokens, dependency scanning.
+  \item Session security (secure cookies, same-site), CSRF protection.
+  \item RAG respects document boundaries; no data persisted beyond intended scope.
+\end{itemize}
+
+\section*{Typical Workflow}
+\begin{enumerate}
+  \item User asks a question or provides content (PDF/YouTube).
+  \item Agent chooses tools: retrieve context (RAG), generate explanation, optionally create diagram.
+  \item System returns a structured response with text, code/diagram, and suggested flashcards.
+  \item User saves flashcards/quizzes and revisits via Study Hub.
+\end{enumerate}
+
+\section*{Why GuideMe}
+\textbf{Guided understanding} (diagrams), \textbf{grounded answers} (RAG), and \textbf{memory reinforcement} (flashcards)---in one streamlined study companion.
+
+\vfill
+\footnotesize{
+Tech stack: Django, PostgreSQL (Neon), Graphviz, Groq LLMs, Google Gemini (\texttt{gemini-2.5-flash}), WhiteNoise, Docker, Railway, GitHub Actions.
+}
+
+\end{document}

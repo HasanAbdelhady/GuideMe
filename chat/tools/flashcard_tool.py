@@ -22,7 +22,7 @@ try:
     if FLASHCARD_API_KEY:
         genai.configure(api_key=FLASHCARD_API_KEY)
         # Using a fast and capable model for this task
-        gemini_model = genai.GenerativeModel("gemini-1.5-flash")
+        gemini_model = genai.GenerativeModel("gemini-2.5-flash")
     else:
         gemini_model = None
         logger.warning(

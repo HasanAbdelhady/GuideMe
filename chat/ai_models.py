@@ -30,7 +30,7 @@ class AIService:
         self.default_model = "openai/gpt-oss-120b"
         # Initialize vision model if API key is available
         if FLASHCARD_API_KEY:
-            self.vision_model = genai.GenerativeModel("gemini-1.5-flash-latest")
+            self.vision_model = genai.GenerativeModel("gemini-2.5-flash")
         else:
             self.vision_model = None
 
