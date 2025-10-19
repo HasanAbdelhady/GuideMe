@@ -1,4 +1,4 @@
-# 🎓 MentorAI - Intelligent Learning Assistant
+# 🎓 GuideMe - Intelligent Learning Assistant
 
 [![Django](https://img.shields.io/badge/Django-5.2-092E20?style=flat&logo=django&logoColor=white)](https://djangoproject.com/)
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat&logo=python&logoColor=white)](https://python.org/)
@@ -6,7 +6,7 @@
 [![Railway](https://img.shields.io/badge/Deployed%20on-Railway-0B0D0E?style=flat&logo=railway&logoColor=white)](https://railway.app/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-**MentorAI** is an advanced AI-powered learning assistant that provides personalized educational support through interactive conversations, intelligent tools, and adaptive learning features. Built with Django and powered by multiple AI models, it offers a comprehensive learning experience tailored to individual user preferences.
+**GuideMe** is an advanced AI-powered learning assistant that provides personalized educational support through interactive conversations, intelligent tools, and adaptive learning features. Built with Django and powered by multiple AI models, it offers a comprehensive learning experience tailored to individual user preferences.
 
 ## 🌐 Live Demo
 
@@ -295,8 +295,8 @@ hotfix/* → manual approval → production deployment
 1. **Clone the Repository**
 
 ```bash
-git clone https://github.com/HasanAbdelhady/MentorAI.git
-cd MentorAI
+git clone https://github.com/HasanAbdelhady/GuideMe.git
+cd GuideMe
 ```
 
 2. **Create Virtual Environment**
@@ -320,10 +320,10 @@ pip install -r requirements-dev.txt
 
 ```bash
 # Install PostgreSQL and create database
-createdb mentorai_dev
+createdb guideme_dev
 
 # Install pgvector extension
-psql mentorai_dev -c "CREATE EXTENSION vector;"
+psql guideme_dev -c "CREATE EXTENSION vector;"
 ```
 
 5. **Environment Configuration**
@@ -583,11 +583,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **Railway** for seamless deployment platform
 - **Django Community** for the excellent web framework
 - **PostgreSQL Team** for the robust database system
-
-## 📞 Support
-
-For support, email support@mentorai.com or create an issue on GitHub.
-
----
 
 **Made with ❤️ for learners worldwide**
